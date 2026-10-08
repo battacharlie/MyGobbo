@@ -76,6 +76,19 @@ Nei nomi dei file e dei collegamenti l'app si chiama "IGOR - ABits" perché Wind
 
 In alternativa, ogni push su `main` fa partire la GitHub Action **Build Windows**, che crea gli stessi `.exe`: li scarichi da *Actions → Build Windows → Artifacts*.
 
+## Download pubblico
+
+Gli artifact delle Actions si scaricano solo con un account GitHub e scadono dopo 90 giorni. Per un link pubblico si pubblica una **release**: si aggiorna `version` in `package.json`, si fa il commit su `main` e si crea il tag corrispondente:
+
+```bash
+git tag v0.2.0
+git push origin v0.2.0
+```
+
+La GitHub Action crea gli `.exe` e li allega alla release. Il link da condividere è sempre lo stesso e porta all'ultima versione:
+
+https://github.com/battacharlie/MyGobbo/releases/latest
+
 ## Loghi
 
 - `assets/ABits_Logo.png` – logo aziendale (README e finestre dell'installer).
