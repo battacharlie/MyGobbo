@@ -80,7 +80,7 @@ Nei nomi dei file e dei collegamenti l'app si chiama "IGOR - ABits" perché Wind
 
 In alternativa, ogni push su `main` fa partire la GitHub Action **Build Windows**, che crea gli stessi `.exe`: li scarichi da *Actions → Build Windows → Artifacts* (serve un account con accesso al progetto).
 
-Per pubblicare una nuova versione per tutti: aggiorna `version` in `package.json`, unisci in `main` e crea un tag con lo stesso numero (es. `v0.3.0`). La Action crea la Release con i due `.exe` allegati.
+Per pubblicare una nuova versione per tutti basta aumentare `version` in `package.json` e unire in `main`: la Action crea la Release (es. `v0.3.0`) con i due `.exe` allegati.
 
 ## Loghi
 
