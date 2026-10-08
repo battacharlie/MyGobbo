@@ -3,8 +3,13 @@ name: Build Windows
 on:
   push:
     branches: [main]
+    # Un tag vX.Y.Z (es. v0.3.0) pubblica anche una Release scaricabile.
+    tags: ['v*']
   pull_request:
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -29,3 +34,9 @@ jobs:
           name: igor-abits-windows
           path: |
             dist/*.exe
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" dist/*.exe --title "IGOR - ABit/s $GITHUB_REF_NAME" --generate-notes
