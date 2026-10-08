@@ -1,7 +1,7 @@
 {
   "name": "mio-countdown",
-  "version": "0.1.0",
-  "description": "Countdown a schermo intero sul secondo monitor, con finestra di controllo sul primo.",
+  "version": "0.2.0",
+  "description": "Regia video per Windows: uscita a tutto schermo sul secondo monitor con NDI, periferiche di acquisizione, timer e frase in sovraimpressione.",
   "main": "src/main.js",
   "author": "Batta",
   "license": "MIT",
@@ -17,9 +17,24 @@
   "build": {
     "appId": "com.batta.miocountdown",
     "productName": "Mio Countdown",
-    "files": ["src/**/*", "package.json"],
-    "directories": { "output": "dist" },
-    "win": { "target": ["nsis", "portable"] },
-    "nsis": { "oneClick": false, "allowToChangeInstallationDirectory": true }
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "asarUnpack": [
+      "**/@stagetimerio/grandiose/dist/**"
+    ]
+  },
+  "optionalDependencies": {
+    "@stagetimerio/grandiose": "^0.2.0"
   }
 }

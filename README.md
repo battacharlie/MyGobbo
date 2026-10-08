@@ -1,21 +1,47 @@
 # Mio Countdown
 
-Countdown a schermo intero sul **secondo monitor** di Windows, con una **finestra di controllo** sul monitor principale da cui cambiare durata, testi e colori in tempo reale.
+Piccola regia video per Windows: una **finestra di regia** sul monitor principale e un'**uscita a tutto schermo** sul secondo monitor, dove si compongono segnali NDI, periferiche di acquisizione, un timer e una frase in sovraimpressione.
 
-## Cosa fa
+## Le due finestre
 
-- **Schermo countdown** (secondo monitor): finestra senza bordi a tutto schermo con titolo, tempo e messaggio.
-- **Finestra di controllo** (monitor principale):
-  - avvia / pausa / azzera, più ±10 s e ±1 min anche a timer in corsa;
-  - durata in minuti e secondi, con pulsanti rapidi (5, 10, 15, 20, 30, 45, 60 min);
-  - titolo sopra il countdown e messaggio sotto, aggiornati mentre scrivi e attivabili/disattivabili;
-  - testo da mostrare a tempo scaduto;
-  - colore di avviso negli ultimi N secondi e colore di fine;
-  - opzione per continuare a contare in negativo dopo lo zero;
-  - scelta del monitor su cui mostrare il countdown.
-- Scorciatoie nella finestra di controllo: **barra spaziatrice** avvia/pausa, **R** azzera.
-- Le impostazioni vengono salvate e ritrovate al riavvio.
-- Con un solo monitor collegato lo schermo countdown appare come anteprima in finestra; se colleghi il secondo monitor si sposta da solo a tutto schermo.
+**Regia** (monitor principale)
+- Pulsanti per aggiungere gli input: **segnale NDI**, **periferica di acquisizione**, **timer**, **frase**.
+- Anteprima dell'uscita: si trascina un elemento per spostarlo e si usa l'angolo in basso a destra per ridimensionarlo (Maiusc mantiene le proporzioni); gli elementi si agganciano a bordi e centro.
+- Elenco degli elementi dal primo piano allo sfondo, con *In onda / Nascosto*, *Solo questo* (mostra in uscita solo quell'input), *Avanti / Indietro* per l'ordine, *Elimina*.
+- Per ogni elemento: posizione e misure in % dello schermo, *Schermo intero*, *Centra*, *Proporzioni 16:9*.
+- Per NDI e acquisizione: ritaglio (crop) su ogni lato e adattamento *Adatta* (mantiene le proporzioni), *Riempi* (mantiene le proporzioni e taglia), *Deforma*.
+- Scelta del monitor di uscita, colore di sfondo, mostra/nascondi uscita.
+
+**Uscita** (secondo monitor)
+- Si apre all'avvio, senza bordi, a tutto schermo sul monitor 2.
+- Mostra un singolo input oppure la composizione di più input (per esempio segnale NDI + timer).
+- Con un solo monitor collegato l'uscita appare come finestra di anteprima; collegando il secondo monitor si sposta da sola a tutto schermo.
+
+## Elementi
+
+**Timer**
+- All'indietro (countdown, continua in negativo dopo lo zero) oppure in avanti (cronometro).
+- Avvia / pausa / azzera, ±10 s e ±1 min anche in corsa; barra spaziatrice per avvio/pausa.
+- Colore dei numeri, colore dello sfondo (o trasparente), misura e tipo di carattere, grassetto.
+- Colore di avviso negli ultimi N secondi e colore a tempo scaduto.
+- I numeri si rimpiccioliscono da soli se non entrano nel riquadro.
+
+**Frase**
+- Fascia nella parte bassa dello schermo (si può spostare).
+- Se il testo è più lungo dello spazio disponibile scorre da destra a sinistra, altrimenti resta centrato.
+- Velocità di scorrimento, colori, opacità della fascia, misura e tipo di carattere.
+
+**Periferica di acquisizione**: schede di acquisizione, webcam, convertitori HDMI/SDI → USB (tutto ciò che Windows vede come videocamera).
+
+**Segnale NDI**: elenco delle sorgenti NDI trovate in rete, qualità piena o bassa (meno banda).
+
+La scena (elementi, posizioni, testi, colori) viene salvata e ritrovata al riavvio.
+
+## NDI
+
+NDI usa il modulo nativo [`@stagetimerio/grandiose`](https://github.com/stagetimerio/grandiose) (NDI SDK 6). È una dipendenza *facoltativa*: durante `npm install` scarica l'NDI SDK e compila il modulo. Se non ci riesce, l'app funziona lo stesso e nel pannello NDI compare un avviso.
+
+Per compilarlo su Windows servono gli strumenti di compilazione C++ ([Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) con "Sviluppo di applicazioni desktop con C++") e Python. La GitHub Action li ha già, quindi l'`.exe` creato lì include NDI.
 
 ## Avvio in sviluppo
 
@@ -40,17 +66,18 @@ Nella cartella `dist/` trovi:
 - `Mio Countdown Setup x.y.z.exe` – installer;
 - `Mio Countdown x.y.z.exe` – versione portable, da avviare senza installare.
 
-In alternativa, ogni push su `main` fa partire la GitHub Action **Build Windows**, che crea gli stessi `.exe`: li scarichi dalla pagina dell'esecuzione in *Actions → Build Windows → Artifacts*.
+In alternativa, ogni push su `main` fa partire la GitHub Action **Build Windows**, che crea gli stessi `.exe`: li scarichi da *Actions → Build Windows → Artifacts*.
 
 ## Struttura
 
 ```
 src/
-  main.js          processo principale: finestre, monitor, stato del timer
-  preload.js       ponte sicuro tra finestre e processo principale
-  format.js        formattazione del tempo
-  control/         finestra di controllo
-  display/         schermo del countdown
+  main.js              processo principale: finestre, monitor, scena, comandi
+  ndi.js               caricamento facoltativo di NDI e ricerca delle sorgenti
+  shared/layers.js     tipi di elemento, calcolo del timer, crop
+  shared/render.js     disegno della scena (uscita e anteprima in regia)
+  control/             finestra di regia
+  display/             finestra di uscita (riceve NDI e periferiche)
 ```
 
-Il timer vive nel processo principale ed è basato sull'orario di fine, quindi resta preciso anche se una finestra rallenta; le due finestre ricevono lo stesso stato circa 10 volte al secondo.
+La scena vive nel processo principale e le due finestre ricevono lo stesso stato. Il timer è basato sull'orario di avvio, quindi resta preciso anche se una finestra rallenta. I fotogrammi NDI vengono ricevuti direttamente nella finestra di uscita, senza passare dal processo principale.

@@ -1,103 +1,87 @@
-const { app, BrowserWindow, ipcMain, screen } = require('electron');
+const { app, BrowserWindow, ipcMain, screen, session } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const { createLayer, timerElapsedMs } = require('./shared/layers');
+const ndi = require('./ndi');
 
-// Stato condiviso: il processo principale è l'unica fonte di verità del timer,
-// le due finestre ricevono lo stesso stato e lo mostrano.
-const DEFAULT_SETTINGS = {
-  durationSec: 10 * 60,
-  title: '',
-  message: '',
-  endText: 'TEMPO SCADUTO',
-  warningSec: 60,
-  overtime: true,
-  showTitle: true,
-  showMessage: true,
-  colors: {
-    background: '#000000',
-    text: '#ffffff',
-    warning: '#ffb020',
-    end: '#ff3b30'
-  },
-  presets: [5, 10, 15, 20, 30, 45, 60],
+// Stato condiviso: il processo principale è l'unica fonte di verità della
+// scena; le due finestre ricevono lo stesso stato e lo mostrano. I timer
+// salvano solo quando sono partiti, così ogni finestra calcola da sé il
+// valore corrente senza aggiornamenti continui.
+const DEFAULT_STATE = {
+  layers: [createLayer('timer', { x: 0, y: 0, w: 100, h: 100 })],
+  background: '#000000',
   displayId: null
 };
 
-let settings = loadSettings();
-let timer = {
-  running: false,
-  remainingMs: settings.durationSec * 1000, // valido quando non è in corsa
-  endAt: 0 // timestamp di fine quando è in corsa
-};
-
+let state = loadState();
 let controlWin = null;
 let displayWin = null;
-let tickHandle = null;
 
-function settingsPath() {
-  return path.join(app.getPath('userData'), 'settings.json');
+function statePath() {
+  return path.join(app.getPath('userData'), 'scene.json');
 }
 
-function loadSettings() {
+function loadState() {
   try {
-    const raw = JSON.parse(fs.readFileSync(settingsPath(), 'utf8'));
-    return { ...DEFAULT_SETTINGS, ...raw, colors: { ...DEFAULT_SETTINGS.colors, ...(raw.colors || {}) } };
+    const raw = JSON.parse(fs.readFileSync(statePath(), 'utf8'));
+    const loaded = { ...structuredClone(DEFAULT_STATE), ...raw };
+    // Un timer rimasto in corsa alla chiusura riparte in pausa.
+    for (const l of loaded.layers) {
+      if (l.type === 'timer' && l.run.running) {
+        l.run = { running: false, baseMs: timerElapsedMs(l), startedAt: 0 };
+      }
+    }
+    return loaded;
   } catch {
-    return structuredClone(DEFAULT_SETTINGS);
+    return structuredClone(DEFAULT_STATE);
   }
 }
 
-function saveSettings() {
-  try {
-    fs.writeFileSync(settingsPath(), JSON.stringify(settings, null, 2));
-  } catch (err) {
-    console.error('Impossibile salvare le impostazioni:', err);
-  }
-}
-
-function remainingMs() {
-  return timer.running ? timer.endAt - Date.now() : timer.remainingMs;
+let saveTimeout = null;
+function saveState() {
+  clearTimeout(saveTimeout);
+  saveTimeout = setTimeout(() => {
+    try {
+      fs.writeFileSync(statePath(), JSON.stringify(state, null, 2));
+    } catch (err) {
+      console.error('Impossibile salvare la scena:', err);
+    }
+  }, 300);
 }
 
 function snapshot() {
+  const primaryId = screen.getPrimaryDisplay().id;
+  const target = targetDisplay();
   return {
-    settings,
-    running: timer.running,
-    remainingMs: remainingMs(),
+    ...state,
+    now: Date.now(),
+    ndiAvailable: ndi.available,
+    ndiError: ndi.error,
+    output: { width: target.size.width, height: target.size.height, fullscreen: target.id !== primaryId },
     displays: screen.getAllDisplays().map((d, i) => ({
       id: d.id,
-      label: `Monitor ${i + 1} (${d.size.width}×${d.size.height})${d.id === screen.getPrimaryDisplay().id ? ' – principale' : ''}`
+      label: `Monitor ${i + 1} (${d.size.width}×${d.size.height})${d.id === primaryId ? ' – principale' : ''}`
     })),
-    displayId: displayWin ? targetDisplay().id : null
+    activeDisplayId: target.id,
+    displayVisible: !!(displayWin && displayWin.isVisible())
   };
 }
 
 function broadcast() {
-  const state = snapshot();
+  const s = snapshot();
   for (const win of [controlWin, displayWin]) {
-    if (win && !win.isDestroyed()) win.webContents.send('state', state);
+    if (win && !win.isDestroyed()) win.webContents.send('state', s);
   }
 }
 
-function startTicking() {
-  if (tickHandle) return;
-  tickHandle = setInterval(() => {
-    if (!timer.running) return;
-    if (!settings.overtime && remainingMs() <= 0) {
-      timer.running = false;
-      timer.remainingMs = 0;
-    }
-    broadcast();
-  }, 100);
-}
-
-// Monitor di destinazione: quello scelto dall'utente se ancora collegato,
-// altrimenti il primo monitor che non è il principale.
+// Monitor di uscita: quello scelto se ancora collegato, altrimenti il primo
+// monitor che non è il principale.
 function targetDisplay() {
   const displays = screen.getAllDisplays();
   const primary = screen.getPrimaryDisplay();
   return (
-    displays.find((d) => d.id === settings.displayId) ||
+    displays.find((d) => d.id === state.displayId) ||
     displays.find((d) => d.id !== primary.id) ||
     primary
   );
@@ -111,11 +95,9 @@ function placeDisplayWindow() {
 
   if (isPrimary) {
     // Un solo monitor: anteprima in finestra, così il controllo resta usabile.
-    const { x, y, width, height } = target.workArea;
-    const w = Math.round(width * 0.5);
-    const h = Math.round(w * 9 / 16);
-    displayWin.setBounds({ x: x + width - w - 20, y: y + 20, width: w, height: h });
-    displayWin.setAlwaysOnTop(false);
+    const { x, y, width } = target.workArea;
+    const w = Math.round(width * 0.45);
+    displayWin.setBounds({ x: x + width - w - 20, y: y + 20, width: w, height: Math.round(w * 9 / 16) });
   } else {
     displayWin.setBounds(target.bounds);
     displayWin.setFullScreen(true);
@@ -123,20 +105,21 @@ function placeDisplayWindow() {
 }
 
 function createWindows() {
-  const primary = screen.getPrimaryDisplay();
-  const { x, y, width, height } = primary.workArea;
+  const { x, y, width, height } = screen.getPrimaryDisplay().workArea;
+  const w = Math.min(1280, width - 40);
+  const h = Math.min(860, height - 40);
 
   controlWin = new BrowserWindow({
-    x: x + Math.round((width - 900) / 2),
-    y: y + Math.round((height - 760) / 2),
-    width: 900,
-    height: 760,
-    minWidth: 640,
-    minHeight: 520,
-    title: 'Mio Countdown – Controllo',
+    x: x + Math.round((width - w) / 2),
+    y: y + Math.round((height - h) / 2),
+    width: w,
+    height: h,
+    minWidth: 900,
+    minHeight: 600,
+    title: 'Mio Countdown – Regia',
     backgroundColor: '#15171c',
     autoHideMenuBar: true,
-    webPreferences: { preload: path.join(__dirname, 'preload.js') }
+    webPreferences: { preload: path.join(__dirname, 'control', 'preload.js') }
   });
   controlWin.loadFile(path.join(__dirname, 'control', 'control.html'));
   controlWin.on('closed', () => {
@@ -147,10 +130,15 @@ function createWindows() {
   displayWin = new BrowserWindow({
     frame: false,
     show: false,
-    title: 'Mio Countdown – Schermo',
-    backgroundColor: settings.colors.background,
+    title: 'Mio Countdown – Uscita',
+    backgroundColor: state.background,
     autoHideMenuBar: true,
-    webPreferences: { preload: path.join(__dirname, 'preload.js') }
+    webPreferences: {
+      preload: path.join(__dirname, 'display', 'preload.js'),
+      // Il preload dell'uscita riceve i flussi NDI con un modulo nativo.
+      sandbox: false,
+      backgroundThrottling: false
+    }
   });
   displayWin.loadFile(path.join(__dirname, 'display', 'display.html'));
   displayWin.once('ready-to-show', () => {
@@ -163,56 +151,89 @@ function createWindows() {
   });
 }
 
-// --- IPC dalla finestra di controllo -------------------------------------
+// --- Comandi dalla regia ---------------------------------------------------
+
+function findLayer(id) {
+  return state.layers.find((l) => l.id === id);
+}
+
+function timerAction(layer, action, seconds) {
+  const r = layer.run;
+  const now = Date.now();
+  switch (action) {
+    case 'start':
+      if (!r.running) layer.run = { running: true, baseMs: r.baseMs, startedAt: now };
+      break;
+    case 'pause':
+      if (r.running) layer.run = { running: false, baseMs: timerElapsedMs(layer, now), startedAt: 0 };
+      break;
+    case 'reset':
+      layer.run = { running: false, baseMs: 0, startedAt: 0 };
+      break;
+    case 'adjust': {
+      // Aggiunge tempo a quello mostrato, in entrambe le direzioni.
+      const deltaMs = (Number(seconds) || 0) * 1000;
+      const sign = layer.direction === 'up' ? 1 : -1;
+      layer.run = { ...r, baseMs: r.baseMs + sign * deltaMs };
+      if (layer.direction === 'up' && timerElapsedMs(layer, now) < 0) {
+        layer.run.baseMs -= timerElapsedMs(layer, now);
+      }
+      break;
+    }
+  }
+}
 
 ipcMain.handle('get-state', () => snapshot());
+ipcMain.handle('ndi-sources', () => ndi.sources());
 
 ipcMain.on('command', (_evt, cmd) => {
   switch (cmd.type) {
-    case 'start':
-      if (!timer.running) {
-        let ms = timer.remainingMs;
-        if (ms <= 0 && !settings.overtime) ms = settings.durationSec * 1000;
-        timer.endAt = Date.now() + ms;
-        timer.running = true;
+    case 'add-layer': {
+      const layer = createLayer(cmd.layerType, cmd.extra);
+      if (cmd.layerType === 'timer' || cmd.layerType === 'ticker') {
+        state.layers.push(layer); // in primo piano
+      } else {
+        state.layers.unshift(layer); // i video vanno sotto agli elementi grafici
       }
       break;
-    case 'pause':
-      if (timer.running) {
-        timer.remainingMs = remainingMs();
-        timer.running = false;
-      }
-      break;
-    case 'reset':
-      timer.running = false;
-      timer.remainingMs = settings.durationSec * 1000;
-      break;
-    case 'set-duration': {
-      const sec = Math.max(0, Math.round(Number(cmd.seconds) || 0));
-      settings.durationSec = sec;
-      timer.running = false;
-      timer.remainingMs = sec * 1000;
-      saveSettings();
-      break;
     }
-    case 'adjust': {
-      // Aggiunge o toglie secondi anche a timer in corsa.
-      const delta = Math.round(Number(cmd.seconds) || 0) * 1000;
-      if (timer.running) timer.endAt += delta;
-      else timer.remainingMs = Math.max(0, timer.remainingMs + delta);
-      break;
-    }
-    case 'update-settings': {
+    case 'update-layer': {
+      const layer = findLayer(cmd.id);
+      if (!layer) break;
       const patch = cmd.patch || {};
-      settings = {
-        ...settings,
-        ...patch,
-        colors: { ...settings.colors, ...(patch.colors || {}) }
-      };
-      saveSettings();
-      if ('displayId' in patch) placeDisplayWindow();
+      if (patch.crop) patch.crop = { ...layer.crop, ...patch.crop };
+      Object.assign(layer, patch);
       break;
     }
+    case 'remove-layer':
+      state.layers = state.layers.filter((l) => l.id !== cmd.id);
+      break;
+    case 'move-layer': {
+      // dir +1 = più in primo piano, -1 = più dietro
+      const i = state.layers.findIndex((l) => l.id === cmd.id);
+      const j = i + cmd.dir;
+      if (i < 0 || j < 0 || j >= state.layers.length) break;
+      [state.layers[i], state.layers[j]] = [state.layers[j], state.layers[i]];
+      break;
+    }
+    case 'solo':
+      for (const l of state.layers) l.visible = l.id === cmd.id;
+      break;
+    case 'show-all':
+      for (const l of state.layers) l.visible = true;
+      break;
+    case 'timer': {
+      const layer = findLayer(cmd.id);
+      if (layer && layer.type === 'timer') timerAction(layer, cmd.action, cmd.seconds);
+      break;
+    }
+    case 'set-background':
+      state.background = cmd.color;
+      break;
+    case 'set-display':
+      state.displayId = cmd.displayId;
+      placeDisplayWindow();
+      break;
     case 'toggle-display':
       if (displayWin) {
         if (displayWin.isVisible()) displayWin.hide();
@@ -220,14 +241,19 @@ ipcMain.on('command', (_evt, cmd) => {
       }
       break;
   }
+  saveState();
   broadcast();
 });
 
-// --- Avvio ---------------------------------------------------------------
+// --- Avvio -----------------------------------------------------------------
 
 app.whenReady().then(() => {
+  // Permette alle finestre di usare le periferiche di acquisizione.
+  session.defaultSession.setPermissionRequestHandler((_wc, permission, cb) => cb(permission === 'media'));
+  session.defaultSession.setPermissionCheckHandler((_wc, permission) => permission === 'media');
+
+  ndi.startDiscovery();
   createWindows();
-  startTicking();
 
   const onDisplaysChanged = () => {
     placeDisplayWindow();
@@ -239,3 +265,4 @@ app.whenReady().then(() => {
 });
 
 app.on('window-all-closed', () => app.quit());
+app.on('before-quit', () => ndi.stopDiscovery());

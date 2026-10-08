@@ -2,18 +2,15 @@
 <html lang="it">
 <head>
   <meta charset="utf-8">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'">
-  <title>Mio Countdown – Schermo</title>
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; media-src 'self' blob: mediastream:">
+  <title>Mio Countdown – Uscita</title>
   <link rel="stylesheet" href="display.css">
 </head>
 <body>
-  <main id="stage">
-    <div id="title" class="text"></div>
-    <div id="time">10:00</div>
-    <div id="endnote" class="text"></div>
-    <div id="message" class="text"></div>
-  </main>
-  <script src="../format.js"></script>
+  <main id="stage"></main>
+  <div id="sources" hidden></div>
+  <script src="../shared/layers.js"></script>
+  <script src="../shared/render.js"></script>
   <script src="display.js"></script>
 </body>
 </html>

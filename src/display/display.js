@@ -1,32 +1,93 @@
-const $ = (id) => document.getElementById(id);
+// Schermo di uscita: mostra i livelli visibili e apre le sorgenti video.
+const sourcesBox = document.getElementById('sources');
+const captures = new Map(); // layerId -> { deviceId, video, stream }
+
+function ndiCanvasId(layerId) {
+  return `ndi-${layerId}`;
+}
+
+function ensureNdiCanvas(layerId) {
+  let canvas = document.getElementById(ndiCanvasId(layerId));
+  if (!canvas) {
+    canvas = document.createElement('canvas');
+    canvas.id = ndiCanvasId(layerId);
+    sourcesBox.appendChild(canvas);
+  }
+  return canvas;
+}
+
+async function openCapture(layer) {
+  const current = captures.get(layer.id);
+  if (current && current.deviceId === layer.deviceId) return;
+  closeCapture(layer.id);
+  if (!layer.deviceId) return;
+  const entry = { deviceId: layer.deviceId, video: document.createElement('video'), stream: null };
+  captures.set(layer.id, entry);
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: false,
+      video: {
+        deviceId: { exact: layer.deviceId },
+        width: { ideal: 1920 },
+        height: { ideal: 1080 },
+        frameRate: { ideal: 60 }
+      }
+    });
+    if (captures.get(layer.id) !== entry) {
+      stream.getTracks().forEach((t) => t.stop());
+      return;
+    }
+    entry.stream = stream;
+    entry.video.muted = true;
+    entry.video.srcObject = stream;
+    await entry.video.play();
+  } catch (err) {
+    console.error('Periferica non disponibile:', err);
+  }
+}
+
+function closeCapture(layerId) {
+  const entry = captures.get(layerId);
+  if (!entry) return;
+  if (entry.stream) entry.stream.getTracks().forEach((t) => t.stop());
+  entry.video.srcObject = null;
+  captures.delete(layerId);
+}
+
+function releaseSources(layerId) {
+  closeCapture(layerId);
+  window.ndi.detach(layerId);
+  const canvas = document.getElementById(ndiCanvasId(layerId));
+  if (canvas) canvas.remove();
+}
+
+const stage = createStage(document.getElementById('stage'), {
+  getVideoSource(layer) {
+    if (layer.type === 'capture') {
+      const entry = captures.get(layer.id);
+      const v = entry && entry.video;
+      if (v && v.readyState >= 2) return { image: v, width: v.videoWidth, height: v.videoHeight };
+    } else if (layer.type === 'ndi') {
+      const c = document.getElementById(ndiCanvasId(layer.id));
+      if (c && c.dataset.ready) return { image: c, width: c.width, height: c.height };
+    }
+    return null;
+  },
+  onRemove: releaseSources
+});
 
 function render(state) {
-  const { settings, remainingMs } = state;
-  const c = settings.colors;
-  document.documentElement.style.setProperty('--bg', c.background);
-  document.documentElement.style.setProperty('--fg', c.text);
-  document.documentElement.style.setProperty('--end', c.end);
-
-  $('title').textContent = settings.showTitle ? settings.title : '';
-  $('message').textContent = settings.showMessage ? settings.message : '';
-
-  const time = $('time');
-  const finished = remainingMs <= 0;
-  // A tempo scaduto: senza tempo extra il testo finale prende il posto dei numeri,
-  // con il tempo extra i numeri continuano in negativo e il testo va sotto.
-  const showEndText = finished && settings.endText && !settings.overtime;
-  $('endnote').textContent = finished && settings.overtime ? settings.endText : '';
-  time.textContent = showEndText ? settings.endText : formatTime(remainingMs);
-  time.classList.toggle('end-text', !!showEndText);
-  // Rimpicciolisce i numeri quando sono più lunghi di MM:SS, così restano nello schermo.
-  const len = time.textContent.length;
-  time.style.fontSize = !showEndText && len > 5 ? `min(${(32 * 5 / len).toFixed(1)}vw, 60vh)` : '';
-  time.classList.toggle('blink', finished && state.running);
-
-  let color = c.text;
-  if (finished) color = c.end;
-  else if (remainingMs <= settings.warningSec * 1000) color = c.warning;
-  time.style.color = color;
+  document.body.style.background = state.background;
+  stage.update(state.layers, state.background);
+  for (const layer of state.layers) {
+    // Le sorgenti restano aperte anche quando il livello è nascosto, così
+    // ricompare subito quando lo si rimette in onda.
+    if (layer.type === 'capture') openCapture(layer);
+    if (layer.type === 'ndi') {
+      ensureNdiCanvas(layer.id);
+      window.ndi.attach(layer.id, layer.source, layer.quality, ndiCanvasId(layer.id));
+    }
+  }
 }
 
 window.countdown.onState(render);

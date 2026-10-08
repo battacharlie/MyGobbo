@@ -1,47 +1,14 @@
-:root {
-  --bg: #000;
-  --fg: #fff;
-}
 html, body {
   margin: 0;
   height: 100%;
   overflow: hidden;
-  background: var(--bg);
-  color: var(--fg);
-  font-family: "Segoe UI", system-ui, sans-serif;
+  background: #000;
   cursor: none;
   user-select: none;
-  -webkit-app-region: drag; /* finestra di anteprima trascinabile */
+  -webkit-app-region: drag; /* l'anteprima in finestra si può trascinare */
 }
 #stage {
-  height: 100vh;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 3vh;
-  padding: 4vh 4vw;
-  box-sizing: border-box;
-  text-align: center;
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
 }
-#time {
-  font-size: min(32vw, 60vh);
-  font-weight: 700;
-  line-height: 1;
-  font-variant-numeric: tabular-nums;
-  letter-spacing: -0.02em;
-  transition: color 0.3s;
-}
-#time.end-text { font-size: min(12vw, 30vh); }
-.text {
-  font-size: min(6vw, 9vh);
-  font-weight: 600;
-  line-height: 1.15;
-  white-space: pre-wrap;
-  max-width: 100%;
-}
-#message { font-weight: 400; font-size: min(4.5vw, 7vh); }
-.text:empty { display: none; }
-#time.blink { animation: blink 1s steps(1) infinite; }
-@keyframes blink { 50% { opacity: 0.25; } }
-#endnote { color: var(--end, #ff3b30); }
