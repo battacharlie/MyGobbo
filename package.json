@@ -1,9 +1,9 @@
 {
-  "name": "mio-countdown",
+  "name": "igor-abits",
   "version": "0.2.0",
-  "description": "Regia video per Windows: uscita a tutto schermo sul secondo monitor con NDI, periferiche di acquisizione, timer e frase in sovraimpressione.",
+  "description": "IGOR - ABit/s: regia video per Windows con uscita a tutto schermo sul secondo monitor, NDI, periferiche di acquisizione, timer e frase in sovraimpressione.",
   "main": "src/main.js",
-  "author": "Batta",
+  "author": "ABit/s",
   "license": "MIT",
   "scripts": {
     "start": "electron .",
@@ -16,25 +16,33 @@
     "node-gyp": "^13.1.0"
   },
   "build": {
-    "appId": "com.batta.miocountdown",
-    "productName": "Mio Countdown",
+    "appId": "com.abits.igor",
+    "productName": "IGOR - ABits",
     "directories": {
-      "output": "dist"
+      "output": "dist",
+      "buildResources": "build"
     },
     "win": {
       "target": [
         "nsis",
         "portable"
-      ]
+      ],
+      "icon": "build/icon.png"
     },
     "nsis": {
       "oneClick": false,
-      "allowToChangeInstallationDirectory": true
+      "allowToChangeInstallationDirectory": true,
+      "shortcutName": "IGOR - ABits",
+      "uninstallDisplayName": "IGOR - ABit/s",
+      "artifactName": "IGOR-ABits-Setup-${version}.${ext}"
     },
     "asarUnpack": [
       "**/@stagetimerio/grandiose/dist/**"
     ],
-    "npmRebuild": false
+    "npmRebuild": false,
+    "portable": {
+      "artifactName": "IGOR-ABits-${version}-portable.${ext}"
+    }
   },
   "optionalDependencies": {
     "@stagetimerio/grandiose": "^0.2.0"

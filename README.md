@@ -1,4 +1,4 @@
-# Mio Countdown
+# IGOR - ABit/s
 
 Piccola regia video per Windows: una **finestra di regia** sul monitor principale e un'**uscita a tutto schermo** sul secondo monitor, dove si compongono segnali NDI, periferiche di acquisizione, un timer e una frase in sovraimpressione.
 
@@ -63,8 +63,10 @@ npm run dist
 
 Nella cartella `dist/` trovi:
 
-- `Mio Countdown Setup x.y.z.exe` – installer;
-- `Mio Countdown x.y.z.exe` – versione portable, da avviare senza installare.
+- `IGOR-ABits-Setup-x.y.z.exe` – installer;
+- `IGOR-ABits-x.y.z-portable.exe` – versione portable, da avviare senza installare.
+
+Nei nomi dei file e dei collegamenti l'app si chiama "IGOR - ABits" perché Windows non ammette il carattere `/`.
 
 In alternativa, ogni push su `main` fa partire la GitHub Action **Build Windows**, che crea gli stessi `.exe`: li scarichi da *Actions → Build Windows → Artifacts*.
 

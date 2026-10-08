@@ -14,12 +14,30 @@ const DEFAULT_STATE = {
   displayId: null
 };
 
+migrateOldState();
 let state = loadState();
 let controlWin = null;
 let displayWin = null;
 
 function statePath() {
   return path.join(app.getPath('userData'), 'scene.json');
+}
+
+// Prima di chiamarsi IGOR l'app si chiamava "Mio Countdown": se la scena
+// salvata è ancora nella vecchia cartella, la porta in quella nuova.
+function migrateOldState() {
+  if (fs.existsSync(statePath())) return;
+  for (const oldName of ['Mio Countdown', 'mio-countdown']) {
+    const oldPath = path.join(app.getPath('appData'), oldName, 'scene.json');
+    if (!fs.existsSync(oldPath)) continue;
+    try {
+      fs.mkdirSync(path.dirname(statePath()), { recursive: true });
+      fs.copyFileSync(oldPath, statePath());
+    } catch (err) {
+      console.error('Impossibile recuperare la scena precedente:', err);
+    }
+    return;
+  }
 }
 
 function loadState() {
@@ -116,7 +134,7 @@ function createWindows() {
     height: h,
     minWidth: 900,
     minHeight: 600,
-    title: 'Mio Countdown – Regia',
+    title: 'IGOR - ABit/s – Regia',
     backgroundColor: '#15171c',
     autoHideMenuBar: true,
     webPreferences: { preload: path.join(__dirname, 'control', 'preload.js') }
@@ -130,7 +148,7 @@ function createWindows() {
   displayWin = new BrowserWindow({
     frame: false,
     show: false,
-    title: 'Mio Countdown – Uscita',
+    title: 'IGOR - ABit/s – Uscita',
     backgroundColor: state.background,
     autoHideMenuBar: true,
     webPreferences: {

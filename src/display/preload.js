@@ -15,7 +15,7 @@ async function receiveLoop(entry, source, quality, canvasId) {
       colorFormat: g.COLOR_FORMAT_RGBX_RGBA,
       bandwidth: quality === 'low' ? g.BANDWIDTH_LOWEST : g.BANDWIDTH_HIGHEST,
       allowVideoFields: false,
-      name: 'Mio Countdown'
+      name: 'IGOR - ABit/s'
     });
   } catch (err) {
     console.error('Ricezione NDI non avviata:', err);
