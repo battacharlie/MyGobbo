@@ -3,8 +3,6 @@ name: Build Windows
 on:
   push:
     branches: [main]
-    # Un tag vX.Y.Z (es. v0.3.0) pubblica anche una Release scaricabile.
-    tags: ['v*']
   pull_request:
   workflow_dispatch:
 
@@ -34,9 +32,17 @@ jobs:
           name: igor-abits-windows
           path: |
             dist/*.exe
+      # Su main pubblica una Release vX.Y.Z (versione di package.json) se
+      # non esiste ancora: basta alzare la versione per pubblicarne una nuova.
       - name: Publish release
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" dist/*.exe --title "IGOR - ABit/s $GITHUB_REF_NAME" --generate-notes
+        run: |
+          TAG="v$(node -p "require('./package.json').version")"
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            echo "La release $TAG esiste già"
+          else
+            gh release create "$TAG" dist/*.exe --target "$GITHUB_SHA" --title "IGOR - ABit/s $TAG" --generate-notes
+          fi
