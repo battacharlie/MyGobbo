@@ -1,0 +1,25 @@
+{
+  "name": "mio-countdown",
+  "version": "0.1.0",
+  "description": "Countdown a schermo intero sul secondo monitor, con finestra di controllo sul primo.",
+  "main": "src/main.js",
+  "author": "Batta",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win portable nsis",
+    "dist:portable": "electron-builder --win portable"
+  },
+  "devDependencies": {
+    "electron": "^33.2.1",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "com.batta.miocountdown",
+    "productName": "Mio Countdown",
+    "files": ["src/**/*", "package.json"],
+    "directories": { "output": "dist" },
+    "win": { "target": ["nsis", "portable"] },
+    "nsis": { "oneClick": false, "allowToChangeInstallationDirectory": true }
+  }
+}

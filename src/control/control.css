@@ -1,0 +1,70 @@
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  padding: 20px 24px 32px;
+  background: #15171c;
+  color: #e8eaf0;
+  font: 14px/1.4 "Segoe UI", system-ui, sans-serif;
+}
+header {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) minmax(260px, 1fr);
+  gap: 20px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+#preview {
+  background: #000;
+  border: 1px solid #2c3039;
+  border-radius: 10px;
+  padding: 16px;
+  text-align: center;
+}
+#p-title { min-height: 1.4em; color: #aab0bd; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#p-time {
+  font-size: 64px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+#p-status { color: #aab0bd; font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; }
+.transport { display: flex; flex-wrap: wrap; gap: 8px; }
+.transport > button { flex: 1 1 120px; font-size: 18px; padding: 12px; }
+.adjust { display: flex; gap: 6px; width: 100%; }
+.adjust button { flex: 1; }
+section {
+  border-top: 1px solid #2c3039;
+  padding-top: 12px;
+  margin-top: 16px;
+}
+h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.08em; color: #8b93a5; margin: 0 0 10px; }
+.row { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; margin-bottom: 10px; }
+.block { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; }
+input[type=text], input[type=number], textarea, select {
+  background: #0e1014;
+  color: inherit;
+  border: 1px solid #343946;
+  border-radius: 6px;
+  padding: 7px 9px;
+  font: inherit;
+}
+input[type=number] { width: 80px; margin-left: 6px; }
+textarea { resize: vertical; }
+select { margin-left: 6px; }
+input[type=color] { width: 40px; height: 28px; border: none; background: none; vertical-align: middle; }
+button {
+  background: #262a33;
+  color: inherit;
+  border: 1px solid #343946;
+  border-radius: 6px;
+  padding: 8px 12px;
+  font: inherit;
+  cursor: pointer;
+}
+button:hover { background: #2f3440; }
+button.primary { background: #2563eb; border-color: #2563eb; color: #fff; }
+button.primary:hover { background: #1d4fd0; }
+button.primary.pause { background: #d97706; border-color: #d97706; }
+.presets button { min-width: 64px; }
+.hint { color: #8b93a5; font-size: 12px; margin: 4px 0 0; width: 100%; }
+@media (max-width: 700px) { header { grid-template-columns: 1fr; } }
