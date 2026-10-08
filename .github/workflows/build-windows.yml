@@ -26,6 +26,6 @@ jobs:
           CSC_IDENTITY_AUTO_DISCOVERY: false
       - uses: actions/upload-artifact@v4
         with:
-          name: mio-countdown-windows
+          name: igor-abits-windows
           path: |
             dist/*.exe

@@ -17,6 +17,9 @@ body {
   flex-wrap: wrap;
 }
 .topbar strong { font-size: 15px; margin-right: 8px; }
+.brand { display: flex; align-items: center; gap: 8px; }
+.brand img { width: 28px; height: 28px; }
+.topbar .company { margin-left: auto; height: 32px; width: 32px; }
 .layout {
   flex: 1;
   min-height: 0;
