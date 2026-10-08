@@ -95,3 +95,5 @@ src/
 ```
 
 La scena vive nel processo principale e le due finestre ricevono lo stesso stato. Per consumare poco non c'è un ciclo che ridisegna a ogni fotogramma: i video sono elementi della pagina posizionati con CSS e composti dalla scheda video, il timer si aggiorna solo al cambio del secondo e la frase scorre con un'animazione CSS. L'anteprima in regia mostra riquadri con il nome degli input invece dei video, così i flussi non vengono decodificati due volte. Il timer è basato sull'orario di avvio, quindi resta preciso anche se una finestra rallenta. I fotogrammi NDI vengono ricevuti direttamente nella finestra di uscita, senza passare dal processo principale.
+
+Tutto ciò che compare in uscita è limitato a **25 fps** (`MAX_FPS` in `src/shared/layers.js`): le periferiche di acquisizione vengono aperte a 25 fps al massimo, i fotogrammi NDI in più vengono scartati e la frase avanza a scatti di 1/25 di secondo.

@@ -1,10 +1,15 @@
 const { contextBridge, ipcRenderer } = require('electron');
 const ndi = require('../ndi');
+const { MAX_FPS } = require('../shared/layers');
 
 // I fotogrammi NDI vengono ricevuti qui e disegnati direttamente in un
 // <canvas> della pagina (il DOM è condiviso con la pagina), così le immagini
 // non passano dal processo principale.
 const receivers = new Map(); // layerId -> { key, active }
+
+// Come il resto dell'uscita, NDI non supera i 25 fps: i fotogrammi in più
+// vengono scartati senza disegnarli.
+const FRAME_MS = 1000 / MAX_FPS;
 
 async function receiveLoop(entry, source, quality, canvasId) {
   const g = ndi.grandiose;
@@ -21,6 +26,7 @@ async function receiveLoop(entry, source, quality, canvasId) {
     console.error('Ricezione NDI non avviata:', err);
     return;
   }
+  let nextDue = 0;
   while (entry.active) {
     let frame;
     try {
@@ -29,6 +35,10 @@ async function receiveLoop(entry, source, quality, canvasId) {
       continue; // nessun fotogramma entro il timeout: riprova
     }
     if (!entry.active) break;
+    const now = performance.now();
+    // Piccola tolleranza per non perdere fotogrammi di una sorgente a 25 fps.
+    if (now < nextDue - 3) continue;
+    nextDue = Math.max(nextDue + FRAME_MS, now);
     const canvas = document.getElementById(canvasId);
     if (!canvas) continue;
     const { xres, yres, lineStrideBytes, data } = frame;
