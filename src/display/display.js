@@ -11,6 +11,8 @@ function ensureNdiCanvas(layerId) {
   if (!canvas) {
     canvas = document.createElement('canvas');
     canvas.id = ndiCanvasId(layerId);
+    // Il preload segnala quando cambia la risoluzione del flusso NDI.
+    canvas.addEventListener('ndi-resize', () => stage.relayout());
     sourcesBox.appendChild(canvas);
   }
   return canvas;
@@ -22,6 +24,8 @@ async function openCapture(layer) {
   closeCapture(layer.id);
   if (!layer.deviceId) return;
   const entry = { deviceId: layer.deviceId, video: document.createElement('video'), stream: null };
+  entry.video.addEventListener('loadedmetadata', () => stage.relayout());
+  entry.video.addEventListener('resize', () => stage.relayout());
   captures.set(layer.id, entry);
   try {
     const stream = await navigator.mediaDevices.getUserMedia({
@@ -62,14 +66,16 @@ function releaseSources(layerId) {
 }
 
 const stage = createStage(document.getElementById('stage'), {
-  getVideoSource(layer) {
+  // Restituisce l'elemento della sorgente: la scena lo inserisce nel livello
+  // e lo posiziona con CSS, senza ridisegnarlo a ogni fotogramma.
+  getMedia(layer) {
     if (layer.type === 'capture') {
       const entry = captures.get(layer.id);
       const v = entry && entry.video;
-      if (v && v.readyState >= 2) return { image: v, width: v.videoWidth, height: v.videoHeight };
+      if (v && v.videoWidth > 0) return { el: v, width: v.videoWidth, height: v.videoHeight };
     } else if (layer.type === 'ndi') {
       const c = document.getElementById(ndiCanvasId(layer.id));
-      if (c && c.dataset.ready) return { image: c, width: c.width, height: c.height };
+      if (c && c.dataset.ready) return { el: c, width: c.width, height: c.height };
     }
     return null;
   },

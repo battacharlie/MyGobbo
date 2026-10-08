@@ -21,7 +21,6 @@ async function receiveLoop(entry, source, quality, canvasId) {
     console.error('Ricezione NDI non avviata:', err);
     return;
   }
-  let image = null;
   while (entry.active) {
     let frame;
     try {
@@ -33,22 +32,28 @@ async function receiveLoop(entry, source, quality, canvasId) {
     const canvas = document.getElementById(canvasId);
     if (!canvas) continue;
     const { xres, yres, lineStrideBytes, data } = frame;
-    if (canvas.width !== xres || canvas.height !== yres) {
+    const resized = canvas.width !== xres || canvas.height !== yres;
+    if (resized) {
       canvas.width = xres;
       canvas.height = yres;
-      image = null;
     }
-    if (!image) image = new ImageData(xres, yres);
     const rowBytes = xres * 4;
+    let pixels;
     if (lineStrideBytes === rowBytes) {
-      image.data.set(data.subarray(0, rowBytes * yres));
+      // Usa direttamente la memoria del fotogramma, senza copiarla.
+      pixels = new Uint8ClampedArray(data.buffer, data.byteOffset, rowBytes * yres);
     } else {
+      pixels = new Uint8ClampedArray(rowBytes * yres);
       for (let y = 0; y < yres; y++) {
-        image.data.set(data.subarray(y * lineStrideBytes, y * lineStrideBytes + rowBytes), y * rowBytes);
+        pixels.set(data.subarray(y * lineStrideBytes, y * lineStrideBytes + rowBytes), y * rowBytes);
       }
     }
-    canvas.getContext('2d').putImageData(image, 0, 0);
-    canvas.dataset.ready = '1';
+    // alpha: false ignora il quarto byte (X) di RGBX e rende più veloce il disegno.
+    canvas.getContext('2d', { alpha: false }).putImageData(new ImageData(pixels, xres, yres), 0, 0);
+    if (resized || !canvas.dataset.ready) {
+      canvas.dataset.ready = '1';
+      canvas.dispatchEvent(new Event('ndi-resize'));
+    }
   }
 }
 
