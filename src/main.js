@@ -140,7 +140,7 @@ function createWindows() {
     icon: ICON,
     backgroundColor: '#15171c',
     autoHideMenuBar: true,
-    webPreferences: { preload: path.join(__dirname, 'control', 'preload.js') }
+    webPreferences: { preload: path.join(__dirname, 'control', 'preload.js'), spellcheck: false }
   });
   controlWin.loadFile(path.join(__dirname, 'control', 'control.html'));
   controlWin.on('closed', () => {
@@ -159,7 +159,8 @@ function createWindows() {
       preload: path.join(__dirname, 'display', 'preload.js'),
       // Il preload dell'uscita riceve i flussi NDI con un modulo nativo.
       sandbox: false,
-      backgroundThrottling: false
+      backgroundThrottling: false,
+      spellcheck: false
     }
   });
   displayWin.loadFile(path.join(__dirname, 'display', 'display.html'));

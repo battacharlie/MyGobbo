@@ -169,12 +169,15 @@ function timerSection(layer) {
     const l = selectedLayer();
     if (!l || l.type !== 'timer') return;
     const value = timerValueMs(l);
-    big.textContent = formatTime(value, l.direction);
+    const text = formatTime(value, l.direction);
+    if (big.textContent !== text) big.textContent = text;
     big.style.color = timerColor(l, value);
-    startBtn.textContent = l.run.running ? '❚❚ Pausa' : '▶ Avvia';
+    const label = l.run.running ? '❚❚ Pausa' : '▶ Avvia';
+    if (startBtn.textContent !== label) startBtn.textContent = label;
     startBtn.className = l.run.running ? 'warn' : 'primary';
   };
-  panelTick = setInterval(tick, 100);
+  // Quattro aggiornamenti al secondo bastano per un orologio a secondi.
+  panelTick = setInterval(tick, 250);
   setTimeout(tick);
 
   return [
