@@ -7,10 +7,11 @@
 // - i video (periferiche e NDI) sono elementi della pagina posizionati con
 //   CSS, li compone la scheda video senza lavoro in JavaScript;
 // - il timer si aggiorna solo quando cambia il secondo mostrato;
-// - la frase scorre con un'animazione CSS gestita dal compositore;
+// - la frase scorre con un'animazione CSS gestita dal compositore, a scatti
+//   di MAX_FPS al secondo (come i video, non supera i 25 fps);
 // - le misure si rileggono solo quando cambiano scena o dimensioni.
 (function (root) {
-  const { formatTime, timerValueMs, timerElapsedMs, timerColor, videoRects, hexToRgba, TYPE_LABELS } = root.Layers;
+  const { MAX_FPS, formatTime, timerValueMs, timerElapsedMs, timerColor, videoRects, hexToRgba, TYPE_LABELS } = root.Layers;
 
   function createStage(container, opts = {}) {
     const getMedia = opts.getMedia || (() => null);
@@ -169,9 +170,13 @@
         return;
       }
       entry.text.style.transform = '';
+      // L'andamento a gradini fa avanzare la frase solo MAX_FPS volte al
+      // secondo anche se lo schermo si aggiorna più spesso.
+      const duration = ((boxW + textW) / speed) * 1000;
+      const steps = Math.max(1, Math.round((duration / 1000) * MAX_FPS));
       entry.anim = entry.text.animate(
         [{ transform: `translateX(${boxW}px)` }, { transform: `translateX(${-textW}px)` }],
-        { duration: ((boxW + textW) / speed) * 1000, iterations: Infinity }
+        { duration, iterations: Infinity, easing: `steps(${steps}, end)` }
       );
     }
 

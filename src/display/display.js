@@ -28,15 +28,21 @@ async function openCapture(layer) {
   entry.video.addEventListener('resize', () => stage.relayout());
   captures.set(layer.id, entry);
   try {
-    const stream = await navigator.mediaDevices.getUserMedia({
-      audio: false,
-      video: {
-        deviceId: { exact: layer.deviceId },
-        width: { ideal: 1920 },
-        height: { ideal: 1080 },
-        frameRate: { ideal: 60 }
-      }
-    });
+    const video = {
+      deviceId: { exact: layer.deviceId },
+      width: { ideal: 1920 },
+      height: { ideal: 1080 },
+      frameRate: { ideal: Layers.MAX_FPS, max: Layers.MAX_FPS }
+    };
+    let stream;
+    try {
+      // Chromium scarta i fotogrammi in più: il video non supera MAX_FPS.
+      stream = await navigator.mediaDevices.getUserMedia({ audio: false, video });
+    } catch (err) {
+      if (err.name !== 'OverconstrainedError') throw err;
+      stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { ...video, frameRate: { ideal: Layers.MAX_FPS } } });
+      await stream.getVideoTracks()[0].applyConstraints({ frameRate: { max: Layers.MAX_FPS } }).catch(() => {});
+    }
     if (captures.get(layer.id) !== entry) {
       stream.getTracks().forEach((t) => t.stop());
       return;

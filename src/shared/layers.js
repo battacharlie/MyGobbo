@@ -1,6 +1,9 @@
 // Funzioni condivise tra processo principale e finestre (caricato come <script>
 // nelle finestre e con require() nel processo principale).
 (function (root) {
+  // Fotogrammi al secondo massimi di tutto ciò che compare in uscita.
+  const MAX_FPS = 25;
+
   const TYPE_LABELS = {
     ndi: 'NDI',
     capture: 'Acquisizione',
@@ -123,7 +126,7 @@
     return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`;
   }
 
-  const api = { TYPE_LABELS, newId, createLayer, timerElapsedMs, timerValueMs, formatTime, timerColor, videoRects, hexToRgba };
+  const api = { MAX_FPS, TYPE_LABELS, newId, createLayer, timerElapsedMs, timerValueMs, formatTime, timerColor, videoRects, hexToRgba };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Layers = api;
 })(typeof window !== 'undefined' ? window : globalThis);
