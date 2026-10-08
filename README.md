@@ -43,6 +43,10 @@ Piccola regia video per Windows: una **finestra di regia** sul monitor principal
 
 La scena (elementi, posizioni, testi, colori) viene salvata e ritrovata al riavvio.
 
+## Scarica
+
+L'ultima versione per Windows (installer e portable) è sempre qui: **[Releases → ultima versione](https://github.com/battacharlie/MyGobbo/releases/latest)**.
+
 ## NDI
 
 NDI usa il modulo nativo [`@stagetimerio/grandiose`](https://github.com/stagetimerio/grandiose) (NDI SDK 6). È una dipendenza *facoltativa*: durante `npm install` scarica l'NDI SDK e compila il modulo. Se non ci riesce, l'app funziona lo stesso e nel pannello NDI compare un avviso.
@@ -74,7 +78,9 @@ Nella cartella `dist/` trovi:
 
 Nei nomi dei file e dei collegamenti l'app si chiama "IGOR - ABits" perché Windows non ammette il carattere `/`.
 
-In alternativa, ogni push su `main` fa partire la GitHub Action **Build Windows**, che crea gli stessi `.exe`: li scarichi da *Actions → Build Windows → Artifacts*.
+In alternativa, ogni push su `main` fa partire la GitHub Action **Build Windows**, che crea gli stessi `.exe`: li scarichi da *Actions → Build Windows → Artifacts* (serve un account con accesso al progetto).
+
+Per pubblicare una nuova versione per tutti: aggiorna `version` in `package.json`, unisci in `main` e crea un tag con lo stesso numero (es. `v0.3.0`). La Action crea la Release con i due `.exe` allegati.
 
 ## Loghi
 
