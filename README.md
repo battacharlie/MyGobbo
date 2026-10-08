@@ -1,4 +1,10 @@
-# IGOR - ABit/s
+<p align="center">
+  <img src="assets/abits-200.png" alt="ABit/s" width="140">
+</p>
+
+<h1 align="center"><img src="assets/igor-160.png" alt="" width="48" valign="middle"> IGOR - ABit/s</h1>
+
+<p align="center">Regia video di ABit/s</p>
 
 Piccola regia video per Windows: una **finestra di regia** sul monitor principale e un'**uscita a tutto schermo** sul secondo monitor, dove si compongono segnali NDI, periferiche di acquisizione, un timer e una frase in sovraimpressione.
 
@@ -69,6 +75,12 @@ Nella cartella `dist/` trovi:
 Nei nomi dei file e dei collegamenti l'app si chiama "IGOR - ABits" perché Windows non ammette il carattere `/`.
 
 In alternativa, ogni push su `main` fa partire la GitHub Action **Build Windows**, che crea gli stessi `.exe`: li scarichi da *Actions → Build Windows → Artifacts*.
+
+## Loghi
+
+- `assets/ABits_Logo.png` – logo aziendale (README e finestre dell'installer).
+- `assets/IGOR_Logo.png` – logo del software (icona dell'app e intestazione della regia).
+- `build/` contiene icona e immagini dell'installer generate dai loghi.
 
 ## Struttura
 

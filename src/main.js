@@ -4,6 +4,8 @@ const fs = require('fs');
 const { createLayer, timerElapsedMs } = require('./shared/layers');
 const ndi = require('./ndi');
 
+const ICON = path.join(__dirname, 'assets', 'igor.png');
+
 // Stato condiviso: il processo principale è l'unica fonte di verità della
 // scena; le due finestre ricevono lo stesso stato e lo mostrano. I timer
 // salvano solo quando sono partiti, così ogni finestra calcola da sé il
@@ -135,6 +137,7 @@ function createWindows() {
     minWidth: 900,
     minHeight: 600,
     title: 'IGOR - ABit/s – Regia',
+    icon: ICON,
     backgroundColor: '#15171c',
     autoHideMenuBar: true,
     webPreferences: { preload: path.join(__dirname, 'control', 'preload.js') }
@@ -149,6 +152,7 @@ function createWindows() {
     frame: false,
     show: false,
     title: 'IGOR - ABit/s – Uscita',
+    icon: ICON,
     backgroundColor: state.background,
     autoHideMenuBar: true,
     webPreferences: {

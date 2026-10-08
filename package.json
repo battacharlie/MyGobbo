@@ -27,14 +27,20 @@
         "nsis",
         "portable"
       ],
-      "icon": "build/icon.png"
+      "icon": "build/icon.ico"
     },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "shortcutName": "IGOR - ABits",
       "uninstallDisplayName": "IGOR - ABit/s",
-      "artifactName": "IGOR-ABits-Setup-${version}.${ext}"
+      "artifactName": "IGOR-ABits-Setup-${version}.${ext}",
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "installerHeaderIcon": "build/icon.ico",
+      "installerSidebar": "build/installerSidebar.bmp",
+      "uninstallerSidebar": "build/uninstallerSidebar.bmp",
+      "installerHeader": "build/installerHeader.bmp"
     },
     "asarUnpack": [
       "**/@stagetimerio/grandiose/dist/**"
