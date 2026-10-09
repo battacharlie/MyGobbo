@@ -103,10 +103,13 @@
     return layer.direction === 'up' ? elapsed : layer.durationSec * 1000 - elapsed;
   }
 
-  // Tempo oltre il limite: all'indietro quando il conto passa lo zero, in
-  // avanti quando il cronometro supera la durata.
+  // Tempo oltre il limite: all'indietro quando il conto arriva a zero, in
+  // avanti quando il cronometro raggiunge la durata.
+  // Lampeggio e cornice compaiono solo quando il tempo è scaduto davvero:
+  // serve che il timer sia partito (un timer azzerato non lampeggia mai).
   function timerOvertime(layer, valueMs) {
-    return layer.direction === 'up' ? valueMs >= layer.durationSec * 1000 && layer.durationSec > 0 : valueMs <= 0;
+    if (!(timerElapsedMs(layer) > 0)) return false;
+    return layer.direction === 'up' ? layer.durationSec > 0 && valueMs >= layer.durationSec * 1000 : valueMs <= 0;
   }
 
   // Formatta come MM:SS, o H:MM:SS oltre l'ora; all'indietro il segno più
