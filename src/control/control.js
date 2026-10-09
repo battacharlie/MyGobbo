@@ -627,6 +627,8 @@ let pendingSelect = null;
 
 $('btn-show-all').onclick = () => send({ type: 'show-all' });
 $('btn-toggle-display').onclick = () => send({ type: 'toggle-display' });
+$('btn-save-config').onclick = () => send({ type: 'save-config' });
+$('btn-open-config').onclick = () => send({ type: 'open-config' });
 $('sel-display').onchange = (e) => send({ type: 'set-display', displayId: Number(e.target.value) });
 $('col-background').oninput = (e) => send({ type: 'set-background', color: e.target.value });
 

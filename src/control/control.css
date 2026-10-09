@@ -19,6 +19,8 @@ body {
 .topbar strong { font-size: 15px; margin-right: 8px; }
 .brand { display: flex; align-items: center; gap: 8px; }
 .brand img { width: 28px; height: 28px; }
+.topbar .config { display: flex; align-items: center; gap: 6px; }
+#output-info { font-size: 12px; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .topbar .company { margin-left: auto; height: 32px; width: 32px; }
 .layout {
   flex: 1;
