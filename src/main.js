@@ -97,7 +97,7 @@ async function saveConfig() {
 
 async function openConfig() {
   const res = await dialog.showOpenDialog(controlWin, {
-    title: 'Apri configurazione',
+    title: 'Importa configurazione',
     defaultPath: app.getPath('documents'),
     properties: ['openFile'],
     filters: CONFIG_FILTERS
@@ -110,7 +110,7 @@ async function openConfig() {
     saveState();
     broadcast();
   } catch (err) {
-    dialog.showMessageBox(controlWin, { type: 'error', title: 'Apri configurazione', message: 'Impossibile aprire la configurazione.', detail: String(err.message || err) });
+    dialog.showMessageBox(controlWin, { type: 'error', title: 'Importa configurazione', message: 'Impossibile importare la configurazione.', detail: String(err.message || err) });
   }
 }
 

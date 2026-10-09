@@ -19,7 +19,6 @@ body {
 .topbar strong { font-size: 15px; margin-right: 8px; }
 .brand { display: flex; align-items: center; gap: 8px; }
 .brand img { width: 28px; height: 28px; }
-.topbar .config { display: flex; align-items: center; gap: 6px; }
 #output-info { font-size: 12px; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .topbar .company { margin-left: auto; height: 32px; width: 32px; }
 .layout {
@@ -32,6 +31,10 @@ body {
 .left > p { flex: none; margin: 8px 0 0; }
 .right { border-left: 1px solid #2c3039; padding: 14px 16px; overflow: auto; background: #181a20; }
 .right h2 { margin-top: 0; }
+.right { display: flex; flex-direction: column; }
+/* Salva / importa configurazione in fondo alla colonna degli input. */
+.right .config { margin-top: auto; padding-top: 16px; display: flex; flex-direction: column; gap: 6px; }
+.right .config button { text-align: left; }
 
 /* Anteprima compatta: il resto dello spazio va ai comandi dell'elemento. */
 #preview-wrap { flex: none; height: 36vh; min-height: 180px; display: flex; justify-content: center; }
