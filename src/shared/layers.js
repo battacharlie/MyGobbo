@@ -8,8 +8,21 @@
     ndi: 'NDI',
     capture: 'Acquisizione',
     timer: 'Timer',
-    ticker: 'Frase'
+    ticker: 'Frase',
+    media: 'Media'
   };
+
+  // Colori predefiniti del timer: partenza, scadenza vicina, tempo superato.
+  const TIMER_COLORS = { color: '#22c55e', warningColor: '#facc15', endColor: '#ef4444' };
+
+  // Video e immagini che si possono aggiungere come elemento Media.
+  const VIDEO_EXT = ['mp4', 'webm', 'mov', 'm4v', 'mkv', 'ogv'];
+  const IMAGE_EXT = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg'];
+
+  // Tipi che mostrano una sorgente video o immagine (con ritaglio e adattamento).
+  function isVisual(type) {
+    return type === 'ndi' || type === 'capture' || type === 'media';
+  }
 
   function newId() {
     return Math.random().toString(36).slice(2, 10);
@@ -34,6 +47,10 @@
       case 'capture':
         Object.assign(base, { deviceId: '', deviceLabel: '' });
         break;
+      case 'media':
+        // file: percorso sul disco; src: lo stesso come indirizzo file://
+        Object.assign(base, { file: '', src: '', mediaKind: 'video', loop: true, audio: false, playing: true, restartAt: 0 });
+        break;
       case 'timer':
         Object.assign(base, {
           x: 30, y: 30, w: 40, h: 40,
@@ -42,12 +59,16 @@
           fontSize: 20, // in % dell'altezza dello schermo
           fontFamily: 'Segoe UI',
           bold: true,
-          color: '#ffffff',
+          ...TIMER_COLORS,
           background: '#000000',
           transparent: false,
           warningSec: 60,
-          warningColor: '#ffb020',
-          endColor: '#ff3b30',
+          // A tempo superato: numeri lampeggianti e cornice che corre lungo
+          // i bordi dello schermo.
+          blink: true,
+          frame: true,
+          frameColor: '#ef4444',
+          frameWidth: 12, // pixel su uno schermo alto 1080
           run: { running: false, baseMs: 0, startedAt: 0 }
         });
         break;
@@ -82,8 +103,14 @@
     return layer.direction === 'up' ? elapsed : layer.durationSec * 1000 - elapsed;
   }
 
-  // Formatta come MM:SS, o H:MM:SS oltre l'ora; il segno meno indica il tempo
-  // oltre la scadenza.
+  // Tempo oltre il limite: all'indietro quando il conto passa lo zero, in
+  // avanti quando il cronometro supera la durata.
+  function timerOvertime(layer, valueMs) {
+    return layer.direction === 'up' ? valueMs >= layer.durationSec * 1000 && layer.durationSec > 0 : valueMs <= 0;
+  }
+
+  // Formatta come MM:SS, o H:MM:SS oltre l'ora; all'indietro il segno più
+  // indica il tempo passato oltre la scadenza.
   function formatTime(ms, direction = 'down') {
     const negative = ms < 0;
     // All'indietro arrotonda per eccesso (si vede 00:00 solo a zero),
@@ -95,13 +122,16 @@
     const s = total % 60;
     const pad = (n) => String(n).padStart(2, '0');
     const body = h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
-    return (negative && total > 0 ? '−' : '') + body;
+    return (negative && total > 0 ? '+' : '') + body;
   }
 
+  // Tre colori: alla partenza, negli ultimi secondi prima del limite e
+  // oltre il limite (all'indietro il limite è lo zero, in avanti la durata).
   function timerColor(layer, valueMs) {
-    if (layer.direction === 'up') return layer.color;
-    if (valueMs <= 0) return layer.endColor;
-    if (valueMs <= layer.warningSec * 1000) return layer.warningColor;
+    const remaining = layer.direction === 'up' ? layer.durationSec * 1000 - valueMs : valueMs;
+    if (layer.direction === 'up' && !(layer.durationSec > 0)) return layer.color;
+    if (remaining <= 0) return layer.endColor;
+    if (remaining <= layer.warningSec * 1000) return layer.warningColor;
     return layer.color;
   }
 
@@ -126,7 +156,7 @@
     return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`;
   }
 
-  const api = { MAX_FPS, TYPE_LABELS, newId, createLayer, timerElapsedMs, timerValueMs, formatTime, timerColor, videoRects, hexToRgba };
+  const api = { MAX_FPS, TYPE_LABELS, TIMER_COLORS, VIDEO_EXT, IMAGE_EXT, isVisual, newId, createLayer, timerElapsedMs, timerValueMs, timerOvertime, formatTime, timerColor, videoRects, hexToRgba };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Layers = api;
 })(typeof window !== 'undefined' ? window : globalThis);

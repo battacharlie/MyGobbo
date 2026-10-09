@@ -28,6 +28,7 @@ body {
 }
 .left { padding: 14px 16px; overflow: auto; }
 .right { border-left: 1px solid #2c3039; padding: 14px 16px; overflow: auto; background: #181a20; }
+.right h2 { margin-top: 0; }
 
 #preview-wrap { width: 100%; }
 #preview {
@@ -46,18 +47,42 @@ body {
 #overlay .box.selected { border: 2px solid #3b82f6; }
 #overlay .box .handle {
   position: absolute;
-  right: -6px; bottom: -6px;
   width: 12px; height: 12px;
   background: #3b82f6;
   border: 2px solid #fff;
   border-radius: 2px;
-  cursor: nwse-resize;
   display: none;
 }
+#overlay .box .handle.nw { left: -6px; top: -6px; cursor: nwse-resize; }
+#overlay .box .handle.ne { right: -6px; top: -6px; cursor: nesw-resize; }
+#overlay .box .handle.sw { left: -6px; bottom: -6px; cursor: nesw-resize; }
+#overlay .box .handle.se { right: -6px; bottom: -6px; cursor: nwse-resize; }
+/* Maniglie di ritaglio a metà dei lati (solo video e immagini). */
+#overlay .box .handle.crop { background: #f97316; border-radius: 6px; }
+#overlay .box .handle.crop.c-top, #overlay .box .handle.crop.c-bottom { width: 24px; height: 8px; left: calc(50% - 12px); cursor: ns-resize; }
+#overlay .box .handle.crop.c-top { top: -4px; }
+#overlay .box .handle.crop.c-bottom { bottom: -4px; }
+#overlay .box .handle.crop.c-left, #overlay .box .handle.crop.c-right { width: 8px; height: 24px; top: calc(50% - 12px); cursor: ew-resize; }
+#overlay .box .handle.crop.c-left { left: -4px; }
+#overlay .box .handle.crop.c-right { right: -4px; }
 #overlay .box.selected .handle { display: block; }
 
-.add-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 12px 0; }
-.list-head { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; }
+.add-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
+.add-list button { text-align: left; }
+.list-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+
+/* Proprietà dell'elemento selezionato, sotto l'anteprima, in schede affiancate. */
+#panel {
+  margin-top: 12px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px;
+  align-items: start;
+}
+#panel .card { background: #181a20; border: 1px solid #2c3039; border-radius: 8px; padding: 10px 12px; }
+#panel .card h3 { border-top: none; padding-top: 0; margin-top: 0; }
+#panel .empty { grid-column: 1 / -1; }
+.px-info { font-variant-numeric: tabular-nums; color: #cbd5e1; background: #0e1014; border: 1px solid #2c3039; border-radius: 6px; padding: 6px 8px; margin-bottom: 8px; }
 h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: #8b93a5; margin: 0 0 8px; }
 h3 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: #8b93a5; margin: 16px 0 8px; border-top: 1px solid #2c3039; padding-top: 12px; }
 
@@ -81,7 +106,7 @@ h3 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: 
 .field { display: flex; flex-direction: column; gap: 3px; margin-bottom: 8px; }
 .field > span { color: #aab0bd; font-size: 12px; }
 .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 10px; }
-.grid4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px 10px; }
 .row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-bottom: 8px; }
 .check { display: flex; gap: 6px; align-items: center; margin-bottom: 8px; }
 

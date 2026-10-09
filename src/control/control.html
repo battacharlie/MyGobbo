@@ -24,12 +24,17 @@
           <div id="overlay"></div>
         </div>
       </div>
-      <p class="muted small">Anteprima dell'uscita: trascina un elemento per spostarlo, l'angolo in basso a destra per ridimensionarlo (Maiusc mantiene le proporzioni). Gli elementi nascosti sono semitrasparenti.</p>
+      <p class="muted small">Anteprima dell'uscita: trascina un elemento per spostarlo e uno dei quattro angoli per ridimensionarlo (Maiusc mantiene le proporzioni). Su video e immagini le maniglie arancioni a metà dei lati ritagliano la sorgente. Gli elementi nascosti sono semitrasparenti.</p>
 
-      <div class="add-row">
-        <span>Aggiungi:</span>
+      <div id="panel"></div>
+    </div>
+
+    <aside class="right">
+      <h2>Aggiungi</h2>
+      <div class="add-list">
         <button data-add="ndi">+ Segnale NDI</button>
         <button data-add="capture">+ Periferica di acquisizione</button>
+        <button data-add="media">+ Media (video o immagine)</button>
         <button data-add="timer">+ Timer</button>
         <button data-add="ticker">+ Frase</button>
       </div>
@@ -39,9 +44,7 @@
         <button id="btn-show-all" class="small-btn">Mostra tutti</button>
       </div>
       <ul id="layer-list"></ul>
-    </div>
-
-    <aside id="panel" class="right"></aside>
+    </aside>
   </div>
 
   <script src="../shared/layers.js"></script>

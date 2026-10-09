@@ -1,7 +1,8 @@
-const { app, BrowserWindow, ipcMain, screen, session } = require('electron');
+const { app, BrowserWindow, ipcMain, screen, session, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
-const { createLayer, timerElapsedMs } = require('./shared/layers');
+const { pathToFileURL } = require('url');
+const { createLayer, timerElapsedMs, TIMER_COLORS, VIDEO_EXT, IMAGE_EXT } = require('./shared/layers');
 const ndi = require('./ndi');
 
 const ICON = path.join(__dirname, 'assets', 'igor.png');
@@ -46,6 +47,8 @@ function loadState() {
   try {
     const raw = JSON.parse(fs.readFileSync(statePath(), 'utf8'));
     const loaded = { ...structuredClone(DEFAULT_STATE), ...raw };
+    // Le scene salvate da versioni precedenti ricevono le nuove proprietà.
+    loaded.layers = loaded.layers.map((l) => upgradeLayer({ ...createLayer(l.type), ...l }));
     // Un timer rimasto in corsa alla chiusura riparte in pausa.
     for (const l of loaded.layers) {
       if (l.type === 'timer' && l.run.running) {
@@ -56,6 +59,15 @@ function loadState() {
   } catch {
     return structuredClone(DEFAULT_STATE);
   }
+}
+
+// I timer con i vecchi colori predefiniti (bianco, arancio, rosso) passano
+// ai nuovi: verde, giallo, rosso.
+function upgradeLayer(l) {
+  if (l.type === 'timer' && l.color === '#ffffff' && l.warningColor === '#ffb020' && l.endColor === '#ff3b30') {
+    Object.assign(l, TIMER_COLORS);
+  }
+  return l;
 }
 
 let saveTimeout = null;
@@ -176,8 +188,39 @@ function createWindows() {
 
 // --- Comandi dalla regia ---------------------------------------------------
 
+// Chiede un video o un'immagine dal disco e restituisce le proprietà del
+// livello Media, oppure null se l'utente annulla.
+async function pickMediaFile() {
+  const res = await dialog.showOpenDialog(controlWin, {
+    title: 'Scegli un video o un\'immagine',
+    properties: ['openFile'],
+    filters: [
+      { name: 'Video e immagini', extensions: [...VIDEO_EXT, ...IMAGE_EXT] },
+      { name: 'Video', extensions: VIDEO_EXT },
+      { name: 'Immagini', extensions: IMAGE_EXT }
+    ]
+  });
+  if (res.canceled || !res.filePaths.length) return null;
+  const file = res.filePaths[0];
+  const ext = path.extname(file).slice(1).toLowerCase();
+  return {
+    file,
+    src: pathToFileURL(file).href,
+    mediaKind: IMAGE_EXT.includes(ext) ? 'image' : 'video',
+    name: path.basename(file)
+  };
+}
+
 function findLayer(id) {
   return state.layers.find((l) => l.id === id);
+}
+
+function addLayer(layer) {
+  if (layer.type === 'timer' || layer.type === 'ticker') {
+    state.layers.push(layer); // in primo piano
+  } else {
+    state.layers.unshift(layer); // video e immagini vanno sotto agli elementi grafici
+  }
 }
 
 function timerAction(layer, action, seconds) {
@@ -211,14 +254,28 @@ ipcMain.handle('ndi-sources', () => ndi.sources());
 
 ipcMain.on('command', (_evt, cmd) => {
   switch (cmd.type) {
-    case 'add-layer': {
-      const layer = createLayer(cmd.layerType, cmd.extra);
-      if (cmd.layerType === 'timer' || cmd.layerType === 'ticker') {
-        state.layers.push(layer); // in primo piano
-      } else {
-        state.layers.unshift(layer); // i video vanno sotto agli elementi grafici
-      }
+    case 'add-layer':
+      addLayer(createLayer(cmd.layerType, cmd.extra));
       break;
+    case 'add-media':
+      // La finestra di scelta del file è asincrona: il livello arriva dopo.
+      pickMediaFile().then((media) => {
+        if (!media) return;
+        addLayer(createLayer('media', media));
+        saveState();
+        broadcast();
+      });
+      return;
+    case 'pick-media': {
+      const id = cmd.id;
+      pickMediaFile().then((media) => {
+        const layer = findLayer(id);
+        if (!media || !layer) return;
+        Object.assign(layer, media, { playing: true, restartAt: Date.now() });
+        saveState();
+        broadcast();
+      });
+      return;
     }
     case 'update-layer': {
       const layer = findLayer(cmd.id);

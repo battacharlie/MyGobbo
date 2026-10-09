@@ -11,7 +11,20 @@
 //   di MAX_FPS al secondo (come i video, non supera i 25 fps);
 // - le misure si rileggono solo quando cambiano scena o dimensioni.
 (function (root) {
-  const { MAX_FPS, formatTime, timerValueMs, timerElapsedMs, timerColor, videoRects, hexToRgba, TYPE_LABELS } = root.Layers;
+  const { MAX_FPS, formatTime, timerValueMs, timerElapsedMs, timerColor, timerOvertime, isVisual, videoRects, hexToRgba, TYPE_LABELS } = root.Layers;
+
+  // Lampeggio dei numeri a tempo superato e cornice che corre lungo i bordi.
+  // Le animazioni vanno a scatti (steps) per non superare MAX_FPS.
+  const FRAME_STEPS = 12;
+  const FRAME_LOOP_MS = (FRAME_STEPS / MAX_FPS) * 1000;
+  if (!document.getElementById('igor-anim')) {
+    const style = document.createElement('style');
+    style.id = 'igor-anim';
+    style.textContent = '@keyframes igor-blink { 0%, 50% { opacity: 1 } 50.01%, 100% { opacity: 0 } }'
+      + '.igor-blink { animation: igor-blink 1s steps(1, end) infinite; }';
+    document.head.appendChild(style);
+  }
+  const PLACEHOLDER_BG = { ndi: '#1d3557', capture: '#264d33', media: '#4a2d5c' };
 
   function createStage(container, opts = {}) {
     const getMedia = opts.getMedia || (() => null);
@@ -30,7 +43,7 @@
       el.style.overflow = 'hidden';
       const entry = { el, type: layer.type };
 
-      if (layer.type === 'ndi' || layer.type === 'capture') {
+      if (isVisual(layer.type)) {
         if (opts.placeholders) {
           // Anteprima in regia: riquadro con il nome dell'input al posto del
           // video, così la regia non decodifica i flussi una seconda volta.
@@ -54,6 +67,16 @@
         span.style.cssText = 'font-variant-numeric:tabular-nums;line-height:1;white-space:nowrap';
         el.appendChild(span);
         entry.text = span;
+        // Cornice sui bordi dello schermo, fuori dal riquadro del timer.
+        const ns = 'http://www.w3.org/2000/svg';
+        const svg = document.createElementNS(ns, 'svg');
+        svg.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:100000;display:none';
+        const rect = document.createElementNS(ns, 'rect');
+        for (const [k, v] of Object.entries({ x: 0, y: 0, width: '100%', height: '100%', fill: 'none', pathLength: 1000, 'stroke-dasharray': '30 20' })) rect.setAttribute(k, v);
+        svg.appendChild(rect);
+        container.appendChild(svg);
+        entry.frame = svg;
+        entry.frameRect = rect;
       } else if (layer.type === 'ticker') {
         el.style.display = 'flex';
         el.style.alignItems = 'center';
@@ -75,6 +98,7 @@
       for (const [id, entry] of els) {
         if (!ids.has(id)) {
           if (entry.anim) entry.anim.cancel();
+          if (entry.frame) entry.frame.remove();
           entry.el.remove();
           els.delete(id);
           if (opts.onRemove) opts.onRemove(id);
@@ -105,7 +129,7 @@
           entry.text.textContent = layer.text;
         }
         if (entry.label) {
-          s.background = layer.type === 'ndi' ? '#1d3557' : '#264d33';
+          s.background = PLACEHOLDER_BG[layer.type];
           const text = `${TYPE_LABELS[layer.type]}: ${layer.name}`;
           if (entry.label.textContent !== text) entry.label.textContent = text;
         }
@@ -196,13 +220,47 @@
         if (entry.text.textContent !== text) entry.text.textContent = text;
         const color = timerColor(layer, value);
         if (entry.text.style.color !== color) entry.text.style.color = color;
+        const over = timerOvertime(layer, value);
+        entry.text.classList.toggle('igor-blink', over && layer.blink);
+        showFrame(entry, layer, over && layer.frame);
         fitTimer(entry);
         if (layer.run.running) {
           const elapsed = timerElapsedMs(layer, now);
           next = Math.min(next, 1000 - (((elapsed % 1000) + 1000) % 1000));
         }
       }
+      // I timer nascosti non mostrano la cornice.
+      for (const layer of layers) {
+        const entry = els.get(layer.id);
+        if (entry && entry.frame && !layer.visible && !opts.showHidden) showFrame(entry, layer, false);
+      }
       if (next !== Infinity) timerHandle = setTimeout(tickTimers, next + 15);
+    }
+
+    function showFrame(entry, layer, on) {
+      const svg = entry.frame;
+      if (!on) {
+        if (entry.frameAnim) {
+          entry.frameAnim.cancel();
+          entry.frameAnim = null;
+        }
+        svg.style.display = 'none';
+        return;
+      }
+      // Lo spessore è in pixel di uno schermo alto 1080: nell'anteprima
+      // piccola si riduce in proporzione. Metà del tratto cade fuori dallo
+      // schermo, per questo è raddoppiato.
+      const px = Math.max(1, layer.frameWidth * container.clientHeight / 1080);
+      entry.frameRect.setAttribute('stroke', layer.frameColor);
+      entry.frameRect.setAttribute('stroke-width', String(px * 2));
+      svg.style.opacity = layer.visible ? '1' : '0.35';
+      svg.style.display = 'block';
+      if (!entry.frameAnim) {
+        entry.frameAnim = entry.frameRect.animate(
+          [{ strokeDashoffset: '0px' }, { strokeDashoffset: '-50px' }],
+          { duration: FRAME_LOOP_MS, iterations: Infinity, easing: `steps(${FRAME_STEPS}, end)` }
+        );
+      }
     }
 
     // Se i numeri non entrano nel riquadro (es. segno meno o ore) li
