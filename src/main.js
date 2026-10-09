@@ -2,7 +2,7 @@ const { app, BrowserWindow, ipcMain, screen, session, dialog } = require('electr
 const path = require('path');
 const fs = require('fs');
 const { pathToFileURL } = require('url');
-const { createLayer, timerElapsedMs, TIMER_COLORS, VIDEO_EXT, IMAGE_EXT } = require('./shared/layers');
+const { createLayer, timerElapsedMs, TIMER_COLORS, TYPE_LABELS, VIDEO_EXT, IMAGE_EXT } = require('./shared/layers');
 const ndi = require('./ndi');
 
 const ICON = path.join(__dirname, 'assets', 'igor.png');
@@ -45,19 +45,72 @@ function migrateOldState() {
 
 function loadState() {
   try {
-    const raw = JSON.parse(fs.readFileSync(statePath(), 'utf8'));
-    const loaded = { ...structuredClone(DEFAULT_STATE), ...raw };
-    // Le scene salvate da versioni precedenti ricevono le nuove proprietà.
-    loaded.layers = loaded.layers.map((l) => upgradeLayer({ ...createLayer(l.type), ...l }));
-    // Un timer rimasto in corsa alla chiusura riparte in pausa.
-    for (const l of loaded.layers) {
-      if (l.type === 'timer' && l.run.running) {
-        l.run = { running: false, baseMs: timerElapsedMs(l), startedAt: 0 };
-      }
-    }
-    return loaded;
+    return normalizeState(JSON.parse(fs.readFileSync(statePath(), 'utf8')));
   } catch {
     return structuredClone(DEFAULT_STATE);
+  }
+}
+
+// Porta una scena letta da disco (salvataggio automatico o configurazione
+// aperta dall'utente) nella forma attuale. Lancia un errore se non è valida.
+function normalizeState(raw) {
+  if (!raw || !Array.isArray(raw.layers)) throw new Error('Il file non contiene una configurazione di IGOR.');
+  const loaded = { ...structuredClone(DEFAULT_STATE), ...raw };
+  // Le scene salvate da versioni precedenti ricevono le nuove proprietà.
+  loaded.layers = loaded.layers
+    .filter((l) => l && TYPE_LABELS[l.type])
+    .map((l) => upgradeLayer({ ...createLayer(l.type), ...l }));
+  // Un timer rimasto in corsa riparte in pausa.
+  for (const l of loaded.layers) {
+    if (l.type === 'timer' && l.run.running) {
+      l.run = { running: false, baseMs: timerElapsedMs(l), startedAt: 0 };
+    }
+  }
+  return loaded;
+}
+
+// --- Configurazioni salvate dall'utente --------------------------------------
+
+const CONFIG_FILTERS = [{ name: 'Configurazione IGOR', extensions: ['igor'] }, { name: 'Tutti i file', extensions: ['*'] }];
+
+async function saveConfig() {
+  const res = await dialog.showSaveDialog(controlWin, {
+    title: 'Salva configurazione',
+    defaultPath: path.join(app.getPath('documents'), 'Configurazione.igor'),
+    filters: CONFIG_FILTERS
+  });
+  if (res.canceled || !res.filePath) return;
+  const data = {
+    app: 'IGOR - ABit/s',
+    version: require('../package.json').version,
+    savedAt: new Date().toISOString(),
+    layers: state.layers,
+    background: state.background,
+    displayId: state.displayId
+  };
+  try {
+    fs.writeFileSync(res.filePath, JSON.stringify(data, null, 2));
+  } catch (err) {
+    dialog.showMessageBox(controlWin, { type: 'error', title: 'Salva configurazione', message: 'Impossibile salvare la configurazione.', detail: String(err.message || err) });
+  }
+}
+
+async function openConfig() {
+  const res = await dialog.showOpenDialog(controlWin, {
+    title: 'Importa configurazione',
+    defaultPath: app.getPath('documents'),
+    properties: ['openFile'],
+    filters: CONFIG_FILTERS
+  });
+  if (res.canceled || !res.filePaths.length) return;
+  try {
+    const loaded = normalizeState(JSON.parse(fs.readFileSync(res.filePaths[0], 'utf8')));
+    state = { layers: loaded.layers, background: loaded.background, displayId: loaded.displayId };
+    placeDisplayWindow();
+    saveState();
+    broadcast();
+  } catch (err) {
+    dialog.showMessageBox(controlWin, { type: 'error', title: 'Importa configurazione', message: 'Impossibile importare la configurazione.', detail: String(err.message || err) });
   }
 }
 
@@ -257,6 +310,12 @@ ipcMain.on('command', (_evt, cmd) => {
     case 'add-layer':
       addLayer(createLayer(cmd.layerType, cmd.extra));
       break;
+    case 'save-config':
+      saveConfig();
+      return;
+    case 'open-config':
+      openConfig();
+      return;
     case 'add-media':
       // La finestra di scelta del file è asincrona: il livello arriva dopo.
       pickMediaFile().then((media) => {

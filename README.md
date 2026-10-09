@@ -17,6 +17,7 @@ Piccola regia video per Windows: una **finestra di regia** sul monitor principal
 - Per ogni elemento: misura e posizione in pixel sull'uscita, aggiornate in tempo reale; posizione e misure in % dello schermo, *Schermo intero*, *Centra*, *Proporzioni 16:9*; *Solo questo* (mostra in uscita solo quell'input), *Avanti / Indietro* per l'ordine, *Elimina*.
 - Per NDI, acquisizione e media: ritaglio (crop) trascinando le maniglie arancioni a metà dei lati e adattamento *Adatta* (mantiene le proporzioni), *Riempi* (mantiene le proporzioni e taglia), *Deforma*.
 - Scelta del monitor di uscita, colore di sfondo, mostra/nascondi uscita.
+- *Salva configurazione* e *Importa configurazione*, in fondo alla colonna destra: salvano su un file `.igor` tutti gli elementi con le loro impostazioni e li richiamano quando serve.
 
 **Uscita** (secondo monitor)
 - Si apre all'avvio, senza bordi, a tutto schermo sul monitor 2.
@@ -87,7 +88,7 @@ Per pubblicare una nuova versione per tutti basta aumentare `version` in `packag
 
 ## Ringraziamenti
 
-La versione 0.4.0 nasce dai suggerimenti di **FilandoLaRete** e **MaxNardi**.
+La versione 0.4 nasce dai suggerimenti di **MaxNardi** e **Matteo Castaldo - Filando La Rete**.
 
 ## Loghi
 

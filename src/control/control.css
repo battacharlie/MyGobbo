@@ -19,6 +19,7 @@ body {
 .topbar strong { font-size: 15px; margin-right: 8px; }
 .brand { display: flex; align-items: center; gap: 8px; }
 .brand img { width: 28px; height: 28px; }
+#output-info { font-size: 12px; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .topbar .company { margin-left: auto; height: 32px; width: 32px; }
 .layout {
   flex: 1;
@@ -26,14 +27,21 @@ body {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 360px;
 }
-.left { padding: 14px 16px; overflow: auto; }
+.left { padding: 14px 16px; display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+.left > p { flex: none; margin: 8px 0 0; }
 .right { border-left: 1px solid #2c3039; padding: 14px 16px; overflow: auto; background: #181a20; }
 .right h2 { margin-top: 0; }
+.right { display: flex; flex-direction: column; }
+/* Salva / importa configurazione in fondo alla colonna degli input. */
+.right .config { margin-top: auto; padding-top: 16px; display: flex; flex-direction: column; gap: 6px; }
+.right .config button { text-align: left; }
 
-#preview-wrap { width: 100%; }
+/* Anteprima compatta: il resto dello spazio va ai comandi dell'elemento. */
+#preview-wrap { flex: none; height: 36vh; min-height: 180px; display: flex; justify-content: center; }
 #preview {
   position: relative;
-  width: 100%;
+  height: 100%;
+  max-width: 100%;
   aspect-ratio: 16 / 9;
   border: 1px solid #343946;
   background: #000;
@@ -73,6 +81,10 @@ body {
 
 /* Proprietà dell'elemento selezionato, sotto l'anteprima, in schede affiancate. */
 #panel {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding-bottom: 12px;
   margin-top: 12px;
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
