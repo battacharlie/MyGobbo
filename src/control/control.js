@@ -1,6 +1,6 @@
 // Regia: elenco degli elementi, anteprima dell'uscita e proprietà
 // dell'elemento selezionato.
-const { TYPE_LABELS, timerValueMs, formatTime, timerColor } = window.Layers;
+const { TYPE_LABELS, TIMER_COLORS, isVisual, timerValueMs, formatTime, timerColor } = window.Layers;
 const api = window.countdown;
 const send = (cmd) => api.send(cmd);
 const $ = (id) => document.getElementById(id);
@@ -79,6 +79,11 @@ function refreshBindings() {
   const layer = selectedLayer();
   if (!layer) return;
   for (const b of bindings) {
+    if (b.text) {
+      const t = b.get(layer);
+      if (b.el.textContent !== t) b.el.textContent = t;
+      continue;
+    }
     if (document.activeElement === b.el) continue;
     const v = b.get(layer);
     if (b.isCheck) b.el.checked = !!v;
@@ -88,6 +93,19 @@ function refreshBindings() {
 
 // --- Pannello proprietà ------------------------------------------------------
 
+// Una scheda del pannello: titolo e campi.
+function card(title, ...children) {
+  return h('section', { class: 'card' }, title ? h('h3', {}, title) : null, ...children);
+}
+
+// Testo che si aggiorna da solo quando cambia l'elemento (anche durante il
+// trascinamento nell'anteprima).
+function liveText(get, attrs = {}) {
+  const el = h('div', attrs);
+  bindings.push({ el, get, text: true });
+  return el;
+}
+
 function buildPanel() {
   const panel = $('panel');
   const layer = selectedLayer();
@@ -95,15 +113,14 @@ function buildPanel() {
   clearInterval(panelTick);
   panelTick = null;
   panel.innerHTML = '';
-  panelKey = layer ? `${layer.id}:${layer.type}` : null;
+  panelKey = panelKeyOf(layer);
 
   if (!layer) {
     panel.append(h('p', { class: 'empty' }, 'Seleziona un elemento dall\'elenco o dall\'anteprima, oppure aggiungine uno nuovo.'));
     return;
   }
 
-  panel.append(
-    h('h2', {}, TYPE_LABELS[layer.type]),
+  panel.append(card(TYPE_LABELS[layer.type],
     field('Nome', textInput('name')),
     h('div', { class: 'row' },
       checkbox('In onda (visibile in uscita)', 'visible')),
@@ -112,44 +129,56 @@ function buildPanel() {
       h('button', { onclick: () => send({ type: 'move-layer', id: layer.id, dir: 1 }) }, '↑ Avanti'),
       h('button', { onclick: () => send({ type: 'move-layer', id: layer.id, dir: -1 }) }, '↓ Indietro'),
       h('button', { class: 'danger', onclick: () => removeSelected() }, 'Elimina'))
-  );
+  ));
 
   if (layer.type === 'timer') panel.append(...timerSection(layer));
   if (layer.type === 'ticker') panel.append(...tickerSection());
   if (layer.type === 'ndi') panel.append(...ndiSection());
   if (layer.type === 'capture') panel.append(...captureSection());
+  if (layer.type === 'media') panel.append(...mediaSection());
 
   panel.append(...geometrySection(layer));
   refreshBindings();
 }
 
+// Misure in pixel dell'elemento sullo schermo di uscita, aggiornate in tempo
+// reale mentre lo si sposta o ridimensiona.
+function pixelInfo(l) {
+  const out = state.output;
+  const px = (v, total) => Math.round(v * total / 100);
+  let text = `${px(l.w, out.width)} × ${px(l.h, out.height)} px · posizione ${px(l.x, out.width)}, ${px(l.y, out.height)} px`;
+  if (isVisual(l.type)) {
+    const c = l.crop;
+    const parts = [['sinistra', c.left], ['destra', c.right], ['alto', c.top], ['basso', c.bottom]]
+      .filter(([, v]) => v > 0).map(([k, v]) => `${k} ${round(v)}%`);
+    text += parts.length ? ` · ritaglio ${parts.join(', ')}` : ' · nessun ritaglio';
+  }
+  return text;
+}
+
 function geometrySection(layer) {
   const pct = { min: -100, max: 200, step: 0.5 };
-  const nodes = [
-    h('h3', {}, 'Posizione e misure (% dello schermo)'),
+  const nodes = [card('Posizione e misure',
+    liveText(pixelInfo, { class: 'px-info' }),
     h('div', { class: 'grid2' },
-      field('Sinistra (X)', numberInput((l) => round(l.x), (v) => updateLayer({ x: v }), pct)),
-      field('Alto (Y)', numberInput((l) => round(l.y), (v) => updateLayer({ y: v }), pct)),
-      field('Larghezza', numberInput((l) => round(l.w), (v) => updateLayer({ w: Math.max(1, v) }), { min: 1, max: 400, step: 0.5 })),
-      field('Altezza', numberInput((l) => round(l.h), (v) => updateLayer({ h: Math.max(1, v) }), { min: 1, max: 400, step: 0.5 }))),
+      field('Sinistra (X, %)', numberInput((l) => round(l.x), (v) => updateLayer({ x: v }), pct)),
+      field('Alto (Y, %)', numberInput((l) => round(l.y), (v) => updateLayer({ y: v }), pct)),
+      field('Larghezza (%)', numberInput((l) => round(l.w), (v) => updateLayer({ w: Math.max(1, v) }), { min: 1, max: 400, step: 0.5 })),
+      field('Altezza (%)', numberInput((l) => round(l.h), (v) => updateLayer({ h: Math.max(1, v) }), { min: 1, max: 400, step: 0.5 }))),
     h('div', { class: 'row' },
       h('button', { onclick: () => updateLayer({ x: 0, y: 0, w: 100, h: 100 }) }, 'Schermo intero'),
       h('button', { onclick: () => center() }, 'Centra'),
       h('button', { onclick: () => fitToSource() }, 'Proporzioni 16:9'))
-  ];
-  if (layer.type === 'ndi' || layer.type === 'capture') {
-    nodes.push(
+  )];
+  if (isVisual(layer.type)) {
+    nodes.push(card('Adattamento e ritaglio',
       field('Adattamento', select(
         [['contain', 'Adatta (mantiene le proporzioni)'], ['cover', 'Riempi (mantiene le proporzioni, taglia)'], ['stretch', 'Deforma (riempie tutto)']],
         (l) => l.fit, (v) => updateLayer({ fit: v }))),
-      h('h3', {}, 'Ritaglio (crop, % della sorgente)'),
-      h('div', { class: 'grid4' },
-        ['top', 'right', 'bottom', 'left'].map((side) => field(
-          { top: 'Alto', right: 'Destra', bottom: 'Basso', left: 'Sinistra' }[side],
-          numberInput((l) => l.crop[side], (v) => updateLayer({ crop: { [side]: clamp(v, 0, 95) } }), { min: 0, max: 95, step: 0.5 })))),
+      h('p', { class: 'muted small' }, 'Per ritagliare trascina nell\'anteprima le maniglie arancioni a metà dei lati.'),
       h('div', { class: 'row' },
         h('button', { onclick: () => updateLayer({ crop: { top: 0, right: 0, bottom: 0, left: 0 } }) }, 'Togli ritaglio'))
-    );
+    ));
   }
   return nodes;
 }
@@ -181,33 +210,43 @@ function timerSection(layer) {
   setTimeout(tick);
 
   return [
-    h('h3', {}, 'Comandi'),
-    big,
-    h('div', { class: 'row' }, startBtn,
-      h('button', { onclick: () => send({ type: 'timer', id: selectedId, action: 'reset' }) }, '↺ Azzera')),
-    h('div', { class: 'row' }, adj(-60, '−1 min'), adj(-10, '−10 s'), adj(10, '+10 s'), adj(60, '+1 min')),
-    h('p', { class: 'muted small' }, 'Barra spaziatrice: avvia/pausa del timer selezionato.'),
-    h('h3', {}, 'Conteggio'),
-    field('Direzione', select([['down', 'All\'indietro (countdown)'], ['up', 'In avanti (cronometro)']],
-      (l) => l.direction, (v) => updateLayer({ direction: v }))),
-    h('div', { class: 'grid2' }, field('Durata: minuti', durMin), field('secondi', durSec)),
-    h('div', { class: 'row' }, [5, 10, 15, 30, 45, 60].map((m) =>
-      h('button', { class: 'small-btn', onclick: () => { updateLayer({ durationSec: m * 60 }); refreshBindings(); } }, `${m}′`))),
-    h('p', { class: 'muted small' }, 'In avanti la durata non conta: il cronometro parte da zero.'),
-    h('h3', {}, 'Aspetto'),
-    h('div', { class: 'grid2' },
-      field('Colore numeri', colorInput('color')),
-      field('Colore sfondo', colorInput('background'))),
-    checkbox('Sfondo trasparente', 'transparent'),
-    field('Misura carattere (% altezza schermo)', h('div', { class: 'row' },
-      bound(h('input', { type: 'range', min: 2, max: 60, step: 0.5 }), (l) => l.fontSize, (v) => updateLayer({ fontSize: v })),
-      numberInput((l) => l.fontSize, (v) => updateLayer({ fontSize: clamp(v, 1, 100) }), { min: 1, max: 100, step: 0.5, style: 'width:80px' }))),
-    field('Carattere', fontSelect()),
-    checkbox('Grassetto', 'bold'),
-    h('div', { class: 'grid2' },
-      field('Avviso negli ultimi (s)', numberInput((l) => l.warningSec, (v) => updateLayer({ warningSec: Math.max(0, v) }), { min: 0, step: 1 })),
-      field('Colore avviso', colorInput('warningColor'))),
-    field('Colore a tempo scaduto', colorInput('endColor'))
+    card('Comandi',
+      big,
+      h('div', { class: 'row' }, startBtn,
+        h('button', { onclick: () => send({ type: 'timer', id: selectedId, action: 'reset' }) }, '↺ Azzera')),
+      h('div', { class: 'row' }, adj(-60, '−1 min'), adj(-10, '−10 s'), adj(10, '+10 s'), adj(60, '+1 min')),
+      h('p', { class: 'muted small' }, 'Barra spaziatrice: avvia/pausa del timer selezionato.')),
+    card('Conteggio',
+      field('Direzione', select([['down', 'All\'indietro (countdown)'], ['up', 'In avanti (cronometro)']],
+        (l) => l.direction, (v) => updateLayer({ direction: v }))),
+      h('div', { class: 'grid2' }, field('Durata: minuti', durMin), field('secondi', durSec)),
+      h('div', { class: 'row' }, [5, 10, 15, 30, 45, 60].map((m) =>
+        h('button', { class: 'small-btn', onclick: () => { updateLayer({ durationSec: m * 60 }); refreshBindings(); } }, `${m}′`))),
+      h('p', { class: 'muted small' }, 'All\'indietro, oltre lo zero il tempo continua con il segno +. In avanti la durata è il limite (0 = nessun limite).')),
+    card('Colori',
+      h('div', { class: 'grid3' },
+        field('Partenza', colorInput('color')),
+        field('Scadenza vicina', colorInput('warningColor')),
+        field('Tempo superato', colorInput('endColor'))),
+      field('Scadenza vicina negli ultimi (secondi)', numberInput((l) => l.warningSec, (v) => updateLayer({ warningSec: Math.max(0, v) }), { min: 0, step: 1 })),
+      h('div', { class: 'row' },
+        h('button', { class: 'small-btn', onclick: () => updateLayer({ ...TIMER_COLORS }) }, 'Verde, giallo, rosso'))),
+    card('Tempo superato',
+      checkbox('Numeri lampeggianti', 'blink'),
+      checkbox('Cornice che corre lungo i bordi dello schermo', 'frame'),
+      h('div', { class: 'grid2' },
+        field('Colore cornice', colorInput('frameColor')),
+        field('Spessore (px)', numberInput((l) => l.frameWidth, (v) => updateLayer({ frameWidth: clamp(v, 1, 200) }), { min: 1, max: 200, step: 1 }))),
+      h('p', { class: 'muted small' }, 'Spessore in pixel su uno schermo Full HD (1080 righe).')),
+    card('Aspetto',
+      h('div', { class: 'grid2' },
+        field('Colore sfondo', colorInput('background')),
+        h('div', {}, checkbox('Sfondo trasparente', 'transparent'))),
+      field('Misura carattere (% altezza schermo)', h('div', { class: 'row' },
+        bound(h('input', { type: 'range', min: 2, max: 60, step: 0.5 }), (l) => l.fontSize, (v) => updateLayer({ fontSize: v })),
+        numberInput((l) => l.fontSize, (v) => updateLayer({ fontSize: clamp(v, 1, 100) }), { min: 1, max: 100, step: 0.5, style: 'width:80px' }))),
+      field('Carattere', fontSelect()),
+      checkbox('Grassetto', 'bold'))
   ];
 }
 
@@ -220,25 +259,47 @@ function setDuration(min, sec) {
 
 function tickerSection() {
   return [
-    h('h3', {}, 'Frase'),
-    field('Testo', bound(h('textarea', { rows: 3 }), (l) => l.text, (v) => updateLayer({ text: v.replace(/\n/g, ' ') }))),
-    h('p', { class: 'muted small' }, 'Se il testo è più lungo dello spazio disponibile, scorre da destra a sinistra.'),
-    field('Velocità di scorrimento (px/s)', h('div', { class: 'row' },
-      bound(h('input', { type: 'range', min: 20, max: 600, step: 10 }), (l) => l.speed, (v) => updateLayer({ speed: v })),
-      numberInput((l) => l.speed, (v) => updateLayer({ speed: clamp(v, 5, 2000) }), { min: 5, step: 5, style: 'width:80px' }))),
-    h('h3', {}, 'Aspetto'),
-    h('div', { class: 'grid2' },
-      field('Colore testo', colorInput('color')),
-      field('Colore fascia', colorInput('background'))),
-    field('Opacità fascia', bound(h('input', { type: 'range', min: 0, max: 1, step: 0.05 }), (l) => l.opacity, (v) => updateLayer({ opacity: v }))),
-    checkbox('Fascia trasparente', 'transparent'),
-    field('Misura carattere (% altezza schermo)', h('div', { class: 'row' },
-      bound(h('input', { type: 'range', min: 2, max: 30, step: 0.5 }), (l) => l.fontSize, (v) => updateLayer({ fontSize: v })),
-      numberInput((l) => l.fontSize, (v) => updateLayer({ fontSize: clamp(v, 1, 100) }), { min: 1, max: 100, step: 0.5, style: 'width:80px' }))),
-    field('Carattere', fontSelect()),
-    checkbox('Grassetto', 'bold'),
-    h('div', { class: 'row' },
-      h('button', { onclick: () => updateLayer({ x: 0, y: 86, w: 100, h: 14 }) }, 'Riporta in basso'))
+    card('Frase',
+      field('Testo', bound(h('textarea', { rows: 3 }), (l) => l.text, (v) => updateLayer({ text: v.replace(/\n/g, ' ') }))),
+      h('p', { class: 'muted small' }, 'Se il testo è più lungo dello spazio disponibile, scorre da destra a sinistra.'),
+      field('Velocità di scorrimento (px/s)', h('div', { class: 'row' },
+        bound(h('input', { type: 'range', min: 20, max: 600, step: 10 }), (l) => l.speed, (v) => updateLayer({ speed: v })),
+        numberInput((l) => l.speed, (v) => updateLayer({ speed: clamp(v, 5, 2000) }), { min: 5, step: 5, style: 'width:80px' }))),
+      h('div', { class: 'row' },
+        h('button', { onclick: () => updateLayer({ x: 0, y: 86, w: 100, h: 14 }) }, 'Riporta in basso'))),
+    card('Aspetto',
+      h('div', { class: 'grid2' },
+        field('Colore testo', colorInput('color')),
+        field('Colore fascia', colorInput('background'))),
+      field('Opacità fascia', bound(h('input', { type: 'range', min: 0, max: 1, step: 0.05 }), (l) => l.opacity, (v) => updateLayer({ opacity: v }))),
+      checkbox('Fascia trasparente', 'transparent'),
+      field('Misura carattere (% altezza schermo)', h('div', { class: 'row' },
+        bound(h('input', { type: 'range', min: 2, max: 30, step: 0.5 }), (l) => l.fontSize, (v) => updateLayer({ fontSize: v })),
+        numberInput((l) => l.fontSize, (v) => updateLayer({ fontSize: clamp(v, 1, 100) }), { min: 1, max: 100, step: 0.5, style: 'width:80px' }))),
+      field('Carattere', fontSelect()),
+      checkbox('Grassetto', 'bold'))
+  ];
+}
+
+function mediaSection() {
+  const playBtn = h('button', { onclick: () => {
+    const l = selectedLayer();
+    updateLayer({ playing: !l.playing });
+  } }, '');
+  const isVideo = () => selectedLayer().mediaKind !== 'image';
+  bindings.push({ el: playBtn, get: (l) => (l.playing ? '❚❚ Pausa' : '▶ Riproduci'), text: true });
+  const videoControls = h('div', {},
+    h('div', { class: 'row' }, playBtn,
+      h('button', { onclick: () => updateLayer({ playing: true, restartAt: Date.now() }) }, '⏮ Da capo')),
+    checkbox('Ripeti all\'infinito', 'loop'),
+    checkbox('Audio (sull\'uscita)', 'audio'));
+  return [
+    card('File',
+      liveText((l) => l.file || 'Nessun file scelto', { class: 'px-info' }),
+      h('div', { class: 'row' },
+        h('button', { onclick: () => send({ type: 'pick-media', id: selectedId }) }, 'Scegli file…')),
+      isVideo() ? videoControls : h('p', { class: 'muted small' }, 'Immagine fissa.'),
+      h('p', { class: 'muted small' }, 'I video vanno in uscita a 25 fps al massimo, come gli altri input.'))
   ];
 }
 
@@ -248,7 +309,7 @@ function fontSelect() {
 }
 
 function ndiSection() {
-  const nodes = [h('h3', {}, 'Sorgente NDI')];
+  const nodes = [];
   if (!state.ndiAvailable) {
     nodes.push(h('div', { class: 'notice' },
       'NDI non è disponibile in questa installazione: il modulo NDI non è stato caricato. ',
@@ -288,7 +349,7 @@ function ndiSection() {
     field('Qualità', select([['high', 'Piena risoluzione'], ['low', 'Bassa (anteprima, meno banda)']],
       (l) => l.quality, (v) => updateLayer({ quality: v })))
   );
-  return nodes;
+  return [card('Sorgente NDI', ...nodes)];
 }
 
 function shortNdiName(name) {
@@ -327,12 +388,11 @@ function captureSection() {
   };
   setTimeout(() => refresh(true));
 
-  return [
-    h('h3', {}, 'Periferica di acquisizione'),
+  return [card('Periferica di acquisizione',
     field('Periferica', sel),
     h('div', { class: 'row' }, status, h('button', { class: 'small-btn', onclick: () => refresh(true) }, 'Aggiorna elenco')),
     h('p', { class: 'muted small' }, 'Schede di acquisizione, webcam e convertitori HDMI/SDI → USB.')
-  ];
+  )];
 }
 
 function center() {
@@ -387,22 +447,36 @@ let drag = null;
 
 function renderOverlay() {
   const boxes = state.layers.map((layer, i) => {
+    const handles = ['nw', 'ne', 'sw', 'se'].map((c) => h('div', { class: `handle ${c}`, 'data-corner': c }));
+    if (isVisual(layer.type)) {
+      for (const side of ['top', 'right', 'bottom', 'left']) {
+        handles.push(h('div', { class: `handle crop c-${side}`, 'data-crop': side, title: 'Trascina per ritagliare' }));
+      }
+    }
     const box = h('div', {
       class: `box ${layer.id === selectedId ? 'selected' : ''}`,
       style: `left:${layer.x}%;top:${layer.y}%;width:${layer.w}%;height:${layer.h}%;z-index:${layer.id === selectedId ? 1000 : i + 1}`
-    }, h('div', { class: 'handle' }));
-    box.addEventListener('pointerdown', (e) => startDrag(e, layer, e.target.classList.contains('handle') ? 'resize' : 'move'));
+    }, handles);
+    box.addEventListener('pointerdown', (e) => {
+      const d = e.target.dataset;
+      if (d.corner) startDrag(e, layer, 'resize', d.corner);
+      else if (d.crop) startDrag(e, layer, 'crop', d.crop);
+      else startDrag(e, layer, 'move');
+    });
     return box;
   });
   overlay.replaceChildren(...boxes);
 }
 
-function startDrag(e, layer, mode) {
+function startDrag(e, layer, mode, handle) {
   e.preventDefault();
   e.stopPropagation();
   if (selectedId !== layer.id) select_(layer.id);
   const rect = overlay.getBoundingClientRect();
-  drag = { id: layer.id, mode, startX: e.clientX, startY: e.clientY, rect, orig: { x: layer.x, y: layer.y, w: layer.w, h: layer.h }, pending: null };
+  drag = {
+    id: layer.id, mode, handle, startX: e.clientX, startY: e.clientY, rect,
+    orig: { x: layer.x, y: layer.y, w: layer.w, h: layer.h, crop: { ...layer.crop } }, pending: null
+  };
   window.addEventListener('pointermove', onDrag);
   window.addEventListener('pointerup', endDrag, { once: true });
 }
@@ -410,6 +484,55 @@ function startDrag(e, layer, mode) {
 function snap(v) {
   for (const t of [0, 50, 100]) if (Math.abs(v - t) < 1) return t;
   return round(v);
+}
+
+// Ridimensiona da uno dei quattro angoli: l'angolo opposto resta fermo.
+function resizePatch(o, corner, dx, dy, keepRatio) {
+  const west = corner.includes('w');
+  const north = corner.includes('n');
+  let w = Math.max(2, o.w + (west ? -dx : dx));
+  let hh = Math.max(2, o.h + (north ? -dy : dy));
+  if (keepRatio) hh = w * (o.h / o.w);
+  // Aggancia ai bordi e al centro il lato che si muove.
+  if (west) w = (o.x + o.w) - snap(o.x + o.w - w);
+  else w = snap(o.x + w) - o.x;
+  if (!keepRatio) {
+    if (north) hh = (o.y + o.h) - snap(o.y + o.h - hh);
+    else hh = snap(o.y + hh) - o.y;
+  }
+  w = Math.max(2, w);
+  hh = Math.max(2, hh);
+  return {
+    x: round(west ? o.x + o.w - w : o.x),
+    y: round(north ? o.y + o.h - hh : o.y),
+    w: round(w),
+    h: round(hh)
+  };
+}
+
+// Ritaglia un lato: il riquadro si accorcia insieme al ritaglio, così la
+// parte che resta dell'immagine non si sposta.
+function cropPatch(o, side, dx, dy) {
+  const c = { ...o.crop };
+  const visW = 100 - c.left - c.right;
+  const visH = 100 - c.top - c.bottom;
+  const horizontal = side === 'left' || side === 'right';
+  const size = horizontal ? o.w : o.h;
+  const vis = horizontal ? visW : visH;
+  // Spostamento verso l'interno del riquadro, in % dello schermo.
+  let inward = { left: dx, right: -dx, top: dy, bottom: -dy }[side];
+  // Limiti: il riquadro resta almeno del 2% e il ritaglio tra 0 e il 95% in tutto.
+  const other = { left: c.right, right: c.left, top: c.bottom, bottom: c.top }[side];
+  const maxCrop = 95 - other;
+  inward = Math.min(inward, size - 2, ((maxCrop - c[side]) / vis) * size);
+  inward = Math.max(inward, (-c[side] / vis) * size);
+  c[side] = round(Math.max(0, c[side] + (inward / size) * vis));
+  const patch = { crop: c };
+  if (side === 'left') Object.assign(patch, { x: round(o.x + inward), w: round(o.w - inward) });
+  if (side === 'right') patch.w = round(o.w - inward);
+  if (side === 'top') Object.assign(patch, { y: round(o.y + inward), h: round(o.h - inward) });
+  if (side === 'bottom') patch.h = round(o.h - inward);
+  return patch;
 }
 
 function onDrag(e) {
@@ -427,11 +550,10 @@ function onDrag(e) {
     const sy = snap(y), syb = snap(y + o.h) - o.h, syc = snap(y + o.h / 2) - o.h / 2;
     y = sy !== round(y) ? sy : syb !== round(y + o.h) - o.h ? syb : syc;
     patch = { x: round(x), y: round(y) };
+  } else if (drag.mode === 'resize') {
+    patch = resizePatch(o, drag.handle, dx, dy, e.shiftKey);
   } else {
-    let w = Math.max(2, o.w + dx);
-    let hh = Math.max(2, o.h + dy);
-    if (e.shiftKey) hh = w * (o.h / o.w);
-    patch = { w: round(snap(o.x + w) - o.x), h: round(snap(o.y + hh) - o.y) };
+    patch = cropPatch(o, drag.handle, dx, dy);
   }
   const layer = state.layers.find((l) => l.id === drag.id);
   Object.assign(layer, patch);
@@ -442,18 +564,19 @@ function onDrag(e) {
     drag.pending = requestAnimationFrame(() => {
       if (!drag) return;
       drag.pending = null;
-      const l = state.layers.find((x) => x.id === drag.id);
-      send({ type: 'update-layer', id: drag.id, patch: { x: l.x, y: l.y, w: l.w, h: l.h } });
+      sendGeometry(drag.id);
     });
   }
 }
 
+function sendGeometry(id) {
+  const l = state.layers.find((x) => x.id === id);
+  if (l) send({ type: 'update-layer', id, patch: { x: l.x, y: l.y, w: l.w, h: l.h, crop: { ...l.crop } } });
+}
+
 function endDrag() {
   window.removeEventListener('pointermove', onDrag);
-  if (drag) {
-    const l = state.layers.find((x) => x.id === drag.id);
-    if (l) send({ type: 'update-layer', id: drag.id, patch: { x: l.x, y: l.y, w: l.w, h: l.h } });
-  }
+  if (drag) sendGeometry(drag.id);
   drag = null;
 }
 
@@ -485,7 +608,7 @@ function render(next) {
   renderList();
 
   const layer = selectedLayer();
-  const key = layer ? `${layer.id}:${layer.type}` : null;
+  const key = panelKeyOf(layer);
   if (key !== panelKey) buildPanel();
   else refreshBindings();
 }
@@ -493,7 +616,9 @@ function render(next) {
 for (const b of document.querySelectorAll('[data-add]')) {
   b.addEventListener('click', () => {
     const before = new Set(state.layers.map((l) => l.id));
-    send({ type: 'add-layer', layerType: b.dataset.add });
+    // Per i media prima si sceglie il file, poi arriva il nuovo elemento.
+    if (b.dataset.add === 'media') send({ type: 'add-media' });
+    else send({ type: 'add-layer', layerType: b.dataset.add });
     // Seleziona il nuovo elemento appena arriva lo stato aggiornato.
     pendingSelect = before;
   });
@@ -519,8 +644,10 @@ document.addEventListener('keydown', (e) => {
 api.onState((next) => {
   if (pendingSelect) {
     const added = next.layers.find((l) => !pendingSelect.has(l.id));
-    if (added) selectedId = added.id;
-    pendingSelect = null;
+    if (added) {
+      selectedId = added.id;
+      pendingSelect = null;
+    }
   }
   render(next);
 });
@@ -534,4 +661,9 @@ function round(v) {
 }
 function clamp(v, min, max) {
   return Math.min(max, Math.max(min, v));
+}
+// Il pannello si ricostruisce quando cambia l'elemento selezionato, il suo
+// tipo o (per i media) il passaggio tra video e immagine.
+function panelKeyOf(layer) {
+  return layer ? `${layer.id}:${layer.type}:${layer.mediaKind || ''}` : null;
 }

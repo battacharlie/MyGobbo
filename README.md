@@ -6,16 +6,16 @@
 
 <p align="center">Regia video di ABit/s</p>
 
-Piccola regia video per Windows: una **finestra di regia** sul monitor principale e un'**uscita a tutto schermo** sul secondo monitor, dove si compongono segnali NDI, periferiche di acquisizione, un timer e una frase in sovraimpressione.
+Piccola regia video per Windows: una **finestra di regia** sul monitor principale e un'**uscita a tutto schermo** sul secondo monitor, dove si compongono segnali NDI, periferiche di acquisizione, video e immagini, un timer e una frase in sovraimpressione.
 
 ## Le due finestre
 
 **Regia** (monitor principale)
-- Pulsanti per aggiungere gli input: **segnale NDI**, **periferica di acquisizione**, **timer**, **frase**.
-- Anteprima dell'uscita: si trascina un elemento per spostarlo e si usa l'angolo in basso a destra per ridimensionarlo (Maiusc mantiene le proporzioni); gli elementi si agganciano a bordi e centro.
-- Elenco degli elementi dal primo piano allo sfondo, con *In onda / Nascosto*, *Solo questo* (mostra in uscita solo quell'input), *Avanti / Indietro* per l'ordine, *Elimina*.
-- Per ogni elemento: posizione e misure in % dello schermo, *Schermo intero*, *Centra*, *Proporzioni 16:9*.
-- Per NDI e acquisizione: ritaglio (crop) su ogni lato e adattamento *Adatta* (mantiene le proporzioni), *Riempi* (mantiene le proporzioni e taglia), *Deforma*.
+- A sinistra l'anteprima dell'uscita e, sotto, le proprietà dell'elemento selezionato.
+- A destra i pulsanti per aggiungere gli input (**segnale NDI**, **periferica di acquisizione**, **media**, **timer**, **frase**) e l'elenco degli elementi dal primo piano allo sfondo, con *In onda / Nascosto*.
+- Nell'anteprima si trascina un elemento per spostarlo e uno dei quattro angoli per ridimensionarlo (Maiusc mantiene le proporzioni); gli elementi si agganciano a bordi e centro.
+- Per ogni elemento: misura e posizione in pixel sull'uscita, aggiornate in tempo reale; posizione e misure in % dello schermo, *Schermo intero*, *Centra*, *Proporzioni 16:9*; *Solo questo* (mostra in uscita solo quell'input), *Avanti / Indietro* per l'ordine, *Elimina*.
+- Per NDI, acquisizione e media: ritaglio (crop) trascinando le maniglie arancioni a metà dei lati e adattamento *Adatta* (mantiene le proporzioni), *Riempi* (mantiene le proporzioni e taglia), *Deforma*.
 - Scelta del monitor di uscita, colore di sfondo, mostra/nascondi uscita.
 
 **Uscita** (secondo monitor)
@@ -26,10 +26,11 @@ Piccola regia video per Windows: una **finestra di regia** sul monitor principal
 ## Elementi
 
 **Timer**
-- All'indietro (countdown, continua in negativo dopo lo zero) oppure in avanti (cronometro).
+- All'indietro (countdown; dopo lo zero continua con il segno +) oppure in avanti (cronometro, la durata fa da limite).
 - Avvia / pausa / azzera, ±10 s e ±1 min anche in corsa; barra spaziatrice per avvio/pausa.
-- Colore dei numeri, colore dello sfondo (o trasparente), misura e tipo di carattere, grassetto.
-- Colore di avviso negli ultimi N secondi e colore a tempo scaduto.
+- Tre colori dei numeri: alla partenza (verde), quando si avvicina la scadenza (giallo, negli ultimi N secondi) e a tempo superato (rosso).
+- A tempo superato i numeri lampeggiano e una cornice corre lungo i bordi dello schermo; colore e spessore della cornice si scelgono.
+- Colore dello sfondo (o trasparente), misura e tipo di carattere, grassetto.
 - I numeri si rimpiccioliscono da soli se non entrano nel riquadro.
 
 **Frase**
@@ -40,6 +41,8 @@ Piccola regia video per Windows: una **finestra di regia** sul monitor principal
 **Periferica di acquisizione**: schede di acquisizione, webcam, convertitori HDMI/SDI → USB (tutto ciò che Windows vede come videocamera).
 
 **Segnale NDI**: elenco delle sorgenti NDI trovate in rete, qualità piena o bassa (meno banda).
+
+**Media**: video (mp4, webm, mov, mkv…) e immagini (png, jpg, gif, webp…) dal disco. Per i video: riproduci / pausa, da capo, ripetizione continua e audio sì/no.
 
 La scena (elementi, posizioni, testi, colori) viene salvata e ritrovata al riavvio.
 
@@ -80,7 +83,11 @@ Nei nomi dei file e dei collegamenti l'app si chiama "IGOR - ABits" perché Wind
 
 In alternativa, ogni push su `main` fa partire la GitHub Action **Build Windows**, che crea gli stessi `.exe`: li scarichi da *Actions → Build Windows → Artifacts* (serve un account con accesso al progetto).
 
-Per pubblicare una nuova versione per tutti basta aumentare `version` in `package.json` e unire in `main`: la Action crea la Release (es. `v0.3.0`) con i due `.exe` allegati.
+Per pubblicare una nuova versione per tutti basta aumentare `version` in `package.json` e unire in `main`: la Action crea la Release (es. `v0.3.0`) con i due `.exe` allegati. Se esiste `release-notes/vX.Y.Z.md`, il suo testo diventa la descrizione della Release.
+
+## Ringraziamenti
+
+La versione 0.4.0 nasce dai suggerimenti di **FilandoLaRete** e **MaxNardi**.
 
 ## Loghi
 
@@ -102,4 +109,4 @@ src/
 
 La scena vive nel processo principale e le due finestre ricevono lo stesso stato. Per consumare poco non c'è un ciclo che ridisegna a ogni fotogramma: i video sono elementi della pagina posizionati con CSS e composti dalla scheda video, il timer si aggiorna solo al cambio del secondo e la frase scorre con un'animazione CSS. L'anteprima in regia mostra riquadri con il nome degli input invece dei video, così i flussi non vengono decodificati due volte. Il timer è basato sull'orario di avvio, quindi resta preciso anche se una finestra rallenta. I fotogrammi NDI vengono ricevuti direttamente nella finestra di uscita, senza passare dal processo principale.
 
-Tutto ciò che compare in uscita è limitato a **25 fps** (`MAX_FPS` in `src/shared/layers.js`): le periferiche di acquisizione vengono aperte a 25 fps al massimo, i fotogrammi NDI in più vengono scartati e la frase avanza a scatti di 1/25 di secondo.
+Tutto ciò che compare in uscita è limitato a **25 fps** (`MAX_FPS` in `src/shared/layers.js`): le periferiche di acquisizione vengono aperte a 25 fps al massimo, i fotogrammi NDI in più vengono scartati, i video dei media vengono copiati in uscita 25 volte al secondo, e la frase e la cornice del timer avanzano a scatti di 1/25 di secondo.

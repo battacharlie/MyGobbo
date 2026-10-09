@@ -1,6 +1,6 @@
 {
   "name": "igor-abits",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "IGOR - ABit/s: regia video per Windows con uscita a tutto schermo sul secondo monitor, NDI, periferiche di acquisizione, timer e frase in sovraimpressione.",
   "main": "src/main.js",
   "author": "ABit/s",
