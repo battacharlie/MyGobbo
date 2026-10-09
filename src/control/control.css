@@ -166,3 +166,10 @@ button.on { background: #15803d; border-color: #15803d; color: #fff; }
   margin-bottom: 8px;
 }
 .empty { color: #8b93a5; padding: 20px 0; }
+
+/* Tasto elimina sempre visibile in basso a sinistra, sotto le proprietà. */
+#panel-footer { flex: none; display: flex; align-items: center; gap: 10px; padding-top: 10px; border-top: 1px solid #2c3039; }
+#panel-footer[hidden] { display: none; }
+#panel-footer .remove { background: #b91c1c; border-color: #b91c1c; color: #fff; font-weight: 600; }
+#panel-footer .remove:hover { background: #991b1b; }
+#remove-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

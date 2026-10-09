@@ -127,8 +127,7 @@ function buildPanel() {
     h('div', { class: 'row' },
       h('button', { onclick: () => send({ type: 'solo', id: layer.id }), title: 'Mostra solo questo elemento in uscita' }, 'Solo questo'),
       h('button', { onclick: () => send({ type: 'move-layer', id: layer.id, dir: 1 }) }, '↑ Avanti'),
-      h('button', { onclick: () => send({ type: 'move-layer', id: layer.id, dir: -1 }) }, '↓ Indietro'),
-      h('button', { class: 'danger', onclick: () => removeSelected() }, 'Elimina'))
+      h('button', { onclick: () => send({ type: 'move-layer', id: layer.id, dir: -1 }) }, '↓ Indietro'))
   ));
 
   if (layer.type === 'timer') panel.append(...timerSection(layer));
@@ -408,6 +407,12 @@ function fitToSource() {
   updateLayer({ h: round(hPct) });
 }
 
+function renderFooter() {
+  const layer = selectedLayer();
+  $('panel-footer').hidden = !layer;
+  if (layer) $('remove-name').textContent = `${TYPE_LABELS[layer.type]}: ${layer.name}`;
+}
+
 function removeSelected() {
   const layer = selectedLayer();
   if (!layer) return;
@@ -606,6 +611,7 @@ function render(next) {
   stage.update(state.layers, state.background);
   renderOverlay();
   renderList();
+  renderFooter();
 
   const layer = selectedLayer();
   const key = panelKeyOf(layer);
@@ -627,6 +633,7 @@ let pendingSelect = null;
 
 $('btn-show-all').onclick = () => send({ type: 'show-all' });
 $('btn-toggle-display').onclick = () => send({ type: 'toggle-display' });
+$('btn-remove').onclick = () => removeSelected();
 $('btn-save-config').onclick = () => send({ type: 'save-config' });
 $('btn-open-config').onclick = () => send({ type: 'open-config' });
 $('sel-display').onchange = (e) => send({ type: 'set-display', displayId: Number(e.target.value) });

@@ -14,7 +14,7 @@ Piccola regia video per Windows: una **finestra di regia** sul monitor principal
 - A sinistra l'anteprima dell'uscita e, sotto, le proprietà dell'elemento selezionato.
 - A destra i pulsanti per aggiungere gli input (**segnale NDI**, **periferica di acquisizione**, **media**, **timer**, **frase**) e l'elenco degli elementi dal primo piano allo sfondo, con *In onda / Nascosto*.
 - Nell'anteprima si trascina un elemento per spostarlo e uno dei quattro angoli per ridimensionarlo (Maiusc mantiene le proporzioni); gli elementi si agganciano a bordi e centro.
-- Per ogni elemento: misura e posizione in pixel sull'uscita, aggiornate in tempo reale; posizione e misure in % dello schermo, *Schermo intero*, *Centra*, *Proporzioni 16:9*; *Solo questo* (mostra in uscita solo quell'input), *Avanti / Indietro* per l'ordine, *Elimina*.
+- Per ogni elemento: misura e posizione in pixel sull'uscita, aggiornate in tempo reale; posizione e misure in % dello schermo, *Schermo intero*, *Centra*, *Proporzioni 16:9*; *Solo questo* (mostra in uscita solo quell'input), *Avanti / Indietro* per l'ordine; il tasto rosso *Elimina input*, sempre visibile in basso a sinistra, toglie l'input selezionato e chiude la sua sorgente.
 - Per NDI, acquisizione e media: ritaglio (crop) trascinando le maniglie arancioni a metà dei lati e adattamento *Adatta* (mantiene le proporzioni), *Riempi* (mantiene le proporzioni e taglia), *Deforma*.
 - Scelta del monitor di uscita, colore di sfondo, mostra/nascondi uscita.
 - *Salva configurazione* e *Importa configurazione*, in fondo alla colonna destra: salvano su un file `.igor` tutti gli elementi con le loro impostazioni e li richiamano quando serve.
@@ -30,7 +30,7 @@ Piccola regia video per Windows: una **finestra di regia** sul monitor principal
 - All'indietro (countdown; dopo lo zero continua con il segno +) oppure in avanti (cronometro, la durata fa da limite).
 - Avvia / pausa / azzera, ±10 s e ±1 min anche in corsa; barra spaziatrice per avvio/pausa.
 - Tre colori dei numeri: alla partenza (verde), quando si avvicina la scadenza (giallo, negli ultimi N secondi) e a tempo superato (rosso).
-- A tempo superato i numeri lampeggiano e una cornice corre lungo i bordi dello schermo; colore e spessore della cornice si scelgono.
+- Solo quando il tempo è scaduto (timer partito e arrivato a zero, o alla durata in avanti) i numeri lampeggiano e una cornice corre lungo i bordi dello schermo; colore e spessore della cornice si scelgono.
 - Colore dello sfondo (o trasparente), misura e tipo di carattere, grassetto.
 - I numeri si rimpiccioliscono da soli se non entrano nel riquadro.
 
@@ -88,7 +88,7 @@ Per pubblicare una nuova versione per tutti basta aumentare `version` in `packag
 
 ## Ringraziamenti
 
-La versione 0.4 nasce dai suggerimenti di **MaxNardi** e **Matteo Castaldo - Filando La Rete**.
+La versione 0.4 nasce dai suggerimenti di **MAXNARDI** e **MATTEO CASTALDO - FILANDO LA RETE**.
 
 ## Loghi
 
