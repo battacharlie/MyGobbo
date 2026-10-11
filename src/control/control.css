@@ -303,14 +303,45 @@ button.pick { padding: 2px 6px; font-size: 13px; line-height: 1.2; }
 }
 .empty { color: #8b93a5; padding: 20px 0; }
 
-/* Tasto elimina sempre visibile in basso a sinistra, sotto le proprietà. */
-#panel-footer .popout-btn { margin-left: auto; }
-#panel-footer { flex: none; display: flex; align-items: center; gap: 10px; padding-top: 10px; border-top: 1px solid #2c3039; }
-#panel-footer[hidden] { display: none; }
-#panel-footer [hidden] { display: none; }
-#panel-footer .remove { background: #b91c1c; border-color: #b91c1c; color: #fff; font-weight: 600; }
-#panel-footer .remove:hover { background: #991b1b; }
-#remove-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Barra in basso: a sinistra i comandi dei dettagli (blu IGOR con pulsanti
+   grigi), a destra le icone veloci (grigio IGOR con pulsanti azzurri). */
+#panel-footer { flex: none; display: flex; align-items: stretch; gap: 12px; padding-top: 10px; flex-wrap: wrap; }
+.bar-left, .bar-right { display: flex; align-items: center; gap: 6px; padding: 5px 6px; border-radius: 8px; }
+.bar-left { background: var(--igor-blue); }
+.bar-left button { background: var(--igor-grey); border-color: var(--igor-grey); color: var(--igor-blue); font-weight: 600; }
+.bar-left button:hover { background: var(--igor-grey-hi); border-color: var(--igor-grey-hi); }
+.bar-right { background: var(--igor-grey); margin-left: auto; }
+.bar-right .quick, .bar-right .quick-select {
+  background: var(--igor-blue-light); border: 1px solid var(--igor-blue-light); color: #eeeeee;
+  height: 30px; border-radius: 6px; font-weight: 700;
+}
+.bar-right .quick { width: 34px; padding: 0; display: inline-flex; align-items: center; justify-content: center; }
+.bar-right .quick:hover, .bar-right .quick-select:hover { filter: brightness(1.1); }
+.bar-right .quick.active { box-shadow: inset 0 0 0 2px var(--igor-blue); }
+.bar-right .quick-select { padding: 0 4px; font-size: 12px; width: auto; min-width: 0; flex: none; }
+.bar-right .quick-select option { background: #1b1e25; color: #e8eaf0; }
+.bar-right .quick.ndi { width: auto; padding: 0 8px; font-size: 12px; letter-spacing: 0.04em; color: #fff; }
+.bar-right .quick.ndi-on { background: #15803d; border-color: #15803d; }
+.bar-right .quick.ndi-off { background: #b91c1c; border-color: #b91c1c; }
+.quick-sep { width: 1px; align-self: stretch; background: #9a9a9a; margin: 2px 3px; }
+.ico { display: inline-flex; line-height: 0; }
+.side-footer { flex: none; display: flex; padding: 10px 0 0; }
+
+/* Pulsanti a icona nelle righe dell'elenco degli input. */
+.row-btns { display: inline-flex; gap: 3px; flex: none; }
+.row-btn { width: 26px; height: 24px; padding: 0; display: inline-flex; align-items: center; justify-content: center; color: #aab0bd; }
+.row-btn .ico svg { width: 15px; height: 15px; }
+.row-btn.eye.on { background: var(--igor-blue-hi); border-color: var(--igor-blue-hi); color: #fff; }
+.row-btn.trash { color: #f87171; }
+.row-btn.trash:hover { background: #b91c1c; border-color: #b91c1c; color: #fff; }
+
+/* Menu del clic destro sull'elenco. */
+.ctx-menu { position: fixed; z-index: 20000; background: #1b1e25; border: 1px solid #343946; border-radius: 8px; padding: 4px; display: flex; flex-direction: column; min-width: 170px; box-shadow: 0 8px 24px rgba(0,0,0,0.5); }
+.ctx-menu[hidden] { display: none; }
+.ctx-menu button { border: none; background: none; text-align: left; display: flex; align-items: center; gap: 8px; padding: 6px 10px; }
+.ctx-menu button:hover:not(:disabled) { background: #2a2f3a; }
+.ctx-menu button.danger { color: #f87171; }
+.ctx-menu button:disabled { opacity: 0.4; }
 
 /* Unità di misura (% o pixel) e finestre di dialogo. */
 .unit-switch { display: inline-flex; border: 1px solid #343946; border-radius: 6px; overflow: hidden; }

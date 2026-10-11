@@ -14,29 +14,11 @@
       <div class="menu" data-menu="file">
         <button class="menu-title" data-i18n="File">File</button>
         <div class="menu-list">
-          <button data-cmd="open-config" data-i18n="Importa configurazione…">Importa configurazione…</button>
-          <button data-cmd="save-config" data-i18n="Esporta configurazione…">Esporta configurazione…</button>
-          <div class="menu-sep"></div>
-          <!-- Sottomenu Uscita: si apre passando sopra con il mouse (o con un clic). -->
-          <div class="menu-sub" data-menu="output">
-            <button class="menu-sub-title" data-i18n="Uscita">Uscita</button>
-            <div class="menu-list">
-              <div class="menu-label" data-i18n="Monitor della seconda finestra (messa in onda)">Monitor della seconda finestra (messa in onda)</div>
-              <div id="menu-displays"></div>
-              <div class="menu-sep"></div>
-              <div class="menu-label" data-i18n="Fotogrammi al secondo dell'uscita">Fotogrammi al secondo dell'uscita</div>
-              <div id="menu-fps"></div>
-              <div class="menu-sep"></div>
-              <div class="menu-row">
-                <span data-i18n="Colore di sfondo">Colore di sfondo</span>
-                <span class="color-pick"><input type="color" id="col-background"><button id="btn-pick-background" class="pick" data-i18n-title="Preleva il colore dallo schermo o da un'immagine" title="Preleva il colore dallo schermo o da un'immagine">💧</button></span>
-              </div>
-              <button data-cmd="toggle-display" id="menu-toggle-display" data-i18n="Mostra/nascondi uscita">Mostra/nascondi uscita</button>
-              <div class="menu-sep"></div>
-              <button data-cmd="ndi-out" id="menu-ndi-out" class="check" data-i18n="Invia l'uscita in NDI">Invia l'uscita in NDI</button>
-              <div class="menu-note" id="menu-ndi-status"></div>
-            </div>
+          <div class="menu-row">
+            <span data-i18n="Colore di sfondo dell'uscita">Colore di sfondo dell'uscita</span>
+            <span class="color-pick"><input type="color" id="col-background"><button id="btn-pick-background" class="pick" data-i18n-title="Preleva il colore dallo schermo o da un'immagine" title="Preleva il colore dallo schermo o da un'immagine">💧</button></span>
           </div>
+          <div class="menu-note" data-i18n="Monitor, fotogrammi al secondo, NDI, configurazione, lingua e controllo remoto sono nella barra in basso.">Monitor, fotogrammi al secondo, NDI, configurazione, lingua e controllo remoto sono nella barra in basso.</div>
         </div>
       </div>
       <div class="menu" data-menu="view">
@@ -46,19 +28,7 @@
           <button data-cmd="studio" id="menu-studio" class="check" data-i18n="Modalità studio">Modalità studio</button>
           <button data-cmd="help" id="menu-help" class="check" data-i18n="Mostra le istruzioni">Mostra le istruzioni</button>
           <button data-cmd="reset-layout" data-i18n="Ripristina la disposizione delle finestre">Ripristina la disposizione delle finestre</button>
-          <button data-cmd="popout-details" data-i18n="Apri i dettagli input in una finestra separata">Apri i dettagli input in una finestra separata</button>
           <button data-cmd="manual" data-i18n="Mini manuale (online)">Mini manuale (online)</button>
-          <div class="menu-sep"></div>
-          <div class="menu-label" data-i18n="Lingua">Lingua</div>
-          <button data-cmd="lang" data-lang="it" class="check" id="menu-lang-it">Italiano</button>
-          <button data-cmd="lang" data-lang="en" class="check" id="menu-lang-en">English</button>
-        </div>
-      </div>
-      <div class="menu" data-menu="remote">
-        <button class="menu-title" data-i18n="Controllo remoto">Controllo remoto</button>
-        <div class="menu-list">
-          <button data-cmd="midi" data-i18n="Controller MIDI…">Controller MIDI…</button>
-          <button data-cmd="http" data-i18n="Companion / Stream Deck…">Companion / Stream Deck…</button>
         </div>
       </div>
     </nav>
@@ -112,11 +82,14 @@
 
     <section id="zone-details">
       <div id="panel"><div id="cards"></div></div>
-      <div id="panel-footer" hidden>
-        <button id="btn-reset" data-i18n-title="Riporta posizione, misure e impostazioni ai valori iniziali (sorgente e testo restano)" title="Riporta posizione, misure e impostazioni ai valori iniziali (sorgente e testo restano)">↺ <span data-i18n="Ripristina misure">Ripristina misure</span></button>
-        <button id="btn-remove" class="remove" data-i18n-title="Elimina l'input selezionato e chiude la sua sorgente" title="Elimina l'input selezionato e chiude la sua sorgente">✕ Elimina input</button>
-        <span id="remove-name" class="muted"></span>
-        <button id="btn-popout-details" class="small-btn popout-btn" data-i18n-title="Apri i dettagli input in una finestra separata" title="Apri i dettagli input in una finestra separata">⧉</button>
+      <!-- Barra in basso: a sinistra i comandi dei dettagli input, a destra
+           le icone veloci per uscita, NDI, configurazione, lingua e controllo remoto. -->
+      <div id="panel-footer">
+        <div id="footer-left" class="bar-left">
+          <button id="btn-reset-cards" data-i18n-title="Riporta tutte le schede dei dettagli input alla posizione e alla misura iniziali" title="Riporta tutte le schede dei dettagli input alla posizione e alla misura iniziali" data-i18n="Ripristina finestre tab">Ripristina finestre tab</button>
+          <button id="btn-popout-details" data-i18n-title="Apri i dettagli input in una finestra separata" title="Apri i dettagli input in una finestra separata">Separa Finestra Dettagli</button>
+        </div>
+        <div id="quickbar" class="bar-right"></div>
       </div>
     </section>
 
@@ -125,7 +98,7 @@
     <aside id="zone-inputs">
       <div class="studio-row">
         <button id="btn-add" class="add-btn" data-i18n-title="Aggiungi un input o una scena" title="Aggiungi un input o una scena">+</button>
-        <button id="btn-light" data-i18n-title="Light: niente scene né modalità studio, per consumare meno risorse. Full: tutte le funzioni." title="Light: niente scene né modalità studio, per consumare meno risorse. Full: tutte le funzioni.">Modalità light</button>
+        <button id="btn-light">LIGHT</button>
       </div>
 
       <div class="list-head">
@@ -143,6 +116,7 @@
   <dialog id="dlg-add" class="dialog"></dialog>
   <dialog id="dlg-midi" class="dialog"></dialog>
   <dialog id="dlg-http" class="dialog"></dialog>
+  <div id="ctx-menu" class="ctx-menu" hidden></div>
 
   <script src="../shared/i18n-en.js"></script>
   <script src="../shared/i18n.js"></script>
