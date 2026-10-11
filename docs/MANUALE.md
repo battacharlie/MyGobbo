@@ -48,7 +48,7 @@ Una scena raccoglie più input; in onda va una scena alla volta. Gli input fuori
 
 ### Controllo remoto
 - **MIDI**: scegli un comando, premi *Impara* e tocca un tasto del controller.
-- **Companion**: attiva *Accetta comandi via HTTP* e usa indirizzi come `http://127.0.0.1:8765/api/cut` (modulo *Generic HTTP*).
+- **Companion**: attiva *Accetta comandi via HTTP* e usa indirizzi come `http://127.0.0.1:8765/api/cut` (modulo *Generic HTTP*). Guida completa: [COMPANION.md](COMPANION.md).
 
 ### Consigli
 - *Visualizza → Ripristina la disposizione delle finestre* rimette schede e zone come all'inizio.
@@ -100,7 +100,7 @@ A scene groups several inputs; one scene at a time is on air. Inputs outside sce
 
 ### Remote control
 - **MIDI**: choose a command, press *Learn* and touch a key on the controller.
-- **Companion**: turn on *Accept commands over HTTP* and use addresses like `http://127.0.0.1:8765/api/cut` (*Generic HTTP* module).
+- **Companion**: turn on *Accept commands over HTTP* and use addresses like `http://127.0.0.1:8765/api/cut` (*Generic HTTP* module). Full guide: [COMPANION.md](COMPANION.md).
 
 ### Tips
 - *View → Reset the window layout* puts panels and zones back as they were at the start.

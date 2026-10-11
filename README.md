@@ -90,7 +90,7 @@ La scena (elementi, posizioni, testi, colori) viene salvata e ritrovata al riavv
 
 **Controller MIDI** (icona MIDI nella barra in basso): si sceglie un comando, si preme *Impara* e si tocca un tasto, un pad o una manopola del controller. Comandi: CUT, FADE, manda in onda o metti in anteprima la scena numero N, modalità studio, timer avvia/pausa e azzera, video in onda riproduci/pausa e da capo, TelePrompt avvia/pausa, più veloce, più lento, velocità con una manopola, paragrafo successivo e precedente, torna all'inizio, mostra/nascondi uscita.
 
-**Companion / Stream Deck**: attivando *Accetta comandi via HTTP* IGOR risponde a indirizzi come `http://127.0.0.1:8765/api/cut` o `http://127.0.0.1:8765/api/program/2` (scena numero 2). In Companion si usa il modulo *Generic HTTP* con un'azione GET; la finestra elenca tutti gli indirizzi da copiare. Con l'opzione di rete si comanda IGOR anche da un altro computer.
+**Companion / Stream Deck**: attivando *Accetta comandi via HTTP* IGOR risponde a indirizzi come `http://127.0.0.1:8765/api/cut` o `http://127.0.0.1:8765/api/program/2` (scena numero 2). In Companion si usa il modulo *Generic HTTP* con un'azione GET; la finestra elenca tutti gli indirizzi da copiare. Con l'opzione di rete si comanda IGOR anche da un altro computer. Guida passo passo con tutti i comandi: **[docs/COMPANION.md](docs/COMPANION.md)**.
 
 ## Scarica
 
