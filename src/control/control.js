@@ -558,15 +558,19 @@ function popOutDetails() {
   if (!win) return;
   detailsWin = win;
   const panel = $('panel');
-  const footer = $('panel-footer');
+  // Con i dettagli va solo la parte sinistra della barra: le icone veloci restano nella regia.
+  const footer = $('footer-left');
   win.document.body.classList.add('side-details');
-  win.document.body.append(panel, footer);
-  zone.append(h('div', { class: 'details-away', id: 'details-away' },
+  win.document.body.append(panel, h('div', { class: 'side-footer' }, footer));
+  $('btn-popout-details').textContent = t('Riunisci Finestra Dettagli');
+  zone.insertBefore(h('div', { class: 'details-away', id: 'details-away' },
     h('p', { class: 'muted' }, t('I dettagli degli input sono aperti in una finestra separata.')),
-    h('button', { onclick: () => win.close() }, t('Riporta nella regia'))));
+    h('button', { onclick: () => win.close() }, t('Riporta nella regia'))), $('panel-footer'));
   new win.ResizeObserver(() => win.requestAnimationFrame(layoutCards)).observe(panel);
   win.addEventListener('beforeunload', () => {
-    zone.append(panel, footer);
+    zone.insertBefore(panel, $('panel-footer'));
+    $('panel-footer').prepend(footer);
+    $('btn-popout-details').textContent = t('Separa Finestra Dettagli');
     const away = $('details-away');
     if (away) away.remove();
     detailsWin = null;
@@ -1125,37 +1129,106 @@ function fitToSource() {
   updateLayer({ h: round(hPct) });
 }
 
-function renderFooter() {
-  const layer = selectedLayer();
-  $('panel-footer').hidden = !layer;
-  if (!layer) return;
-  $('remove-name').textContent = `${typeLabel(layer.type)}: ${layer.name}`;
-  $('btn-remove').textContent = layer.type === 'scene' ? `✕ ${t('Elimina scena')}` : `✕ ${t('Elimina input')}`;
-  $('btn-reset').hidden = layer.type === 'scene';
-}
 
-function removeSelected() {
-  const layer = selectedLayer();
-  if (!layer) return;
-  const msg = layer.type === 'scene' && layer.children.length
-    ? t('Eliminare la scena "{name}" e i {n} input che contiene?', { name: layer.name, n: layer.children.length })
-    : t('Eliminare "{name}"?', { name: layer.name });
+// Elimina uno o più elementi (dopo la conferma).
+function removeLayers(ids) {
+  const layers = ids.map(layerById).filter(Boolean);
+  if (!layers.length) return;
+  let msg;
+  if (layers.length > 1) {
+    msg = t('Eliminare i {n} elementi selezionati?', { n: layers.length });
+  } else {
+    const layer = layers[0];
+    msg = layer.type === 'scene' && layer.children.length
+      ? t('Eliminare la scena "{name}" e i {n} input che contiene?', { name: layer.name, n: layer.children.length })
+      : t('Eliminare "{name}"?', { name: layer.name });
+  }
   if (!confirm(msg)) return;
-  send({ type: 'remove-layer', id: layer.id });
+  for (const l of layers) send({ type: 'remove-layer', id: l.id });
+  multi.clear();
   selectedId = null;
 }
 
-// Riporta l'input ai valori iniziali (sorgente, file e testo restano).
-function resetSelected() {
-  const layer = selectedLayer();
-  if (!layer || layer.type === 'scene') return;
-  if (!confirm(t('Riportare "{name}" alle misure e impostazioni iniziali?', { name: layer.name }))) return;
-  send({ type: 'reset-layer', id: layer.id });
+// Riporta gli input ai valori iniziali (sorgente, file e testo restano).
+function resetLayers(ids) {
+  const layers = ids.map(layerById).filter((l) => l && l.type !== 'scene');
+  if (!layers.length) return;
+  const msg = layers.length > 1
+    ? t('Riportare i {n} input selezionati alle misure e impostazioni iniziali?', { n: layers.length })
+    : t('Riportare "{name}" alle misure e impostazioni iniziali?', { name: layers[0].name });
+  if (!confirm(msg)) return;
+  for (const l of layers) send({ type: 'reset-layer', id: l.id });
 }
 
 // --- Elenco elementi (trascinabili) --------------------------------------------
 
 const collapsed = new Set(); // scene chiuse nell'elenco
+// Selezione multipla nell'elenco (Ctrl o Maiusc + clic): selectedId resta
+// l'elemento mostrato nei dettagli, multi contiene tutti quelli selezionati.
+const multi = new Set();
+let selectAnchor = null;
+
+// Id delle righe nell'ordine in cui compaiono nell'elenco.
+function listOrder() {
+  return [...$('layer-list').querySelectorAll('li[data-id]')].map((li) => li.dataset.id);
+}
+
+function selectFromList(id, e) {
+  if (e && (e.ctrlKey || e.metaKey)) {
+    if (multi.has(id) && multi.size > 1) {
+      multi.delete(id);
+      if (selectedId === id) selectedId = [...multi].pop();
+      selectAnchor = id;
+      render(state);
+      return;
+    }
+    multi.add(id);
+    selectAnchor = id;
+    select_(id, true);
+    return;
+  }
+  if (e && e.shiftKey && selectAnchor) {
+    const order = listOrder();
+    const a = order.indexOf(selectAnchor);
+    const b = order.indexOf(id);
+    if (a >= 0 && b >= 0) {
+      multi.clear();
+      for (const x of order.slice(Math.min(a, b), Math.max(a, b) + 1)) multi.add(x);
+      select_(id, true);
+      return;
+    }
+  }
+  selectAnchor = id;
+  select_(id);
+}
+
+// Menu del clic destro sulle righe dell'elenco: agisce su tutta la selezione.
+function openListMenu(e, layer) {
+  e.preventDefault();
+  if (!multi.has(layer.id)) selectFromList(layer.id);
+  const ids = [...multi];
+  const resettable = ids.map(layerById).filter((l) => l && l.type !== 'scene').length;
+  const menu = $('ctx-menu');
+  const n = ids.length > 1 ? ` (${ids.length})` : '';
+  menu.replaceChildren(
+    h('button', { class: 'danger', onclick: () => { closeListMenu(); removeLayers(ids); } }, icon('trash'), `${t('Elimina')}${n}`),
+    h('button', { disabled: !resettable, onclick: () => { closeListMenu(); resetLayers(ids); } }, icon('reset'), `${t('Ripristina input')}${resettable > 1 ? ` (${resettable})` : ''}`));
+  menu.hidden = false;
+  const w = menu.offsetWidth;
+  const hgt = menu.offsetHeight;
+  menu.style.left = `${Math.min(e.clientX, window.innerWidth - w - 4)}px`;
+  menu.style.top = `${Math.min(e.clientY, window.innerHeight - hgt - 4)}px`;
+}
+
+function closeListMenu() {
+  $('ctx-menu').hidden = true;
+}
+document.addEventListener('pointerdown', (e) => {
+  if (!$('ctx-menu').hidden && !$('ctx-menu').contains(e.target)) closeListMenu();
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') closeListMenu();
+});
 
 function renderList() {
   const list = $('layer-list');
@@ -1193,11 +1266,21 @@ function listRow(layer, parent, sceneNumber) {
     }
   } else {
     button = h('button', {
-      class: `small-btn ${layer.visible ? 'on' : ''}`,
+      class: `row-btn eye ${layer.visible ? 'on' : ''}`,
       title: layer.visible ? t('Visibile: clic per nascondere') : t('Nascosto: clic per mostrare'),
       onclick: (e) => { e.stopPropagation(); send({ type: 'update-layer', id: layer.id, patch: { visible: !layer.visible } }); }
-    }, layer.visible ? t('Visibile') : t('Nascosto'));
+    }, icon(layer.visible ? 'eye' : 'eyeOff'));
   }
+  const resetBtn = isScene ? null : h('button', {
+    class: 'row-btn',
+    title: t('Ripristina misure e impostazioni dell\'input (sorgente e testo restano)'),
+    onclick: (e) => { e.stopPropagation(); resetLayers([layer.id]); }
+  }, icon('reset'));
+  const trashBtn = h('button', {
+    class: 'row-btn trash',
+    title: isScene ? t('Elimina la scena') : t('Elimina l\'input e chiude la sua sorgente'),
+    onclick: (e) => { e.stopPropagation(); removeLayers([layer.id]); }
+  }, icon('trash'));
   const caret = isScene
     ? h('span', {
       class: 'caret',
@@ -1213,7 +1296,7 @@ function listRow(layer, parent, sceneNumber) {
   const copies = linkCount(layer);
   const li = h('li', {
     class: [
-      layer.id === selectedId ? 'selected' : '',
+      layer.id === selectedId || multi.has(layer.id) ? 'selected' : '',
       !isScene && !layer.visible ? 'hidden-layer' : '',
       isScene ? 'scene' : '',
       parent ? 'child' : '',
@@ -1225,13 +1308,19 @@ function listRow(layer, parent, sceneNumber) {
   h('span', { class: 'tag' }, isScene ? `${typeLabel('scene')} ${sceneNumber}` : typeLabel(layer.type)),
   h('span', { class: 'name' }, layer.name, isScene ? h('span', { class: 'muted' }, ` (${layer.children.length})`) : null),
   copies > 1 ? h('span', { class: 'link', title: t('Stesso input in {n} punti: la sorgente è condivisa', { n: copies }) }, '🔗') : null,
-  button);
+  h('span', { class: 'row-btns' }, button, resetBtn, trashBtn));
   li.addEventListener('pointerdown', (e) => startListDrag(e, layer, li));
+  li.addEventListener('contextmenu', (e) => openListMenu(e, layer));
   return li;
 }
 
-function select_(id) {
+// keep = true: lascia la selezione multipla com'è (Ctrl o Maiusc + clic).
+function select_(id, keep) {
   selectedId = id;
+  if (!keep) {
+    multi.clear();
+    if (id) multi.add(id);
+  }
   // In modalità studio scegliere una scena (o un suo input) la mette in anteprima.
   const scene = sceneOf(id);
   if (state.studio && scene && state.preview !== scene.id) send({ type: 'preview', id: scene.id });
@@ -1341,7 +1430,7 @@ function endListDrag(e) {
   document.body.classList.remove('list-dragging');
   for (const el of document.querySelectorAll('#layer-list li.drop-into, #layer-list li.dragging')) el.classList.remove('drop-into', 'dragging');
   if (!d || !d.active) {
-    if (d) select_(d.layer.id);
+    if (d) selectFromList(d.layer.id, e);
     return;
   }
   const target = d.target;
@@ -1437,8 +1526,11 @@ function renderStudio() {
   const changed = document.body.classList.contains('studio') !== studio;
   document.body.classList.toggle('studio', studio);
   if (changed) applyLayout();
-  $('btn-light').classList.toggle('on', !!state.light);
-  $('btn-light').textContent = state.light ? t('Modalità light: attiva') : t('Modalità light');
+  // Il pulsante dice dove si va: LIGHT dalla modalità full, STUDIO dalla light.
+  $('btn-light').textContent = state.light ? 'STUDIO' : 'LIGHT';
+  $('btn-light').title = state.light
+    ? t('Torna alla modalità completa, con scene e modalità studio')
+    : t('Modalità light: niente scene né modalità studio, per consumare meno risorse');
   $('switcher').hidden = !studio;
   $('mon-program').hidden = !studio;
   if (document.activeElement !== $('sel-fade')) $('sel-fade').value = String(state.fadeMs);
@@ -1571,6 +1663,18 @@ $('split-h').addEventListener('pointerdown', (e) => startSplit(e, 'h'));
 $('split-v').addEventListener('pointerdown', (e) => startSplit(e, 'v'));
 window.addEventListener('resize', () => applyLayout());
 
+// Tutte le schede dei dettagli input tornano al loro posto nella regia, con
+// le misure iniziali (anche quelle ridotte a barra o aperte in una finestra).
+function resetCards() {
+  for (const win of poppedCards.values()) if (!win.closed) win.close();
+  poppedCards.clear();
+  prefs.set('cardPos', {});
+  for (const k of Object.keys(cardPos)) delete cardPos[k];
+  prefs.set('collapsedCards2', []);
+  collapsedCards.clear();
+  buildPanel();
+}
+
 function resetLayout() {
   prefs.set('layout.normal', null);
   prefs.set('layout.studio', null);
@@ -1620,7 +1724,7 @@ for (const menu of document.querySelectorAll('.menu')) {
   menu.querySelector('.menu-list').addEventListener('click', (e) => {
     const item = e.target.closest('button[data-cmd]');
     if (!item) return;
-    menuCommand(item.dataset.cmd, item.dataset);
+    menuCommand(item.dataset.cmd);
     closeMenus();
   });
 }
@@ -1631,23 +1735,13 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') closeMenus();
 });
 
-function menuCommand(cmd, data) {
+function menuCommand(cmd) {
   switch (cmd) {
-    case 'open-config': send({ type: 'open-config' }); break;
-    case 'save-config': send({ type: 'save-config' }); break;
-    case 'toggle-display': send({ type: 'toggle-display' }); break;
-    case 'display': send({ type: 'set-display', displayId: Number(data.id) }); break;
-    case 'fps': send({ type: 'set-fps', fps: Number(data.fps) }); break;
     case 'studio': if (!state.light) send({ type: 'set-studio', on: !state.studio }); break;
     case 'light': send({ type: 'set-light', on: !state.light }); break;
-    case 'ndi-out': send({ type: 'set-ndi-out', on: !state.ndiOut }); break;
     case 'help': send({ type: 'set-help', on: !state.showHelp }); break;
     case 'reset-layout': resetLayout(); break;
-    case 'popout-details': popOutDetails(); break;
     case 'manual': send({ type: 'open-manual' }); break;
-    case 'lang': send({ type: 'set-lang', lang: data.lang }); break;
-    case 'midi': openMidiDialog(); break;
-    case 'http': openHttpDialog(); break;
   }
 }
 
@@ -1660,29 +1754,78 @@ function ndiOutText() {
   return t('In rete come "{name}" · {w}×{h} · ricevitori collegati: {n}', { name: s.name, w: s.width, h: s.height, n: s.connections });
 }
 
+// --- Barra delle icone veloci (in basso a destra) ---------------------------------
+
+const ICONS = {
+  monitor: '<rect x="3" y="4" width="18" height="12" rx="1.5"/><path d="M8 20h8M12 16v4"/>',
+  import: '<path d="M4 15v4h16v-4"/><path d="M12 4v11M7 10l5 5 5-5"/>',
+  export: '<path d="M4 15v4h16v-4"/><path d="M12 15V4M7 9l5-5 5 5"/>',
+  midi: '<rect x="3" y="6" width="18" height="12" rx="1.5"/><path d="M8 6v7M12 6v7M16 6v7"/>',
+  deck: '<rect x="3" y="4" width="18" height="16" rx="2"/><rect x="6" y="7" width="4" height="4"/><rect x="14" y="7" width="4" height="4"/><rect x="6" y="13" width="4" height="4"/><rect x="14" y="13" width="4" height="4"/>',
+  reset: '<path d="M4 12a8 8 0 1 0 2.4-5.7"/><path d="M4 4v4h4"/>',
+  eye: '<path d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
+  eyeOff: '<path d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6S2 12 2 12z"/><path d="M4 4l16 16"/>',
+  trash: '<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"/>'
+};
+
+function icon(name) {
+  const span = document.createElement('span');
+  span.className = 'ico';
+  span.innerHTML = `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${ICONS[name]}</svg>`;
+  return span;
+}
+
+function quickSelect(id, title, options, value, onchange) {
+  const sel = h('select', { id, class: 'quick-select', title, onchange: (e) => onchange(e.target.value) },
+    options.map(([v, label]) => h('option', { value: v }, label)));
+  sel.value = String(value);
+  return sel;
+}
+
+function renderQuickbar() {
+  const bar = $('quickbar');
+  const sig = JSON.stringify([state.displays, state.activeDisplayId, state.fps, state.displayVisible, state.ndiOut, state.ndiOutStatus, state.ndiAvailable, I18n.getLang()]);
+  if (bar.dataset.sig === sig) return;
+  // Non ricostruire mentre una tendina è aperta.
+  if (bar.contains(document.activeElement) && document.activeElement.tagName === 'SELECT') return;
+  bar.dataset.sig = sig;
+  const ndiOn = !!(state.ndiOut && state.ndiOutStatus && state.ndiOutStatus.on);
+  const ndiInfo = ndiOutText();
+  bar.replaceChildren(
+    h('button', {
+      id: 'q-ndi',
+      class: `quick ndi ${ndiOn ? 'ndi-on' : 'ndi-off'}`,
+      title: (state.ndiOut ? t('NDI attivo: clic per fermare l\'invio dell\'uscita in rete') : t('Invia l\'uscita in NDI')) + (ndiInfo ? `\n${ndiInfo}` : ''),
+      onclick: () => send({ type: 'set-ndi-out', on: !state.ndiOut })
+    }, 'NDI'),
+    h('button', {
+      id: 'q-display',
+      class: `quick ${state.displayVisible ? 'active' : ''}`,
+      title: state.displayVisible ? t('Nascondi l\'uscita') : t('Mostra l\'uscita'),
+      onclick: () => send({ type: 'toggle-display' })
+    }, icon('monitor')),
+    quickSelect('q-monitor', t('Monitor della seconda finestra (messa in onda)'),
+      state.displays.map((d) => [d.id, `${t('Monitor')} ${d.index}${d.primary ? ' ★' : ''}`]),
+      state.activeDisplayId, (v) => send({ type: 'set-display', displayId: Number(v) })),
+    quickSelect('q-fps', t('Fotogrammi al secondo dell\'uscita'),
+      FPS_CHOICES.map((f) => [f, `${f} fps`]), state.fps, (v) => send({ type: 'set-fps', fps: Number(v) })),
+    h('span', { class: 'quick-sep' }),
+    h('button', { id: 'q-import', class: 'quick', title: t('Importa configurazione…'), onclick: () => send({ type: 'open-config' }) }, icon('import')),
+    h('button', { id: 'q-export', class: 'quick', title: t('Esporta configurazione…'), onclick: () => send({ type: 'save-config' }) }, icon('export')),
+    quickSelect('q-lang', t('Lingua'), [['it', 'IT'], ['en', 'EN']], I18n.getLang(), (v) => send({ type: 'set-lang', lang: v })),
+    h('span', { class: 'quick-sep' }),
+    h('button', { id: 'q-midi', class: 'quick', title: t('Controller MIDI…'), onclick: () => openMidiDialog() }, icon('midi')),
+    h('button', { id: 'q-deck', class: 'quick', title: t('Companion / Stream Deck…'), onclick: () => openHttpDialog() }, icon('deck')));
+  // Elenco completo dei monitor nel suggerimento della tendina.
+  $('q-monitor').title = [t('Monitor della seconda finestra (messa in onda)'), ...state.displays.map((d) =>
+    `${t('Monitor')} ${d.index} · ${d.width}×${d.height}${d.hz ? ` · ${d.hz} Hz` : ''}${d.primary ? ` · ${t('principale')}` : ''}`)].join('\n');
+}
+
 function renderMenus() {
-  const displays = $('menu-displays');
-  const sig = JSON.stringify([state.displays, state.activeDisplayId, I18n.getLang()]);
-  if (displays.dataset.sig !== sig) {
-    displays.dataset.sig = sig;
-    displays.replaceChildren(...state.displays.map((d) => h('button', {
-      'data-cmd': 'display',
-      'data-id': d.id,
-      class: `check ${d.id === state.activeDisplayId ? 'checked' : ''}`
-    }, `${t('Monitor')} ${d.index} · ${d.width}×${d.height}${d.hz ? ` · ${d.hz} Hz` : ''}${d.primary ? ` · ${t('principale')}` : ''}`)));
-  }
-  $('menu-fps').replaceChildren(...FPS_CHOICES.map((f) => h('button', {
-    'data-cmd': 'fps', 'data-fps': f, class: `check ${state.fps === f ? 'checked' : ''}`
-  }, `${f} fps`)));
   $('menu-studio').classList.toggle('checked', !!state.studio);
   $('menu-studio').disabled = !!state.light;
   $('menu-light').classList.toggle('checked', !!state.light);
-  $('menu-ndi-out').classList.toggle('checked', !!state.ndiOut);
-  $('menu-ndi-status').textContent = ndiOutText();
   $('menu-help').classList.toggle('checked', !!state.showHelp);
-  $('menu-lang-it').classList.toggle('checked', I18n.getLang() === 'it');
-  $('menu-lang-en').classList.toggle('checked', I18n.getLang() === 'en');
-  $('menu-toggle-display').textContent = state.displayVisible ? t('Nascondi l\'uscita') : t('Mostra l\'uscita');
 }
 
 // Testi fissi della pagina (attributi data-i18n e data-i18n-title).
@@ -1843,6 +1986,7 @@ let currentLang = null;
 function render(next) {
   state = next;
   if (selectedId && !selectedLayer()) selectedId = null;
+  for (const id of multi) if (!layerById(id)) multi.delete(id);
   // Lingua e fotogrammi al secondo arrivano con lo stato.
   Layers.setFps(state.fps);
   if (currentLang !== state.lang) {
@@ -1867,7 +2011,8 @@ function render(next) {
   stage.update(previewLayers(), state.background);
   renderOverlay();
   if (!listDrag || !listDrag.active) renderList();
-  renderFooter();
+  renderQuickbar();
+  $('btn-popout-details').textContent = detailsWin && !detailsWin.closed ? t('Riunisci Finestra Dettagli') : t('Separa Finestra Dettagli');
 
   const layer = selectedLayer();
   const key = panelKeyOf(layer);
@@ -2013,9 +2158,8 @@ $('dlg-add').addEventListener('dblclick', (e) => {
 $('btn-add').onclick = () => openAddDialog();
 
 $('btn-show-all').onclick = () => send({ type: 'show-all' });
-$('btn-remove').onclick = () => removeSelected();
+$('btn-reset-cards').onclick = () => resetCards();
 $('btn-popout-details').onclick = () => (detailsWin && !detailsWin.closed ? detailsWin.close() : popOutDetails());
-$('btn-reset').onclick = () => resetSelected();
 $('btn-light').onclick = () => send({ type: 'set-light', on: !state.light });
 $('btn-cut').onclick = () => send({ type: 'take', kind: 'cut' });
 $('btn-fade').onclick = () => send({ type: 'take', kind: 'fade' });
