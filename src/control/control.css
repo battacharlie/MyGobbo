@@ -10,35 +10,71 @@ body {
 }
 .topbar {
   display: flex;
-  gap: 16px;
+  gap: 14px;
   align-items: center;
-  padding: 10px 16px;
+  padding: 6px 16px;
   border-bottom: 1px solid #2c3039;
-  flex-wrap: wrap;
+  position: relative;
+  z-index: 50;
 }
-.topbar strong { font-size: 15px; margin-right: 8px; }
+.topbar strong { font-size: 15px; margin-right: 4px; white-space: nowrap; }
 .brand { display: flex; align-items: center; gap: 8px; }
 .brand img { width: 28px; height: 28px; }
-#output-info { font-size: 12px; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.topbar .company { margin-left: auto; height: 32px; width: 32px; }
+#output-info { font-size: 12px; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: right; }
+.topbar .company { height: 32px; width: 32px; }
+
+/* Barra dei menu con elenchi a tendina. */
+#menubar { display: flex; gap: 2px; }
+.menu { position: relative; }
+.menu-title { background: none; border: 1px solid transparent; padding: 5px 10px; }
+.menu.open .menu-title, .menu-title:hover { background: #262a33; border-color: #343946; }
+.menu-list { display: none; position: absolute; left: 0; top: calc(100% + 4px); min-width: 280px; background: #1b1e25; border: 1px solid #343946; border-radius: 8px; padding: 6px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); flex-direction: column; gap: 2px; }
+.menu.open .menu-list { display: flex; }
+.menu-list button { background: none; border: none; text-align: left; padding: 6px 10px 6px 28px; border-radius: 5px; position: relative; white-space: nowrap; }
+.menu-list button:hover { background: #2563eb; color: #fff; }
+.menu-list button.checked::before { content: '✓'; position: absolute; left: 10px; }
+.menu-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: #8b93a5; padding: 6px 10px 2px; }
+.menu-sep { height: 1px; background: #2c3039; margin: 4px 0; }
+.menu-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 4px 10px 4px 28px; }
+
+/* Tre zone ridimensionabili: anteprima, dettagli dell'input, colonna input.
+   --top-h e --right-w cambiano trascinando i bordi (splitter). */
 .layout {
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 360px;
+  --top-h: 36vh;
+  --right-w: 360px;
+  grid-template-columns: minmax(0, 1fr) 6px var(--right-w);
+  grid-template-rows: var(--top-h) 6px minmax(0, 1fr);
+  grid-template-areas:
+    "preview vsplit inputs"
+    "hsplit  vsplit inputs"
+    "details vsplit inputs";
 }
-.left { padding: 14px 16px; display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
-.left > p { flex: none; margin: 8px 0 0; }
-.right { border-left: 1px solid #2c3039; padding: 14px 16px; overflow: auto; background: #181a20; }
-.right h2 { margin-top: 0; }
-.right { display: flex; flex-direction: column; }
-/* Salva / importa configurazione in fondo alla colonna degli input. */
-.right .config { margin-top: auto; padding-top: 16px; display: flex; flex-direction: column; gap: 6px; }
-.right .config button { text-align: left; }
+/* Modalità studio: gli schermi occupano tutta la larghezza, la colonna
+   degli input scende all'altezza dei dettagli. */
+body.studio .layout {
+  grid-template-areas:
+    "preview preview preview"
+    "hsplit  hsplit  hsplit"
+    "details vsplit  inputs";
+}
+#zone-preview { grid-area: preview; padding: 10px 16px 4px; display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+#zone-preview > p { flex: none; margin: 6px 0 0; }
+#zone-details { grid-area: details; padding: 8px 16px 10px; display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+#zone-inputs { grid-area: inputs; padding: 12px 16px; overflow: auto; background: #181a20; display: flex; flex-direction: column; min-width: 0; }
+#zone-inputs h2 { margin-top: 0; }
+.splitter { background: #20232b; position: relative; z-index: 5; }
+.splitter:hover, .splitter.dragging { background: #3b82f6; }
+.split-h { grid-area: hsplit; cursor: row-resize; }
+.split-v { grid-area: vsplit; cursor: col-resize; }
+body.resizing, body.resizing * { user-select: none; }
+body.resizing.rows, body.resizing.rows * { cursor: row-resize !important; }
+body.resizing.cols, body.resizing.cols * { cursor: col-resize !important; }
 
-/* Anteprima compatta: il resto dello spazio va ai comandi dell'elemento.
-   In modalità studio due schermi affiancati con CUT e FADE in mezzo. */
-#monitors { flex: none; height: 36vh; min-height: 200px; display: flex; gap: 12px; align-items: stretch; }
+/* Anteprima: in modalità studio due schermi affiancati con CUT e FADE in mezzo. */
+#monitors { flex: 1; min-height: 0; display: flex; gap: 12px; align-items: stretch; }
 .monitor { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .monitor[hidden] { display: none; }
 .mon-title { flex: none; font-size: 12px; font-weight: 600; text-align: center; padding: 2px 8px 4px; color: #aab0bd; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -60,7 +96,7 @@ body.studio #program { border: 2px solid #dc2626; }
 #switcher .fade { background: #1d4ed8; border-color: #1d4ed8; color: #fff; }
 #switcher .fade:hover { background: #1e40af; }
 #switcher .field { margin: 0; }
-.studio-row { display: flex; justify-content: flex-end; margin-bottom: 12px; }
+.studio-row { display: flex; justify-content: flex-end; margin-bottom: 10px; }
 .studio-row button { font-weight: 600; }
 #overlay .box {
   position: absolute;
@@ -94,21 +130,22 @@ body.studio #program { border: 2px solid #dc2626; }
 .add-list button { text-align: left; }
 .list-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 
-/* Proprietà dell'elemento selezionato, sotto l'anteprima, in schede affiancate. */
-#panel {
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
-  padding-bottom: 12px;
-  margin-top: 12px;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-  gap: 12px;
-  align-items: start;
-}
-#panel .card { background: #181a20; border: 1px solid #2c3039; border-radius: 8px; padding: 10px 12px; }
-#panel .card h3 { border-top: none; padding-top: 0; margin-top: 0; }
-#panel .empty { grid-column: 1 / -1; }
+/* Proprietà dell'elemento selezionato: schede in colonne senza spazi vuoti
+   (larghezza delle colonne regolabile trascinando il bordo destro di una
+   scheda, altezza dall'angolo in basso a destra, titolo che riduce a barra). */
+#panel { flex: 1; min-height: 0; overflow: auto; padding-bottom: 12px; margin-top: 4px; }
+#cards { column-width: var(--card-w, 280px); column-gap: 12px; }
+#cards .card { break-inside: avoid; display: inline-block; width: 100%; margin-bottom: 12px; background: #181a20; border: 1px solid #2c3039; border-radius: 8px; padding: 0 12px 10px; position: relative; overflow: auto; resize: vertical; }
+#cards .card h3 { border-top: none; padding: 9px 0 0; margin: 0 0 8px; cursor: pointer; display: flex; justify-content: space-between; gap: 8px; user-select: none; }
+#cards .card h3::after { content: '▾'; color: #6b7280; }
+#cards .card.collapsed { resize: none; height: auto !important; padding-bottom: 0; }
+#cards .card.collapsed h3 { margin-bottom: 9px; }
+#cards .card.collapsed h3::after { content: '▸'; }
+#cards .card.collapsed > :not(h3):not(.card-edge) { display: none; }
+#cards .card-edge { position: absolute; top: 0; right: 0; width: 6px; height: 100%; cursor: col-resize; }
+#cards .card-edge:hover { background: rgba(59,130,246,0.5); }
+#cards .empty { column-span: all; }
+body.hide-help .help { display: none !important; }
 .px-info { font-variant-numeric: tabular-nums; color: #cbd5e1; background: #0e1014; border: 1px solid #2c3039; border-radius: 6px; padding: 6px 8px; margin-bottom: 8px; }
 h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: #8b93a5; margin: 0 0 8px; }
 h3 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: #8b93a5; margin: 16px 0 8px; border-top: 1px solid #2c3039; padding-top: 12px; }
@@ -219,3 +256,23 @@ button.pick { padding: 2px 6px; font-size: 13px; line-height: 1.2; }
 #panel-footer .remove { background: #b91c1c; border-color: #b91c1c; color: #fff; font-weight: 600; }
 #panel-footer .remove:hover { background: #991b1b; }
 #remove-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Unità di misura (% o pixel) e finestre di dialogo. */
+.unit-switch { display: inline-flex; border: 1px solid #343946; border-radius: 6px; overflow: hidden; }
+.unit-switch button { border: none; border-radius: 0; padding: 3px 10px; }
+.unit-switch button.on { background: #2563eb; color: #fff; }
+.dialog { background: #1b1e25; color: inherit; border: 1px solid #343946; border-radius: 10px; padding: 16px 18px; width: min(720px, 92vw); max-height: 86vh; }
+.dialog::backdrop { background: rgba(0,0,0,0.55); }
+.dialog h2 { font-size: 14px; color: #e8eaf0; text-transform: none; letter-spacing: 0; }
+.dialog table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.dialog td { padding: 4px 6px; border-bottom: 1px solid #2c3039; vertical-align: middle; }
+.dialog td.key { font-family: Consolas, monospace; color: #cbd5e1; white-space: nowrap; }
+.dialog .learning { background: #d97706; border-color: #d97706; color: #fff; }
+.dialog .dlg-foot { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+.dialog code { background: #0e1014; padding: 1px 5px; border-radius: 4px; }
+.dialog .scroll { max-height: 52vh; overflow: auto; }
+.row.end { justify-content: flex-end; margin-top: 12px; }
+.field.inline { display: inline-flex; flex-direction: row; align-items: center; gap: 6px; margin: 0; }
+.ok { color: #4ade80; }
+.dialog .row { margin-bottom: 8px; }
+.dialog select { max-width: 380px; }

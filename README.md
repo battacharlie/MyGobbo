@@ -6,20 +6,24 @@
 
 <p align="center">Regia video di ABit/s</p>
 
-Piccola regia video per Windows: una **finestra di regia** sul monitor principale e un'**uscita a tutto schermo** sul secondo monitor, dove si compongono segnali NDI, periferiche di acquisizione, video e immagini, un timer, un banner in sovraimpressione e un teleprompter, organizzati in scene.
+Piccola regia video per Windows: una **finestra di regia** sul monitor principale e un'**uscita a tutto schermo** sul secondo monitor, dove si compongono segnali NDI, periferiche di acquisizione, video e immagini, un timer, un banner di testo in sovraimpressione e un teleprompter, organizzati in scene. L'interfaccia è in italiano o in inglese.
 
 ## Le due finestre
 
 **Regia** (monitor principale)
-- A sinistra l'anteprima dell'uscita e, sotto, le proprietà dell'elemento selezionato.
-- A destra il pulsante **Modalità studio**, i pulsanti per aggiungere gli input (**scena**, **segnale NDI**, **periferica di acquisizione**, **media**, **timer**, **banner**, **TelePrompt**) e l'elenco degli elementi dal primo piano allo sfondo, con *Visibile / Nascosto*.
+- In alto la barra dei menu:
+  - **File**: importa ed esporta la configurazione (file `.igor` con tutti gli elementi e le loro impostazioni).
+  - **Uscita**: monitor della seconda finestra (con risoluzione e frequenza), fotogrammi al secondo dell'uscita (10, 15, 20, 24 o 25), colore di sfondo, mostra/nascondi uscita.
+  - **Visualizza**: modalità studio, mostra/nascondi le istruzioni, ripristina la disposizione delle finestre, lingua (italiano o inglese).
+  - **Controllo remoto**: controller MIDI e Companion / Stream Deck.
+- Sotto, tre zone: l'**anteprima** (o i due schermi della modalità studio), i **dettagli** dell'input selezionato e la **colonna degli input**. I bordi tra le zone si trascinano e si agganciano come una calamita alle misure naturali. In modalità studio anteprima e programma occupano tutta la larghezza e la colonna degli input scende accanto ai dettagli. La disposizione resta memorizzata, separata per le due modalità.
+- I dettagli sono divisi in schede: cliccando il titolo una scheda si riduce a barra, dall'angolo in basso a destra se ne cambia l'altezza e dal bordo destro la larghezza delle colonne.
+- Nella colonna destra il pulsante **Modalità studio**, i pulsanti per aggiungere gli input (**scena**, **segnale NDI**, **periferica di acquisizione**, **media**, **timer**, **Banner di Testo**, **TelePrompt**) e l'elenco degli elementi dal primo piano allo sfondo, con *Visibile / Nascosto*. Le scene sono numerate dall'alto (Scena 1, Scena 2…): il numero serve per MIDI e Companion.
 - Gli elementi dell'elenco si trascinano con il mouse per cambiare l'ordine: una linea verde mostra dove finiranno e lo spostamento avviene solo al rilascio. Rilasciando un input sopra una scena, l'input entra nella scena; tenendo premuto **Ctrl** al rilascio lo stesso input viene messo anche in quella scena (copia collegata, con una sola sorgente).
 - Nell'anteprima si trascina un elemento per spostarlo e uno dei quattro angoli per ridimensionarlo (Maiusc mantiene le proporzioni); gli elementi si agganciano a bordi e centro.
-- Per ogni elemento: misura e posizione in pixel sull'uscita, aggiornate in tempo reale; posizione e misure in % dello schermo, *Schermo intero*, *Centra*, *Proporzioni 16:9*; *Solo questo* (mostra in uscita solo quell'input), *Avanti / Indietro* per l'ordine; in basso a sinistra, sempre visibili, *Ripristina misure* (riporta posizione, misure e impostazioni ai valori iniziali, tenendo sorgente e testo) e il tasto rosso *Elimina input*, che toglie l'input selezionato e chiude la sua sorgente.
+- Per ogni elemento: misura e posizione in pixel sull'uscita, aggiornate in tempo reale; posizione e misure in % dello schermo oppure in pixel (selettore *% / px*), *Schermo intero*, *Centra*, *Proporzioni 16:9*; *Solo questo* (mostra in uscita solo quell'input), *Avanti / Indietro* per l'ordine; in basso a sinistra, sempre visibili, *Ripristina misure* (riporta posizione, misure e impostazioni ai valori iniziali, tenendo sorgente e testo) e il tasto rosso *Elimina input*, che toglie l'input selezionato e chiude la sua sorgente.
 - Per NDI, acquisizione e media: ritaglio (crop) trascinando le maniglie arancioni a metà dei lati e adattamento *Adatta* (mantiene le proporzioni), *Riempi* (mantiene le proporzioni e taglia), *Deforma*.
 - Accanto a ogni colore il contagocce 💧 preleva un colore da qualsiasi punto dello schermo (anche da altre finestre o dal secondo monitor) oppure da un'immagine aperta dal disco.
-- Scelta del monitor di uscita, colore di sfondo, mostra/nascondi uscita.
-- *Salva configurazione* e *Importa configurazione*, in fondo alla colonna destra: salvano su un file `.igor` tutti gli elementi con le loro impostazioni e li richiamano quando serve.
 
 **Uscita** (secondo monitor)
 - Si apre all'avvio, senza bordi, a tutto schermo sul monitor 2.
@@ -43,11 +47,12 @@ Senza modalità studio, *Manda in onda* su una scena la manda subito in uscita. 
 - All'indietro (countdown; dopo lo zero continua con il segno +) oppure in avanti (cronometro, la durata fa da limite).
 - Avvia / pausa / azzera, ±10 s e ±1 min anche in corsa; barra spaziatrice per avvio/pausa.
 - Tre colori dei numeri: alla partenza (verde), quando si avvicina la scadenza (giallo, negli ultimi N secondi) e a tempo superato (rosso).
-- Solo quando il tempo è scaduto (timer partito e arrivato a zero, o alla durata in avanti) i numeri lampeggiano e una cornice corre lungo i bordi dello schermo; colore e spessore della cornice si scelgono.
+- Solo quando il tempo è scaduto (timer partito e arrivato a zero, o alla durata in avanti) i numeri lampeggiano e compare una cornice lungo i bordi dello schermo: tratteggiata o continua, che scorre, lampeggia da ferma o resta fissa, con velocità, colore e spessore a scelta.
+- Quando il timer è fermo (prima dell'avvio o dopo *Azzera*) può mostrare data e ora, scegliendo se mostrare data, ore, minuti, secondi e millesimi.
 - Colore dello sfondo (o trasparente), misura e tipo di carattere, grassetto.
 - I numeri si rimpiccioliscono da soli se non entrano nel riquadro.
 
-**Banner** (prima si chiamava *Frase*)
+**Banner di Testo** (prima si chiamava *Frase*, poi *Banner*)
 - Fascia nella parte bassa dello schermo (si può spostare).
 - Se il testo è più lungo dello spazio disponibile scorre da destra a sinistra, altrimenti resta centrato.
 - Velocità di scorrimento, colori, opacità della fascia, misura e tipo di carattere.
@@ -64,9 +69,20 @@ Senza modalità studio, *Manda in onda* su una scena la manda subito in uscita. 
 
 **Segnale NDI**: elenco delle sorgenti NDI trovate in rete, qualità piena o bassa (meno banda).
 
-**Media**: video (mp4, webm, mov, mkv…) e immagini (png, jpg, gif, webp…) dal disco. Per i video: riproduci / pausa, da capo, ripetizione continua e audio sì/no.
+**Media**: video (mp4, webm, mov, mkv…) e immagini (png, jpg, gif, webp…) dal disco. Per i video: riproduci / pausa, da capo, ripetizione continua e tre modi di riproduzione:
+- *continua anche quando non è in onda*;
+- *riproduci solo quando è in onda*;
+- *riproduci in onda e riavvolgi quando esce*.
+
+L'audio del video è *attivo*, *disattivato* oppure *segue l'onda* (si sente solo quando il video è in onda). "In onda" vuol dire visibile sul secondo schermo.
 
 La scena (elementi, posizioni, testi, colori) viene salvata e ritrovata al riavvio.
+
+## Controllo remoto
+
+**Controller MIDI** (menu *Controllo remoto*): si sceglie un comando, si preme *Impara* e si tocca un tasto, un pad o una manopola del controller. Comandi: CUT, FADE, manda in onda o metti in anteprima la scena numero N, modalità studio, timer avvia/pausa e azzera, video in onda riproduci/pausa e da capo, TelePrompt avvia/pausa, più veloce, più lento, velocità con una manopola, paragrafo successivo e precedente, torna all'inizio, mostra/nascondi uscita.
+
+**Companion / Stream Deck**: attivando *Accetta comandi via HTTP* IGOR risponde a indirizzi come `http://127.0.0.1:8765/api/cut` o `http://127.0.0.1:8765/api/program/2` (scena numero 2). In Companion si usa il modulo *Generic HTTP* con un'azione GET; la finestra elenca tutti gli indirizzi da copiare. Con l'opzione di rete si comanda IGOR anche da un altro computer.
 
 ## Scarica
 
@@ -127,12 +143,15 @@ src/
   ndi.js               caricamento facoltativo di NDI e ricerca delle sorgenti
   shared/layers.js     tipi di elemento, calcolo del timer, crop
   shared/render.js     disegno della scena (uscita e anteprima in regia)
+  shared/i18n.js       lingua dell'interfaccia (testi inglesi in shared/i18n-en.js)
+  shared/actions.js    comandi per MIDI e Companion
+  remote.js            server HTTP per Companion / Stream Deck
   textimport.js        lettura dei file di testo per il TelePrompt (.docx, .rtf, .txt)
-  control/             finestra di regia (control/textconv.js converte i testi incollati o importati)
+  control/             finestra di regia (textconv.js converte i testi incollati o importati, remote.js gestisce MIDI e Companion)
   display/             finestra di uscita (riceve NDI e periferiche)
   picker/              contagocce: foto degli schermi e scelta del colore
 ```
 
 La scena vive nel processo principale e le due finestre ricevono lo stesso stato. Per consumare poco non c'è un ciclo che ridisegna a ogni fotogramma: i video sono elementi della pagina posizionati con CSS e composti dalla scheda video, il timer si aggiorna solo al cambio del secondo e banner e TelePrompt scorrono con un'animazione CSS. L'anteprima in regia mostra riquadri con il nome degli input invece dei video, così i flussi non vengono decodificati due volte. Il timer è basato sull'orario di avvio, quindi resta preciso anche se una finestra rallenta. I fotogrammi NDI vengono ricevuti direttamente nella finestra di uscita, senza passare dal processo principale.
 
-Tutto ciò che compare in uscita è limitato a **25 fps** (`MAX_FPS` in `src/shared/layers.js`): le periferiche di acquisizione vengono aperte a 25 fps al massimo, i fotogrammi NDI in più vengono scartati, i video dei media vengono copiati in uscita 25 volte al secondo, e banner, TelePrompt, dissolvenze e cornice del timer avanzano a scatti di 1/25 di secondo.
+Tutto ciò che compare in uscita è limitato a **25 fps** (`MAX_FPS` in `src/shared/layers.js`; dal menu *Uscita* si può scendere a 24, 20, 15 o 10): le periferiche di acquisizione vengono aperte a 25 fps al massimo, i fotogrammi NDI in più vengono scartati, i video dei media vengono copiati in uscita 25 volte al secondo, e banner, TelePrompt, dissolvenze e cornice del timer avanzano a scatti di 1/25 di secondo.

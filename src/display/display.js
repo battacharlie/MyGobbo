@@ -5,9 +5,9 @@
 // (o due input con la stessa sorgente) usa una sola sorgente: una sola
 // apertura della periferica, una sola ricezione NDI, una sola decodifica del
 // video. Ogni comparsa ha solo il proprio riquadro.
-const { allLayers, composeLayers, MAX_FPS } = Layers;
+const { allLayers, composeLayers, fps, setFps } = Layers;
 const sourcesBox = document.getElementById('sources');
-const FRAME_MS = 1000 / MAX_FPS;
+const frameMs = () => 1000 / fps();
 
 // --- Periferiche di acquisizione ----------------------------------------------
 const streams = new Map(); // deviceId -> { stream, dead }
@@ -21,17 +21,17 @@ function openStream(deviceId) {
     deviceId: { exact: deviceId },
     width: { ideal: 1920 },
     height: { ideal: 1080 },
-    frameRate: { ideal: MAX_FPS, max: MAX_FPS }
+    frameRate: { ideal: fps(), max: fps() }
   };
   (async () => {
     let stream;
     try {
-      // Chromium scarta i fotogrammi in più: il video non supera MAX_FPS.
+      // Chromium scarta i fotogrammi in più: il video non supera fps().
       stream = await navigator.mediaDevices.getUserMedia({ audio: false, video });
     } catch (err) {
       if (err.name !== 'OverconstrainedError') throw err;
-      stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { ...video, frameRate: { ideal: MAX_FPS } } });
-      await stream.getVideoTracks()[0].applyConstraints({ frameRate: { max: MAX_FPS } }).catch(() => {});
+      stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { ...video, frameRate: { ideal: fps() } } });
+      await stream.getVideoTracks()[0].applyConstraints({ frameRate: { max: fps() } }).catch(() => {});
     }
     if (entry.dead) {
       stream.getTracks().forEach((t) => t.stop());
@@ -73,7 +73,7 @@ function captureView(layer) {
 
 // --- Media: video e immagini dal disco ----------------------------------------
 // Le immagini si mostrano così come sono. I video vengono riprodotti fuori
-// vista e copiati nel <canvas> di ogni comparsa al massimo MAX_FPS volte al
+// vista e copiati nel <canvas> di ogni comparsa al massimo fps() volte al
 // secondo, come il resto dell'uscita.
 const videos = new Map(); // chiave -> { src, video, ready, canvases: Map(layerId -> canvas) }
 const images = new Map(); // layerId -> { src, img, ready }
@@ -113,16 +113,22 @@ function sizeCanvas(entry, canvas) {
 }
 
 // Impostazioni di riproduzione: le copie collegate le condividono.
-function controlVideo(entry, layer) {
+// onAir: almeno una comparsa del video è in onda (visibile in uscita).
+function controlVideo(entry, layer, onAir) {
   const video = entry.video;
   video.loop = !!layer.loop;
-  video.muted = !layer.audio;
+  // Audio: sempre, mai, oppure solo quando il video è in onda.
+  video.muted = !(layer.audioMode === 'on' || (layer.audioMode === 'follow' && onAir));
   if (entry.restartAt !== layer.restartAt) {
     entry.restartAt = layer.restartAt;
     video.currentTime = 0;
   }
-  if (layer.playing && video.paused && !(video.ended && !layer.loop)) video.play().catch(() => {});
-  if (!layer.playing && !video.paused) video.pause();
+  // Riavvolgi quando esce dall'onda.
+  if (layer.playMode === 'restart' && entry.onAir && !onAir) video.currentTime = 0;
+  entry.onAir = onAir;
+  const shouldPlay = layer.playing && (layer.playMode === 'always' || onAir);
+  if (shouldPlay && video.paused && !(video.ended && !layer.loop)) video.play().catch(() => {});
+  if (!shouldPlay && !video.paused) video.pause();
 }
 
 function drawFrame(entry) {
@@ -142,9 +148,9 @@ function startDrawing(entry) {
     if (!entry.alive) { entry.drawing = false; return; }
     if (v.paused || v.ended) { drawFrame(entry); entry.drawing = false; return; }
     drawFrame(entry);
-    next += FRAME_MS;
+    next += frameMs();
     const now = performance.now();
-    if (next < now) next = now + FRAME_MS;
+    if (next < now) next = now + frameMs();
     entry.timer = setTimeout(loop, next - now);
   };
   loop();
@@ -214,7 +220,9 @@ const stage = createStage(document.getElementById('stage'), {
 });
 
 // Apre le sorgenti di tutti gli input e chiude quelle non più usate.
-function syncSources(layers) {
+// onAirIds: gli input visibili in uscita in questo momento.
+function syncSources(layers, onAirIds) {
+  const onAirVideos = new Set(layers.filter((l) => l.type === 'media' && onAirIds.has(l.id)).map(videoKey));
   const devices = new Set();
   const videoKeys = new Set();
   const imageIds = new Set();
@@ -229,7 +237,7 @@ function syncSources(layers) {
       imageIds.add(layer.id);
     } else if (layer.type === 'media' && layer.src) {
       const entry = openVideo(layer);
-      if (!videoKeys.has(entry.key)) controlVideo(entry, layer);
+      if (!videoKeys.has(entry.key)) controlVideo(entry, layer, onAirVideos.has(entry.key));
       videoKeys.add(entry.key);
       if (!entry.canvases.has(layer.id)) {
         const c = document.createElement('canvas');
@@ -267,11 +275,21 @@ function syncSources(layers) {
   for (const c of [...sourcesBox.querySelectorAll('canvas[id^="ndi-"]')]) {
     if (!ndiIds.has(c.id.slice(4))) c.remove();
   }
-  window.ndi.sync([...ndiList.values()]);
+  window.ndi.sync([...ndiList.values()], fps());
 }
+
+let lastFps = null;
 
 function render(state) {
   document.body.style.background = state.background;
+  setFps(state.fps);
+  if (lastFps !== null && lastFps !== fps()) {
+    // Nuovi fotogrammi al secondo: le periferiche già aperte si adeguano.
+    for (const entry of streams.values()) {
+      if (entry.stream) entry.stream.getVideoTracks().forEach((t) => t.applyConstraints({ frameRate: { max: fps() } }).catch(() => {}));
+    }
+  }
+  lastFps = fps();
   const t = state.transition;
   const sceneIds = t ? [t.from, t.to].filter(Boolean) : state.program ? [state.program] : [];
   const fades = {};
@@ -282,8 +300,9 @@ function render(state) {
       if (fade) for (const c of scene.children) fades[c.id] = { ...fade, startedAt: t.startedAt, durationMs: t.durationMs };
     }
   }
-  syncSources(allLayers(state.layers));
-  stage.update(composeLayers(state.layers, sceneIds), state.background, fades);
+  const shown = composeLayers(state.layers, sceneIds);
+  syncSources(allLayers(state.layers), new Set(shown.filter((l) => l.visible).map((l) => l.id)));
+  stage.update(shown, state.background, fades);
 }
 
 window.countdown.onState(render);

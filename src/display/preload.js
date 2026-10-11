@@ -1,6 +1,7 @@
 const { contextBridge, ipcRenderer } = require('electron');
 const ndi = require('../ndi');
 const { MAX_FPS } = require('../shared/layers');
+let fps = MAX_FPS;
 
 // I fotogrammi NDI vengono ricevuti qui e disegnati direttamente in un
 // <canvas> della pagina (il DOM è condiviso con la pagina), così le immagini
@@ -9,9 +10,8 @@ const { MAX_FPS } = require('../shared/layers');
 // fotogramma viene disegnato nel canvas di ogni comparsa.
 const receivers = new Map(); // sorgente|qualità -> { active, canvasIds }
 
-// Come il resto dell'uscita, NDI non supera i 25 fps: i fotogrammi in più
-// vengono scartati senza disegnarli.
-const FRAME_MS = 1000 / MAX_FPS;
+// Come il resto dell'uscita, NDI non supera i fotogrammi al secondo scelti
+// (al massimo 25): quelli in più vengono scartati senza disegnarli.
 
 async function receiveLoop(entry, source, quality) {
   const g = ndi.grandiose;
@@ -40,7 +40,7 @@ async function receiveLoop(entry, source, quality) {
     const now = performance.now();
     // Piccola tolleranza per non perdere fotogrammi di una sorgente a 25 fps.
     if (now < nextDue - 3) continue;
-    nextDue = Math.max(nextDue + FRAME_MS, now);
+    nextDue = Math.max(nextDue + 1000 / fps, now);
     const { xres, yres, lineStrideBytes, data } = frame;
     const canvases = entry.canvasIds.map((id) => document.getElementById(id)).filter(Boolean);
     if (!canvases.length) continue;
@@ -83,7 +83,8 @@ contextBridge.exposeInMainWorld('countdown', {
 contextBridge.exposeInMainWorld('ndi', {
   // Elenco completo delle sorgenti da ricevere: [{ key, source, quality, canvasIds }].
   // Avvia quelle nuove, ferma quelle non più usate, aggiorna i canvas.
-  sync(list) {
+  sync(list, outputFps) {
+    fps = Math.max(1, Math.min(MAX_FPS, Number(outputFps) || MAX_FPS));
     const keys = new Set();
     for (const item of list) {
       keys.add(item.key);

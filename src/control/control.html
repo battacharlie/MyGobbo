@@ -7,17 +7,61 @@
   <link rel="stylesheet" href="control.css">
 </head>
 <body>
+  <!-- I testi con data-i18n vengono tradotti quando si sceglie la lingua inglese. -->
   <header class="topbar">
     <span class="brand"><img src="../assets/igor.png" alt=""><strong>IGOR - ABit/s</strong></span>
-    <label>Uscita <select id="sel-display"></select></label>
-    <label class="color-pick">Sfondo <input type="color" id="col-background"><button id="btn-pick-background" class="pick" title="Preleva il colore dallo schermo o da un'immagine">💧</button></label>
-    <button id="btn-toggle-display">Mostra/nascondi uscita</button>
+    <nav id="menubar">
+      <div class="menu" data-menu="file">
+        <button class="menu-title" data-i18n="File">File</button>
+        <div class="menu-list">
+          <button data-cmd="open-config" data-i18n="Importa configurazione…">Importa configurazione…</button>
+          <button data-cmd="save-config" data-i18n="Esporta configurazione…">Esporta configurazione…</button>
+        </div>
+      </div>
+      <div class="menu" data-menu="output">
+        <button class="menu-title" data-i18n="Uscita">Uscita</button>
+        <div class="menu-list">
+          <div class="menu-label" data-i18n="Monitor della seconda finestra (messa in onda)">Monitor della seconda finestra (messa in onda)</div>
+          <div id="menu-displays"></div>
+          <div class="menu-sep"></div>
+          <div class="menu-label" data-i18n="Fotogrammi al secondo dell'uscita">Fotogrammi al secondo dell'uscita</div>
+          <div id="menu-fps"></div>
+          <div class="menu-sep"></div>
+          <div class="menu-row">
+            <span data-i18n="Colore di sfondo">Colore di sfondo</span>
+            <span class="color-pick"><input type="color" id="col-background"><button id="btn-pick-background" class="pick" data-i18n-title="Preleva il colore dallo schermo o da un'immagine" title="Preleva il colore dallo schermo o da un'immagine">💧</button></span>
+          </div>
+          <button data-cmd="toggle-display" id="menu-toggle-display" data-i18n="Mostra/nascondi uscita">Mostra/nascondi uscita</button>
+        </div>
+      </div>
+      <div class="menu" data-menu="view">
+        <button class="menu-title" data-i18n="Visualizza">Visualizza</button>
+        <div class="menu-list">
+          <button data-cmd="studio" id="menu-studio" class="check" data-i18n="Modalità studio">Modalità studio</button>
+          <button data-cmd="help" id="menu-help" class="check" data-i18n="Mostra le istruzioni">Mostra le istruzioni</button>
+          <button data-cmd="reset-layout" data-i18n="Ripristina la disposizione delle finestre">Ripristina la disposizione delle finestre</button>
+          <div class="menu-sep"></div>
+          <div class="menu-label" data-i18n="Lingua">Lingua</div>
+          <button data-cmd="lang" data-lang="it" class="check" id="menu-lang-it">Italiano</button>
+          <button data-cmd="lang" data-lang="en" class="check" id="menu-lang-en">English</button>
+        </div>
+      </div>
+      <div class="menu" data-menu="remote">
+        <button class="menu-title" data-i18n="Controllo remoto">Controllo remoto</button>
+        <div class="menu-list">
+          <button data-cmd="midi" data-i18n="Controller MIDI…">Controller MIDI…</button>
+          <button data-cmd="http" data-i18n="Companion / Stream Deck…">Companion / Stream Deck…</button>
+        </div>
+      </div>
+    </nav>
     <span id="output-info" class="muted"></span>
     <img class="company" src="../assets/abits.png" alt="ABit/s" title="ABit/s">
   </header>
 
-  <div class="layout">
-    <div class="left">
+  <!-- Tre zone: anteprima (o schermi della modalità studio), dettagli
+       dell'input selezionato e colonna degli input. I bordi si trascinano. -->
+  <div class="layout" id="layout">
+    <section id="zone-preview">
       <div id="monitors">
         <div class="monitor" id="mon-preview">
           <div class="mon-title" id="preview-title">Uscita</div>
@@ -29,9 +73,9 @@
           </div>
         </div>
         <div id="switcher" hidden>
-          <button id="btn-cut" class="cut" title="Manda subito in onda la scena in anteprima">CUT</button>
-          <button id="btn-fade" class="fade" title="Manda in onda la scena in anteprima con una dissolvenza">FADE</button>
-          <label class="field"><span>Durata dissolvenza</span>
+          <button id="btn-cut" class="cut" data-i18n-title="Manda subito in onda la scena in anteprima" title="Manda subito in onda la scena in anteprima">CUT</button>
+          <button id="btn-fade" class="fade" data-i18n-title="Manda in onda la scena in anteprima con una dissolvenza" title="Manda in onda la scena in anteprima con una dissolvenza">FADE</button>
+          <label class="field"><span data-i18n="Durata dissolvenza">Durata dissolvenza</span>
             <select id="sel-fade">
               <option value="250">0,25 s</option>
               <option value="500">0,5 s</option>
@@ -53,54 +97,60 @@
           </div>
         </div>
       </div>
-      <p class="muted small" id="hint">Trascina un elemento per spostarlo e uno dei quattro angoli per ridimensionarlo (Maiusc mantiene le proporzioni). Su video e immagini le maniglie arancioni a metà dei lati ritagliano la sorgente. Gli elementi nascosti sono semitrasparenti.</p>
+      <p class="muted small help" id="hint" data-i18n="Trascina un elemento per spostarlo e uno dei quattro angoli per ridimensionarlo (Maiusc mantiene le proporzioni). Su video e immagini le maniglie arancioni a metà dei lati ritagliano la sorgente. Gli elementi nascosti sono semitrasparenti.">Trascina un elemento per spostarlo e uno dei quattro angoli per ridimensionarlo (Maiusc mantiene le proporzioni). Su video e immagini le maniglie arancioni a metà dei lati ritagliano la sorgente. Gli elementi nascosti sono semitrasparenti.</p>
+    </section>
 
-      <div id="panel"></div>
+    <div class="splitter split-h" id="split-h" data-i18n-title="Trascina per cambiare l'altezza dell'anteprima" title="Trascina per cambiare l'altezza dell'anteprima"></div>
 
+    <section id="zone-details">
+      <div id="panel"><div id="cards"></div></div>
       <div id="panel-footer" hidden>
-        <button id="btn-reset" title="Riporta posizione, misure e impostazioni ai valori iniziali (sorgente e testo restano)">↺ Ripristina misure</button>
-        <button id="btn-remove" class="remove" title="Elimina l'input selezionato e chiude la sua sorgente">✕ Elimina input</button>
+        <button id="btn-reset" data-i18n-title="Riporta posizione, misure e impostazioni ai valori iniziali (sorgente e testo restano)" title="Riporta posizione, misure e impostazioni ai valori iniziali (sorgente e testo restano)">↺ <span data-i18n="Ripristina misure">Ripristina misure</span></button>
+        <button id="btn-remove" class="remove" data-i18n-title="Elimina l'input selezionato e chiude la sua sorgente" title="Elimina l'input selezionato e chiude la sua sorgente">✕ Elimina input</button>
         <span id="remove-name" class="muted"></span>
       </div>
-    </div>
+    </section>
 
-    <aside class="right">
+    <div class="splitter split-v" id="split-v" data-i18n-title="Trascina per cambiare la larghezza della colonna degli input" title="Trascina per cambiare la larghezza della colonna degli input"></div>
+
+    <aside id="zone-inputs">
       <div class="studio-row">
-        <button id="btn-studio" title="Due schermi: anteprima della prossima scena e scena in onda, con CUT e dissolvenza">Modalità studio</button>
+        <button id="btn-studio" data-i18n-title="Due schermi: anteprima della prossima scena e scena in onda, con CUT e dissolvenza" title="Due schermi: anteprima della prossima scena e scena in onda, con CUT e dissolvenza">Modalità studio</button>
       </div>
-      <h2>Aggiungi</h2>
+      <h2 data-i18n="Aggiungi">Aggiungi</h2>
       <div class="add-list">
-        <button data-add="scene" class="add-scene">+ Scena</button>
-        <button data-add="ndi">+ Segnale NDI</button>
-        <button data-add="capture">+ Periferica di acquisizione</button>
-        <button data-add="media">+ Media (video o immagine)</button>
-        <button data-add="timer">+ Timer</button>
-        <button data-add="ticker">+ Banner</button>
-        <button data-add="prompter">+ TelePrompt</button>
+        <button data-add="scene" class="add-scene">+ <span data-i18n="Scena">Scena</span></button>
+        <button data-add="ndi">+ <span data-i18n="Segnale NDI">Segnale NDI</span></button>
+        <button data-add="capture">+ <span data-i18n="Periferica di acquisizione">Periferica di acquisizione</span></button>
+        <button data-add="media">+ <span data-i18n="Media (video o immagine)">Media (video o immagine)</span></button>
+        <button data-add="timer">+ <span data-i18n="Timer">Timer</span></button>
+        <button data-add="ticker">+ <span data-i18n="Banner di Testo">Banner di Testo</span></button>
+        <button data-add="prompter">+ <span data-i18n="TelePrompt">TelePrompt</span></button>
       </div>
       <p class="muted small" id="add-target"></p>
 
       <div class="list-head">
-        <h2>Elementi (dal primo piano allo sfondo)</h2>
-        <button id="btn-show-all" class="small-btn">Mostra tutti</button>
+        <h2 data-i18n="Elementi (dal primo piano allo sfondo)">Elementi (dal primo piano allo sfondo)</h2>
+        <button id="btn-show-all" class="small-btn" data-i18n="Mostra tutti">Mostra tutti</button>
       </div>
-      <p class="muted small">Trascina gli elementi per cambiare l'ordine o per metterli in una scena. Tieni premuto Ctrl mentre rilasci per mettere lo stesso input anche in un'altra scena (la sorgente resta una sola).</p>
+      <p class="muted small help" data-i18n="Trascina gli elementi per cambiare l'ordine o per metterli in una scena. Tieni premuto Ctrl mentre rilasci per mettere lo stesso input anche in un'altra scena (la sorgente resta una sola).">Trascina gli elementi per cambiare l'ordine o per metterli in una scena. Tieni premuto Ctrl mentre rilasci per mettere lo stesso input anche in un'altra scena (la sorgente resta una sola).</p>
       <div id="list-wrap">
         <ul id="layer-list"></ul>
         <div id="drop-line" hidden></div>
       </div>
-
-      <div class="config">
-        <h2>Configurazione</h2>
-        <button id="btn-save-config" title="Salva su file tutti gli elementi con le loro impostazioni">Salva configurazione…</button>
-        <button id="btn-open-config" title="Richiama una configurazione salvata">Importa configurazione…</button>
-      </div>
     </aside>
   </div>
 
+  <dialog id="dlg-midi" class="dialog"></dialog>
+  <dialog id="dlg-http" class="dialog"></dialog>
+
+  <script src="../shared/i18n-en.js"></script>
+  <script src="../shared/i18n.js"></script>
   <script src="../shared/layers.js"></script>
+  <script src="../shared/actions.js"></script>
   <script src="../shared/render.js"></script>
   <script src="textconv.js"></script>
   <script src="control.js"></script>
+  <script src="remote.js"></script>
 </body>
 </html>

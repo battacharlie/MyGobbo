@@ -3,12 +3,21 @@
 (function (root) {
   // Fotogrammi al secondo massimi di tutto ciò che compare in uscita.
   const MAX_FPS = 25;
+  // Fotogrammi al secondo scelti nel menu Uscita (mai più di MAX_FPS).
+  const FPS_CHOICES = [10, 15, 20, 24, 25];
+  let currentFps = MAX_FPS;
+  function fps() {
+    return currentFps;
+  }
+  function setFps(n) {
+    currentFps = Math.max(1, Math.min(MAX_FPS, Number(n) || MAX_FPS));
+  }
 
   const TYPE_LABELS = {
     ndi: 'NDI',
     capture: 'Acquisizione',
     timer: 'Timer',
-    ticker: 'Banner',
+    ticker: 'Banner di Testo',
     prompter: 'TelePrompt',
     media: 'Media',
     scene: 'Scena'
@@ -61,7 +70,14 @@
         break;
       case 'media':
         // file: percorso sul disco; src: lo stesso come indirizzo file://
-        Object.assign(base, { file: '', src: '', mediaKind: 'video', loop: true, audio: false, playing: true, restartAt: 0 });
+        Object.assign(base, {
+          file: '', src: '', mediaKind: 'video', loop: true, playing: true, restartAt: 0,
+          // playMode: always = continua anche fuori onda, onair = suona solo in
+          // onda, restart = suona in onda e si riavvolge quando esce.
+          playMode: 'always',
+          // audioMode: on, off, follow = attivo solo quando è in onda.
+          audioMode: 'off'
+        });
         break;
       case 'timer':
         Object.assign(base, {
@@ -81,6 +97,16 @@
           frame: true,
           frameColor: '#ef4444',
           frameWidth: 12, // pixel su uno schermo alto 1080
+          frameStyle: 'dashed', // dashed = tratteggiata, solid = continua
+          frameMotion: 'run', // run = scorre, blink = lampeggia ferma, still = fissa
+          frameSpeed: 1, // 1 = normale, 2 = doppia...
+          // Timer fermo (mai avviato o azzerato): mostra data e ora.
+          idleClock: false,
+          clockDate: false,
+          clockHours: true,
+          clockMinutes: true,
+          clockSeconds: true,
+          clockMs: false,
           run: { running: false, baseMs: 0, startedAt: 0 }
         });
         break;
@@ -209,6 +235,24 @@
     return (negative && total > 0 ? '+' : '') + body;
   }
 
+  // Timer fermo che mostra l'orologio: mai avviato o azzerato.
+  function timerShowsClock(layer) {
+    return !!layer.idleClock && !layer.run.running && !layer.run.baseMs;
+  }
+
+  // Data e ora con le parti scelte (data, ore, minuti, secondi, millesimi).
+  function formatClock(layer, date = new Date()) {
+    const pad = (n, l = 2) => String(n).padStart(l, '0');
+    const time = [];
+    if (layer.clockHours) time.push(pad(date.getHours()));
+    if (layer.clockMinutes) time.push(pad(date.getMinutes()));
+    if (layer.clockSeconds) time.push(pad(date.getSeconds()));
+    let t = time.join(':');
+    if (layer.clockMs) t += (t ? '.' : '') + pad(date.getMilliseconds(), 3);
+    const d = layer.clockDate ? `${pad(date.getDate())}/${pad(date.getMonth() + 1)}/${date.getFullYear()}` : '';
+    return [d, t].filter(Boolean).join(' ') || t;
+  }
+
   // Tre colori: alla partenza, negli ultimi secondi prima del limite e
   // oltre il limite (all'indietro il limite è lo zero, in avanti la durata).
   function timerColor(layer, valueMs) {
@@ -240,7 +284,7 @@
     return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`;
   }
 
-  const api = { MAX_FPS, TYPE_LABELS, PER_ITEM, KEEP_ON_RESET, allLayers, findNode, composeLayers, prompterY, TIMER_COLORS, VIDEO_EXT, IMAGE_EXT, isVisual, newId, createLayer, timerElapsedMs, timerValueMs, timerOvertime, formatTime, timerColor, videoRects, hexToRgba };
+  const api = { MAX_FPS, FPS_CHOICES, fps, setFps, timerShowsClock, formatClock, TYPE_LABELS, PER_ITEM, KEEP_ON_RESET, allLayers, findNode, composeLayers, prompterY, TIMER_COLORS, VIDEO_EXT, IMAGE_EXT, isVisual, newId, createLayer, timerElapsedMs, timerValueMs, timerOvertime, formatTime, timerColor, videoRects, hexToRgba };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Layers = api;
 })(typeof window !== 'undefined' ? window : globalThis);
