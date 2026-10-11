@@ -36,17 +36,32 @@ body {
 .right .config { margin-top: auto; padding-top: 16px; display: flex; flex-direction: column; gap: 6px; }
 .right .config button { text-align: left; }
 
-/* Anteprima compatta: il resto dello spazio va ai comandi dell'elemento. */
-#preview-wrap { flex: none; height: 36vh; min-height: 180px; display: flex; justify-content: center; }
-#preview {
-  position: relative;
-  height: 100%;
-  max-width: 100%;
-  aspect-ratio: 16 / 9;
-  border: 1px solid #343946;
-  background: #000;
-}
-#stage, #overlay { position: absolute; inset: 0; }
+/* Anteprima compatta: il resto dello spazio va ai comandi dell'elemento.
+   In modalità studio due schermi affiancati con CUT e FADE in mezzo. */
+#monitors { flex: none; height: 36vh; min-height: 200px; display: flex; gap: 12px; align-items: stretch; }
+.monitor { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.monitor[hidden] { display: none; }
+.mon-title { flex: none; font-size: 12px; font-weight: 600; text-align: center; padding: 2px 8px 4px; color: #aab0bd; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mon-title.live { color: #f87171; }
+.mon-title.pvw { color: #4ade80; }
+.mon-title.off { color: #fbbf24; }
+.mon-wrap { flex: 1; min-height: 0; display: flex; justify-content: center; align-items: flex-start; }
+.screen { position: relative; border: 1px solid #343946; background: #000; flex: none; }
+body.studio #preview { border: 2px solid #16a34a; }
+body.studio #program { border: 2px solid #dc2626; }
+#stage, #overlay, #program-stage { position: absolute; inset: 0; }
+#program-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: fill; display: none; }
+#program.has-video #program-video { display: block; }
+#switcher { flex: none; width: 112px; display: flex; flex-direction: column; justify-content: center; gap: 8px; }
+#switcher[hidden] { display: none; }
+#switcher button { font-weight: 700; letter-spacing: 0.06em; padding: 12px 0; font-size: 14px; }
+#switcher .cut { background: #b91c1c; border-color: #b91c1c; color: #fff; }
+#switcher .cut:hover { background: #991b1b; }
+#switcher .fade { background: #1d4ed8; border-color: #1d4ed8; color: #fff; }
+#switcher .fade:hover { background: #1e40af; }
+#switcher .field { margin: 0; }
+.studio-row { display: flex; justify-content: flex-end; margin-bottom: 12px; }
+.studio-row button { font-weight: 600; }
 #overlay .box {
   position: absolute;
   border: 1px dashed rgba(255,255,255,0.25);
@@ -98,7 +113,19 @@ body {
 h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: #8b93a5; margin: 0 0 8px; }
 h3 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: #8b93a5; margin: 16px 0 8px; border-top: 1px solid #2c3039; padding-top: 12px; }
 
-#layer-list { list-style: none; margin: 0; padding: 0; }
+#list-wrap { position: relative; padding-bottom: 28px; }
+#layer-list { list-style: none; margin: 0; padding: 0; user-select: none; }
+#layer-list li.scene { background: #222031; border-color: #3b3556; }
+#layer-list li.scene.is-live { border-color: #dc2626; }
+#layer-list li.child { margin-left: 22px; }
+#layer-list li.empty-scene { color: #6b7280; font-size: 12px; font-style: italic; cursor: default; }
+#layer-list li .caret { width: 14px; text-align: center; color: #aab0bd; cursor: pointer; }
+#layer-list li .link { font-size: 12px; }
+#layer-list li.dragging { opacity: 0.4; }
+#layer-list li.drop-into { outline: 2px solid #22c55e; background: #173323; }
+body.list-dragging, body.list-dragging * { cursor: grabbing !important; }
+#drop-line { position: absolute; height: 3px; background: #22c55e; border-radius: 2px; pointer-events: none; box-shadow: 0 0 6px #22c55e; }
+#drop-line[hidden] { display: none; }
 #layer-list li {
   display: flex;
   align-items: center;
@@ -111,7 +138,7 @@ h3 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: 
   background: #1b1e25;
 }
 #layer-list li.selected { border-color: #3b82f6; background: #1c2740; }
-#layer-list li .tag { font-size: 11px; color: #8b93a5; min-width: 92px; }
+#layer-list li .tag { font-size: 11px; color: #8b93a5; min-width: 70px; }
 #layer-list li .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #layer-list li.hidden-layer .name { color: #6b7280; text-decoration: line-through; }
 
@@ -151,6 +178,24 @@ button.primary:hover { background: #1d4fd0; }
 button.warn { background: #d97706; border-color: #d97706; color: #fff; }
 button.danger { color: #fca5a5; }
 button.on { background: #15803d; border-color: #15803d; color: #fff; }
+button.live { background: #dc2626; border-color: #dc2626; color: #fff; }
+/* Colore con contagocce accanto. */
+.color-pick { display: inline-flex; align-items: center; gap: 4px; }
+button.pick { padding: 2px 6px; font-size: 13px; line-height: 1.2; }
+/* TelePrompt */
+.editor { background: #0e1014; border: 1px solid #343946; border-radius: 6px; padding: 8px 10px; min-height: 120px; max-height: 280px; overflow: auto; outline: none; line-height: 1.45; }
+.editor:focus { border-color: #3b82f6; }
+.editor p { margin: 0 0 0.5em; }
+.toolbar button { min-width: 30px; }
+.toolbar button:nth-child(1) { font-weight: 700; }
+.toolbar button:nth-child(2) { font-style: italic; }
+.toolbar button:nth-child(3) { text-decoration: underline; }
+.para-list { margin: 0; padding-left: 26px; max-height: 220px; overflow: auto; }
+.para-list li { padding: 3px 6px; border-radius: 4px; cursor: pointer; color: #cbd5e1; }
+.para-list li:hover { background: #262a33; }
+.para-list li.current { background: #1c2740; color: #fff; outline: 1px solid #3b82f6; }
+.progress { height: 6px; background: #0e1014; border-radius: 3px; margin-bottom: 10px; overflow: hidden; }
+.progress > div { height: 100%; background: #3b82f6; width: 0; }
 .small-btn { padding: 3px 8px; font-size: 12px; }
 .muted { color: #8b93a5; }
 .small { font-size: 12px; }
@@ -170,6 +215,7 @@ button.on { background: #15803d; border-color: #15803d; color: #fff; }
 /* Tasto elimina sempre visibile in basso a sinistra, sotto le proprietà. */
 #panel-footer { flex: none; display: flex; align-items: center; gap: 10px; padding-top: 10px; border-top: 1px solid #2c3039; }
 #panel-footer[hidden] { display: none; }
+#panel-footer [hidden] { display: none; }
 #panel-footer .remove { background: #b91c1c; border-color: #b91c1c; color: #fff; font-weight: 600; }
 #panel-footer .remove:hover { background: #991b1b; }
 #remove-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

@@ -1,6 +1,6 @@
 // Regia: elenco degli elementi, anteprima dell'uscita e proprietà
 // dell'elemento selezionato.
-const { TYPE_LABELS, TIMER_COLORS, isVisual, timerValueMs, formatTime, timerColor } = window.Layers;
+const { TYPE_LABELS, TIMER_COLORS, isVisual, timerValueMs, formatTime, timerColor, allLayers, findNode, composeLayers, prompterY } = window.Layers;
 const api = window.countdown;
 const send = (cmd) => api.send(cmd);
 const $ = (id) => document.getElementById(id);
@@ -28,7 +28,38 @@ function h(tag, attrs = {}, ...children) {
 }
 
 function selectedLayer() {
-  return state && state.layers.find((l) => l.id === selectedId);
+  const node = state && selectedId && findNode(state.layers, selectedId);
+  return node ? node.layer : null;
+}
+
+function layerById(id) {
+  const node = id && findNode(state.layers, id);
+  return node ? node.layer : null;
+}
+
+// Scena che contiene l'elemento (o l'elemento stesso se è una scena).
+function sceneOf(id) {
+  const node = id && findNode(state.layers, id);
+  if (!node) return null;
+  return node.layer.type === 'scene' ? node.layer : node.parent;
+}
+
+// Scena mostrata nell'anteprima della regia: in modalità studio quella in
+// anteprima; altrimenti la scena dell'elemento selezionato o quella in onda.
+function viewSceneId() {
+  if (state.studio) return state.preview;
+  const scene = sceneOf(selectedId);
+  return scene ? scene.id : state.program;
+}
+
+function previewLayers() {
+  const id = viewSceneId();
+  return composeLayers(state.layers, id ? [id] : []);
+}
+
+// Quante comparse ha lo stesso input (copie collegate in più scene).
+function linkCount(layer) {
+  return layer.link ? allLayers(state.layers).filter((l) => l.link === layer.link).length : 1;
 }
 
 function updateLayer(patch) {
@@ -61,8 +92,25 @@ function textInput(prop, attrs = {}) {
   return bound(h('input', { type: 'text', ...attrs }), (l) => l[prop], (v) => updateLayer({ [prop]: v }));
 }
 
+// Colore con contagocce: preleva da qualsiasi punto dello schermo o da un'immagine.
 function colorInput(prop) {
-  return bound(h('input', { type: 'color' }), (l) => l[prop], (v) => updateLayer({ [prop]: v }));
+  const input = bound(h('input', { type: 'color' }), (l) => l[prop], (v) => updateLayer({ [prop]: v }));
+  return h('span', { class: 'color-pick' }, input, pickButton((c) => {
+    updateLayer({ [prop]: c });
+    refreshBindings();
+  }));
+}
+
+function pickButton(onColor) {
+  return h('button', {
+    class: 'pick',
+    title: 'Preleva il colore da qualsiasi punto dello schermo o da un\'immagine',
+    onclick: async (e) => {
+      e.preventDefault();
+      const color = await api.pickColor();
+      if (color) onColor(color);
+    }
+  }, '💧');
 }
 
 function checkbox(label, prop) {
@@ -79,6 +127,14 @@ function refreshBindings() {
   const layer = selectedLayer();
   if (!layer) return;
   for (const b of bindings) {
+    if (b.html) {
+      // L'editor del TelePrompt si aggiorna solo quando non ci si sta scrivendo.
+      if (document.activeElement !== b.el && b.el.dataset.html !== b.get(layer)) {
+        b.el.dataset.html = b.get(layer);
+        b.el.innerHTML = b.get(layer);
+      }
+      continue;
+    }
     if (b.text) {
       const t = b.get(layer);
       if (b.el.textContent !== t) b.el.textContent = t;
@@ -120,18 +176,29 @@ function buildPanel() {
     return;
   }
 
+  if (layer.type === 'scene') {
+    panel.append(...sceneSection(layer));
+    refreshBindings();
+    return;
+  }
+
+  const scene = sceneOf(layer.id);
+  const copies = linkCount(layer);
   panel.append(card(TYPE_LABELS[layer.type],
     field('Nome', textInput('name')),
+    scene ? h('p', { class: 'muted small' }, `Nella scena "${scene.name}".`) : null,
+    copies > 1 ? h('p', { class: 'muted small' }, `🔗 Input presente in ${copies} punti: sorgente e impostazioni sono condivise, posizione e misure no.`) : null,
     h('div', { class: 'row' },
-      checkbox('In onda (visibile in uscita)', 'visible')),
+      checkbox(scene ? 'Visibile nella scena' : 'In onda (visibile in uscita)', 'visible')),
     h('div', { class: 'row' },
-      h('button', { onclick: () => send({ type: 'solo', id: layer.id }), title: 'Mostra solo questo elemento in uscita' }, 'Solo questo'),
+      h('button', { onclick: () => send({ type: 'solo', id: layer.id }), title: 'Mostra solo questo elemento (tra quelli dello stesso elenco)' }, 'Solo questo'),
       h('button', { onclick: () => send({ type: 'move-layer', id: layer.id, dir: 1 }) }, '↑ Avanti'),
       h('button', { onclick: () => send({ type: 'move-layer', id: layer.id, dir: -1 }) }, '↓ Indietro'))
   ));
 
   if (layer.type === 'timer') panel.append(...timerSection(layer));
   if (layer.type === 'ticker') panel.append(...tickerSection());
+  if (layer.type === 'prompter') panel.append(...prompterSection(layer));
   if (layer.type === 'ndi') panel.append(...ndiSection());
   if (layer.type === 'capture') panel.append(...captureSection());
   if (layer.type === 'media') panel.append(...mediaSection());
@@ -258,7 +325,7 @@ function setDuration(min, sec) {
 
 function tickerSection() {
   return [
-    card('Frase',
+    card('Banner',
       field('Testo', bound(h('textarea', { rows: 3 }), (l) => l.text, (v) => updateLayer({ text: v.replace(/\n/g, ' ') }))),
       h('p', { class: 'muted small' }, 'Se il testo è più lungo dello spazio disponibile, scorre da destra a sinistra.'),
       field('Velocità di scorrimento (px/s)', h('div', { class: 'row' },
@@ -302,8 +369,198 @@ function mediaSection() {
   ];
 }
 
+// --- TelePrompt ------------------------------------------------------------
+
+// Misure del testo come apparirà in uscita: inizio dei paragrafi e fine.
+function prompterMetrics(layer) {
+  return measurePrompter(layer, state.output.width, state.output.height);
+}
+
+function sendPrompter(action, extra = {}) {
+  const layer = selectedLayer();
+  if (!layer || layer.type !== 'prompter') return;
+  send({ type: 'prompter', id: layer.id, action, maxY: prompterMetrics(layer).height, ...extra });
+}
+
+// Paragrafo attuale: l'ultimo il cui inizio ha superato la linea di lettura.
+function currentParagraph(layer, metrics) {
+  const y = prompterY(layer) + 1;
+  let index = 0;
+  metrics.paragraphs.forEach((p, i) => { if (p.y <= y) index = i; });
+  return index;
+}
+
+function jumpParagraph(delta) {
+  const layer = selectedLayer();
+  const m = prompterMetrics(layer);
+  if (!m.paragraphs.length) return;
+  const i = clamp(currentParagraph(layer, m) + delta, 0, m.paragraphs.length - 1);
+  sendPrompter('goto', { y: m.paragraphs[i].y });
+}
+
+// Tasti del TelePrompt (quando è selezionato e non si sta scrivendo).
+function prompterKey(e, layer) {
+  const actions = {
+    Space: () => sendPrompter(layer.run.running ? 'pause' : 'start'),
+    PageDown: () => jumpParagraph(1),
+    PageUp: () => jumpParagraph(-1),
+    ArrowDown: () => sendPrompter('nudge', { dy: 60 }),
+    ArrowUp: () => sendPrompter('nudge', { dy: -60 }),
+    Home: () => sendPrompter('top')
+  };
+  const fn = actions[e.code];
+  if (!fn) return false;
+  e.preventDefault();
+  fn();
+  return true;
+}
+
+function prompterSection(layer) {
+  const startBtn = h('button', { class: 'primary', onclick: () => sendPrompter(selectedLayer().run.running ? 'pause' : 'start') }, '▶ Avvia');
+  const progress = h('div', { class: 'progress' }, h('div', {}));
+  const paraList = h('ol', { class: 'para-list' });
+  let paraSig = '';
+
+  const tick = () => {
+    const l = selectedLayer();
+    if (!l || l.type !== 'prompter') return;
+    const m = prompterMetrics(l);
+    const label = l.run.running ? '❚❚ Pausa' : '▶ Avvia';
+    if (startBtn.textContent !== label) startBtn.textContent = label;
+    startBtn.className = l.run.running ? 'warn' : 'primary';
+    const pct = m.height ? clamp(prompterY(l) / m.height, 0, 1) * 100 : 0;
+    progress.firstChild.style.width = `${pct}%`;
+    const sig = m.paragraphs.map((p) => p.y + p.text).join('|');
+    if (sig !== paraSig) {
+      paraSig = sig;
+      paraList.replaceChildren(...m.paragraphs.map((p, i) => h('li', {
+        title: 'Vai a questo paragrafo',
+        onclick: () => sendPrompter('goto', { y: prompterMetrics(selectedLayer()).paragraphs[i].y })
+      }, p.text.length > 70 ? `${p.text.slice(0, 70)}…` : p.text)));
+      if (!m.paragraphs.length) paraList.append(h('li', { class: 'muted' }, 'Nessun paragrafo'));
+    }
+    const cur = currentParagraph(l, m);
+    [...paraList.children].forEach((li, i) => li.classList.toggle('current', i === cur && m.paragraphs.length > 0));
+  };
+  panelTick = setInterval(tick, 250);
+  setTimeout(tick);
+
+  // Editor del testo: si può scrivere, incollare da Word, Blocco note,
+  // Pages, TextEdit (lo stile viene ripulito) o importare un file.
+  const editor = h('div', { class: 'editor', contenteditable: 'true', spellcheck: 'false' });
+  editor.innerHTML = layer.html;
+  let saveTimer = null;
+  const save = () => {
+    clearTimeout(saveTimer);
+    saveTimer = null;
+    const html = TextConv.sanitizeHtml(editor.innerHTML);
+    if (html !== selectedLayer().html) updateLayer({ html });
+  };
+  editor.addEventListener('input', () => {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(save, 400);
+  });
+  editor.addEventListener('blur', () => {
+    save();
+    editor.innerHTML = selectedLayer().html;
+  });
+  editor.addEventListener('paste', (e) => {
+    e.preventDefault();
+    const html = e.clipboardData.getData('text/html');
+    const rtf = e.clipboardData.getData('text/rtf');
+    const text = e.clipboardData.getData('text/plain');
+    const clean = html ? TextConv.sanitizeHtml(html) : rtf ? TextConv.rtfToHtml(rtf) : TextConv.textToHtml(text);
+    document.execCommand('insertHTML', false, clean);
+    save();
+  });
+  bindings.push({ el: editor, get: (l) => l.html, html: true });
+
+  const fmt = (cmd, label, title, value) => h('button', {
+    class: 'small-btn',
+    title,
+    onmousedown: (e) => e.preventDefault(),
+    onclick: () => {
+      editor.focus();
+      document.execCommand(cmd, false, value);
+      save();
+    }
+  }, label);
+  const colorBtn = h('input', { type: 'color', value: '#ffcc00', title: 'Colore del testo selezionato' });
+  const applyColor = (c) => {
+    editor.focus();
+    document.execCommand('foreColor', false, c);
+    save();
+  };
+  colorBtn.addEventListener('input', () => applyColor(colorBtn.value));
+  const toolbar = h('div', { class: 'row toolbar' },
+    fmt('bold', 'G', 'Grassetto'), fmt('italic', 'C', 'Corsivo'), fmt('underline', 'S', 'Sottolineato'), fmt('strikeThrough', 'ab̶', 'Barrato'),
+    h('span', { class: 'color-pick' }, colorBtn, pickButton((c) => { colorBtn.value = c; applyColor(c); })),
+    fmt('removeFormat', 'Togli stile', 'Toglie lo stile dal testo selezionato'));
+
+  return [
+    card('TelePrompt',
+      progress,
+      h('div', { class: 'row' }, startBtn,
+        h('button', { onclick: () => sendPrompter('top'), title: 'Torna all\'inizio (Home)' }, '⏮ Inizio'),
+        h('button', { onclick: () => jumpParagraph(-1), title: 'Paragrafo precedente (Pagina su)' }, '⇞ Par.'),
+        h('button', { onclick: () => jumpParagraph(1), title: 'Paragrafo successivo (Pagina giù)' }, '⇟ Par.')),
+      h('div', { class: 'row' },
+        h('button', { onclick: () => sendPrompter('nudge', { dy: -60 }), title: 'Indietro di poco (freccia su)' }, '▲ Indietro'),
+        h('button', { onclick: () => sendPrompter('nudge', { dy: 60 }), title: 'Avanti di poco (freccia giù)' }, '▼ Avanti')),
+      field('Velocità (pixel al secondo su 1080)', h('div', { class: 'row' },
+        h('button', { class: 'small-btn', onclick: () => updateLayer({ speed: Math.max(0, selectedLayer().speed - 5) }) }, '−'),
+        bound(h('input', { type: 'range', min: 0, max: 300, step: 1 }), (l) => l.speed, (v) => updateLayer({ speed: v })),
+        h('button', { class: 'small-btn', onclick: () => updateLayer({ speed: selectedLayer().speed + 5 }) }, '+'),
+        numberInput((l) => l.speed, (v) => updateLayer({ speed: clamp(v, 0, 2000) }), { min: 0, step: 1, style: 'width:70px' }))),
+      h('p', { class: 'muted small' }, 'Tasti: spazio avvia/pausa, Pagina su/giù cambia paragrafo, frecce su/giù spostano il testo, Home torna all\'inizio.')),
+    card('Paragrafi (clic per saltare)', paraList),
+    card('Testo',
+      h('div', { class: 'row' },
+        h('button', { onclick: async () => {
+          const file = await api.importText();
+          if (!file) return;
+          const html = TextConv.importToHtml(file);
+          editor.innerHTML = html;
+          updateLayer({ html });
+          sendPrompter('top');
+        } }, 'Importa file…'),
+        h('span', { class: 'muted small' }, 'Word (.docx), RTF (TextEdit, WordPad), testo (.txt), HTML')),
+      toolbar,
+      editor,
+      h('p', { class: 'muted small' }, 'Puoi anche copiare e incollare da Word, Blocco note, Pages o TextEdit: grassetto, corsivo, colori e grandezze restano.')),
+    card('Aspetto',
+      field('Carattere', fontSelect()),
+      field('Misura carattere (% altezza schermo)', h('div', { class: 'row' },
+        bound(h('input', { type: 'range', min: 1, max: 25, step: 0.5 }), (l) => l.fontSize, (v) => updateLayer({ fontSize: v })),
+        numberInput((l) => l.fontSize, (v) => updateLayer({ fontSize: clamp(v, 0.5, 100) }), { min: 0.5, max: 100, step: 0.5, style: 'width:70px' }))),
+      checkbox('Grassetto', 'bold'),
+      h('div', { class: 'grid2' },
+        field('Colore testo', colorInput('color')),
+        field('Colore sfondo', colorInput('background'))),
+      checkbox('Sfondo trasparente', 'transparent'),
+      field('Interlinea', h('div', { class: 'row' },
+        bound(h('input', { type: 'range', min: 0.8, max: 3, step: 0.05 }), (l) => l.lineHeight, (v) => updateLayer({ lineHeight: v })),
+        numberInput((l) => l.lineHeight, (v) => updateLayer({ lineHeight: clamp(v, 0.5, 5) }), { min: 0.5, max: 5, step: 0.05, style: 'width:70px' }))),
+      field('Spaziatura tra le lettere (px)', h('div', { class: 'row' },
+        bound(h('input', { type: 'range', min: -5, max: 40, step: 0.5 }), (l) => l.letterSpacing, (v) => updateLayer({ letterSpacing: v })),
+        numberInput((l) => l.letterSpacing, (v) => updateLayer({ letterSpacing: clamp(v, -20, 200) }), { step: 0.5, style: 'width:70px' }))),
+      field('Margini a destra e sinistra (%)', h('div', { class: 'row' },
+        bound(h('input', { type: 'range', min: 0, max: 40, step: 1 }), (l) => l.margin, (v) => updateLayer({ margin: v })),
+        numberInput((l) => l.margin, (v) => updateLayer({ margin: clamp(v, 0, 45) }), { min: 0, max: 45, step: 1, style: 'width:70px' }))),
+      field('Allineamento', select([['left', 'A sinistra'], ['center', 'Al centro'], ['right', 'A destra'], ['justify', 'Giustificato']],
+        (l) => l.align, (v) => updateLayer({ align: v })))),
+    card('Specchio e linea di lettura',
+      checkbox('Specchia in orizzontale (vetro del teleprompter)', 'mirrorX'),
+      checkbox('Capovolgi in verticale', 'mirrorY'),
+      checkbox('Mostra la linea di lettura', 'guide'),
+      field('Posizione della linea (% dall\'alto)', bound(h('input', { type: 'range', min: 5, max: 90, step: 1 }), (l) => l.guideY, (v) => updateLayer({ guideY: v }))),
+      field('Colore della linea', colorInput('guideColor')))
+  ];
+}
+
 function fontSelect() {
-  const fonts = ['Segoe UI', 'Arial', 'Arial Black', 'Bahnschrift', 'Calibri', 'Consolas', 'Georgia', 'Impact', 'Tahoma', 'Trebuchet MS', 'Verdana'];
+  const fonts = ['Segoe UI', 'Arial', 'Arial Black', 'Bahnschrift', 'Calibri', 'Cambria', 'Consolas', 'Courier New', 'Georgia', 'Helvetica', 'Impact',
+    'Tahoma', 'Times New Roman', 'Trebuchet MS', 'Verdana'];
   return select(fonts.map((f) => [f, f]), (l) => l.fontFamily, (v) => updateLayer({ fontFamily: v }));
 }
 
@@ -410,48 +667,365 @@ function fitToSource() {
 function renderFooter() {
   const layer = selectedLayer();
   $('panel-footer').hidden = !layer;
-  if (layer) $('remove-name').textContent = `${TYPE_LABELS[layer.type]}: ${layer.name}`;
+  if (!layer) return;
+  $('remove-name').textContent = `${TYPE_LABELS[layer.type]}: ${layer.name}`;
+  $('btn-remove').textContent = layer.type === 'scene' ? '✕ Elimina scena' : '✕ Elimina input';
+  $('btn-reset').hidden = layer.type === 'scene';
 }
 
 function removeSelected() {
   const layer = selectedLayer();
   if (!layer) return;
-  if (!confirm(`Eliminare "${layer.name}"?`)) return;
+  const msg = layer.type === 'scene' && layer.children.length
+    ? `Eliminare la scena "${layer.name}" e i ${layer.children.length} input che contiene?`
+    : `Eliminare "${layer.name}"?`;
+  if (!confirm(msg)) return;
   send({ type: 'remove-layer', id: layer.id });
   selectedId = null;
 }
 
-// --- Elenco elementi -----------------------------------------------------------
+// Riporta l'input ai valori iniziali (sorgente, file e testo restano).
+function resetSelected() {
+  const layer = selectedLayer();
+  if (!layer || layer.type === 'scene') return;
+  if (!confirm(`Riportare "${layer.name}" alle misure e impostazioni iniziali?`)) return;
+  send({ type: 'reset-layer', id: layer.id });
+}
+
+// --- Elenco elementi (trascinabili) --------------------------------------------
+
+const collapsed = new Set(); // scene chiuse nell'elenco
 
 function renderList() {
   const list = $('layer-list');
-  list.replaceChildren(...[...state.layers].reverse().map((layer) => {
-    const eye = h('button', {
-      class: `small-btn ${layer.visible ? 'on' : ''}`,
-      title: layer.visible ? 'In onda: clic per nascondere' : 'Nascosto: clic per mostrare',
-      onclick: (e) => { e.stopPropagation(); send({ type: 'update-layer', id: layer.id, patch: { visible: !layer.visible } }); }
-    }, layer.visible ? 'In onda' : 'Nascosto');
-    return h('li', {
-      class: `${layer.id === selectedId ? 'selected' : ''} ${layer.visible ? '' : 'hidden-layer'}`,
-      onclick: () => select_(layer.id)
-    }, h('span', { class: 'tag' }, TYPE_LABELS[layer.type]), h('span', { class: 'name' }, layer.name), eye);
-  }));
+  const rows = [];
+  for (const layer of [...state.layers].reverse()) {
+    rows.push(listRow(layer, null));
+    if (layer.type === 'scene' && !collapsed.has(layer.id)) {
+      for (const child of [...layer.children].reverse()) rows.push(listRow(child, layer));
+      if (!layer.children.length) rows.push(h('li', { class: 'child empty-scene', 'data-scene': layer.id }, 'Scena vuota: trascina qui gli input'));
+    }
+  }
+  list.replaceChildren(...rows);
   if (!state.layers.length) list.append(h('li', { class: 'empty' }, 'Nessun elemento: aggiungine uno.'));
+}
+
+function listRow(layer, parent) {
+  const isScene = layer.type === 'scene';
+  let button;
+  if (isScene) {
+    const live = state.program === layer.id;
+    const pvw = state.studio && state.preview === layer.id;
+    if (state.studio) {
+      button = h('button', {
+        class: `small-btn ${live ? 'live' : pvw ? 'on' : ''}`,
+        title: live ? 'Questa scena è in onda' : 'Metti in anteprima: poi CUT o FADE la manda in onda',
+        onclick: (e) => { e.stopPropagation(); send({ type: 'preview', id: layer.id }); }
+      }, live ? 'In onda' : 'Anteprima');
+    } else {
+      button = h('button', {
+        class: `small-btn ${live ? 'live' : ''}`,
+        title: live ? 'In onda: clic per toglierla' : 'Manda subito in onda questa scena',
+        onclick: (e) => { e.stopPropagation(); send({ type: 'program', id: layer.id }); }
+      }, live ? 'In onda' : 'Manda in onda');
+    }
+  } else {
+    button = h('button', {
+      class: `small-btn ${layer.visible ? 'on' : ''}`,
+      title: layer.visible ? 'Visibile: clic per nascondere' : 'Nascosto: clic per mostrare',
+      onclick: (e) => { e.stopPropagation(); send({ type: 'update-layer', id: layer.id, patch: { visible: !layer.visible } }); }
+    }, layer.visible ? 'Visibile' : 'Nascosto');
+  }
+  const caret = isScene
+    ? h('span', {
+      class: 'caret',
+      title: 'Apri/chiudi la scena',
+      onclick: (e) => {
+        e.stopPropagation();
+        if (collapsed.has(layer.id)) collapsed.delete(layer.id);
+        else collapsed.add(layer.id);
+        renderList();
+      }
+    }, collapsed.has(layer.id) ? '▸' : '▾')
+    : null;
+  const copies = linkCount(layer);
+  const li = h('li', {
+    class: [
+      layer.id === selectedId ? 'selected' : '',
+      !isScene && !layer.visible ? 'hidden-layer' : '',
+      isScene ? 'scene' : '',
+      parent ? 'child' : '',
+      isScene && state.program === layer.id ? 'is-live' : ''
+    ].join(' '),
+    'data-id': layer.id
+  },
+  caret,
+  h('span', { class: 'tag' }, TYPE_LABELS[layer.type]),
+  h('span', { class: 'name' }, layer.name, isScene ? h('span', { class: 'muted' }, ` (${layer.children.length})`) : null),
+  copies > 1 ? h('span', { class: 'link', title: `Stesso input in ${copies} punti: la sorgente è condivisa` }, '🔗') : null,
+  button);
+  li.addEventListener('pointerdown', (e) => startListDrag(e, layer, li));
+  return li;
 }
 
 function select_(id) {
   selectedId = id;
+  // In modalità studio scegliere una scena (o un suo input) la mette in anteprima.
+  const scene = sceneOf(id);
+  if (state.studio && scene && state.preview !== scene.id) send({ type: 'preview', id: scene.id });
   render(state);
+}
+
+// Trascinamento nell'elenco: una linea mostra dove finirà l'elemento,
+// la scena sotto al puntatore si illumina se l'elemento andrà dentro.
+// Lo spostamento avviene solo al rilascio del tasto.
+let listDrag = null;
+
+function startListDrag(e, layer, li) {
+  if (e.button !== 0 || e.target.closest('button') || e.target.classList.contains('caret')) return;
+  listDrag = { layer, li, startY: e.clientY, active: false, target: null };
+  window.addEventListener('pointermove', onListDrag);
+  window.addEventListener('pointerup', endListDrag, { once: true });
+}
+
+function onListDrag(e) {
+  if (!listDrag) return;
+  if (!listDrag.active) {
+    if (Math.abs(e.clientY - listDrag.startY) < 5) return;
+    listDrag.active = true;
+    listDrag.li.classList.add('dragging');
+    document.body.classList.add('list-dragging');
+  }
+  listDrag.copy = e.ctrlKey;
+  listDrag.target = dropTarget(e.clientY);
+  showDropTarget(listDrag.target);
+}
+
+// Calcola dove andrebbe l'elemento con il puntatore all'altezza y.
+function dropTarget(y) {
+  const dragged = listDrag.layer;
+  const rows = [...$('layer-list').querySelectorAll('li[data-id], li.empty-scene')];
+  // Sotto la fine dell'elenco: in fondo a tutto, fuori dalle scene.
+  const lastRow = rows[rows.length - 1];
+  if (lastRow && y > lastRow.getBoundingClientRect().bottom + 6 && state.layers.length) {
+    const back = state.layers[0];
+    if (back.id === dragged.id && state.layers.length === 1) return null;
+    return { parentId: null, refId: back.id, where: 'behind', row: lastRow, before: false, end: true };
+  }
+  for (const row of rows) {
+    const r = row.getBoundingClientRect();
+    if (y > r.bottom && row !== rows[rows.length - 1]) continue;
+    const rel = Math.min(1, Math.max(0, (y - r.top) / r.height));
+    if (row.classList.contains('empty-scene')) {
+      if (dragged.type === 'scene') return null;
+      return { parentId: row.dataset.scene, refId: null, line: null, into: row.dataset.scene };
+    }
+    const layer = layerById(row.dataset.id);
+    const node = findNode(state.layers, layer.id);
+    if (layer.type === 'scene' && dragged.type !== 'scene' && rel > 0.25 && rel < 0.75) {
+      // Dentro la scena (video e immagini sotto a timer e banner).
+      return { parentId: layer.id, refId: null, into: layer.id };
+    }
+    let target = { parentId: node.parent ? node.parent.id : null, refId: layer.id, where: rel < 0.5 ? 'front' : 'behind', row, before: rel < 0.5 };
+    // Sotto una scena aperta con input: si entra nella scena.
+    if (!target.before && layer.type === 'scene' && dragged.type !== 'scene' && !collapsed.has(layer.id) && layer.children.length) {
+      return { parentId: layer.id, refId: null, into: layer.id };
+    }
+    // Una scena non entra in un'altra scena: si mette accanto alla scena.
+    if (dragged.type === 'scene' && node.parent) {
+      const sceneRow = $('layer-list').querySelector(`li[data-id="${node.parent.id}"]`);
+      target = { parentId: null, refId: node.parent.id, where: 'behind', row: sceneRow, before: false, afterGroup: true };
+    }
+    return target;
+  }
+  return null;
+}
+
+function showDropTarget(t) {
+  const line = $('drop-line');
+  for (const el of document.querySelectorAll('#layer-list li.drop-into')) el.classList.remove('drop-into');
+  if (!t) {
+    line.hidden = true;
+    return;
+  }
+  if (t.into) {
+    line.hidden = true;
+    const row = $('layer-list').querySelector(`li[data-id="${t.into}"]`);
+    if (row) row.classList.add('drop-into');
+    return;
+  }
+  const wrap = $('list-wrap').getBoundingClientRect();
+  let ref = t.row.getBoundingClientRect();
+  let y = t.before ? ref.top : ref.bottom;
+  if (t.end) ref = $('layer-list').getBoundingClientRect();
+  if (t.afterGroup) {
+    // Dopo tutto il gruppo della scena (scena + suoi input).
+    let last = t.row;
+    while (last.nextElementSibling && last.nextElementSibling.classList.contains('child')) last = last.nextElementSibling;
+    ref = last.getBoundingClientRect();
+    y = ref.bottom;
+  }
+  line.hidden = false;
+  line.style.top = `${y - wrap.top - 1}px`;
+  line.style.left = `${ref.left - wrap.left}px`;
+  line.style.width = `${ref.width}px`;
+}
+
+function endListDrag(e) {
+  window.removeEventListener('pointermove', onListDrag);
+  const d = listDrag;
+  listDrag = null;
+  $('drop-line').hidden = true;
+  document.body.classList.remove('list-dragging');
+  for (const el of document.querySelectorAll('#layer-list li.drop-into, #layer-list li.dragging')) el.classList.remove('drop-into', 'dragging');
+  if (!d || !d.active) {
+    if (d) select_(d.layer.id);
+    return;
+  }
+  const t = d.target;
+  if (!t || t.refId === d.layer.id) return;
+  send({ type: 'move-node', id: d.layer.id, parentId: t.parentId, refId: t.refId, where: t.where, copy: e.ctrlKey || d.copy });
+}
+
+// --- Scene e modalità studio ---------------------------------------------------
+
+function sceneSection(scene) {
+  const live = state.program === scene.id;
+  const actions = state.studio
+    ? h('div', { class: 'row' },
+      h('button', { class: 'primary', onclick: () => send({ type: 'preview', id: scene.id }) }, 'Metti in anteprima'),
+      h('span', { class: 'muted small' }, live ? 'Questa scena è in onda.' : 'Poi CUT o FADE la manda in onda.'))
+    : h('div', { class: 'row' },
+      h('button', { class: live ? 'live' : 'primary', onclick: () => send({ type: 'program', id: scene.id }) }, live ? 'Togli dall\'onda' : 'Manda in onda'),
+      h('span', { class: 'muted small' }, live ? 'Questa scena è in onda.' : 'Il cambio di scena è immediato.'));
+  return [
+    card('Scena',
+      field('Nome', textInput('name')),
+      actions,
+      h('p', { class: 'muted small' }, `Contiene ${scene.children.length} input. In onda va una scena alla volta, insieme agli input che non sono in nessuna scena (per esempio un logo sempre presente).`)),
+    card('Come si usa',
+      h('p', { class: 'muted small' }, 'Con la scena selezionata, i pulsanti "Aggiungi" mettono i nuovi input dentro la scena.'),
+      h('p', { class: 'muted small' }, 'Trascina un input sulla scena per spostarlo dentro. Tieni premuto Ctrl mentre rilasci per usare lo stesso input anche in questa scena: la sorgente (videocamera, NDI, video) resta una sola e la CPU non lavora il doppio.'),
+      h('p', { class: 'muted small' }, 'Modalità studio (in alto a destra): a sinistra l\'anteprima della prossima scena, a destra quella in onda, e in mezzo CUT e FADE.'))
+  ];
+}
+
+let programStream = null;
+let programStarting = false;
+
+async function startProgramMonitor() {
+  if (programStream || programStarting) return;
+  programStarting = true;
+  const video = $('program-video');
+  try {
+    const id = await api.outputSourceId();
+    if (!id) return;
+    // Copia leggera dell'uscita: piccola e a 15 fotogrammi al secondo.
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: false,
+      video: { mandatory: { chromeMediaSource: 'desktop', chromeMediaSourceId: id, maxWidth: 640, maxHeight: 360, maxFrameRate: 15 } }
+    });
+    if (!state.studio) {
+      stream.getTracks().forEach((t) => t.stop());
+      return;
+    }
+    programStream = stream;
+    video.srcObject = stream;
+    await video.play();
+    $('program').classList.add('has-video');
+  } catch (err) {
+    console.error('Monitor del programma non disponibile:', err);
+  } finally {
+    programStarting = false;
+  }
+}
+
+function stopProgramMonitor() {
+  if (programStream) programStream.getTracks().forEach((t) => t.stop());
+  programStream = null;
+  $('program-video').srcObject = null;
+  $('program').classList.remove('has-video');
+}
+
+// Riquadro con le proporzioni dell'uscita, il più grande possibile nello spazio.
+function fitScreen(wrap, screen) {
+  const out = state.output;
+  const W = wrap.clientWidth;
+  const H = wrap.clientHeight;
+  if (!W || !H) return;
+  const ratio = out.width / out.height;
+  const w = Math.min(W, H * ratio);
+  screen.style.width = `${Math.floor(w)}px`;
+  screen.style.height = `${Math.floor(w / ratio)}px`;
+}
+
+function fitScreens() {
+  if (!state) return;
+  fitScreen($('preview-wrap'), $('preview'));
+  fitScreen($('program-wrap'), $('program'));
+  // In modalità studio gli schermi sono più stretti: l'altezza avanzata va ai comandi.
+  const mon = $('monitors');
+  if (state.studio) {
+    const need = $('preview').offsetHeight + $('preview-title').offsetHeight + 4;
+    const max = Math.max(200, window.innerHeight * 0.36);
+    const hgt = `${Math.min(max, Math.max(need, 160))}px`;
+    if (mon.style.height !== hgt) mon.style.height = hgt;
+  } else if (mon.style.height) {
+    mon.style.height = '';
+  }
+}
+new ResizeObserver(fitScreens).observe($('preview-wrap'));
+new ResizeObserver(fitScreens).observe($('program-wrap'));
+
+function renderStudio() {
+  const studio = !!state.studio;
+  document.body.classList.toggle('studio', studio);
+  $('btn-studio').classList.toggle('on', studio);
+  $('btn-studio').textContent = studio ? 'Modalità studio: attiva' : 'Modalità studio';
+  $('switcher').hidden = !studio;
+  $('mon-program').hidden = !studio;
+  if (document.activeElement !== $('sel-fade')) $('sel-fade').value = String(state.fadeMs);
+  const viewId = viewSceneId();
+  const viewScene = layerById(viewId);
+  const program = layerById(state.program);
+  const title = $('preview-title');
+  title.classList.remove('live', 'off');
+  if (studio) {
+    title.textContent = viewScene ? `Anteprima: ${viewScene.name}` : 'Anteprima: nessuna scena';
+    title.classList.add('pvw');
+    $('program-title').textContent = program ? `In onda: ${program.name}` : 'In onda: nessuna scena';
+    programStage.update(composeLayers(state.layers, program ? [program.id] : []), state.background);
+    startProgramMonitor();
+  } else {
+    title.classList.remove('pvw');
+    if (viewScene && viewId !== state.program) {
+      title.textContent = `Scena "${viewScene.name}" (non in onda)`;
+      title.classList.add('off');
+    } else {
+      title.textContent = program ? `Uscita: ${program.name}` : 'Uscita';
+      title.classList.add('live');
+    }
+    stopProgramMonitor();
+  }
+  const target = addTargetScene();
+  $('add-target').textContent = target ? `I nuovi input vanno nella scena "${target.name}".` : '';
+  fitScreens();
+}
+
+// Scena in cui finiscono i nuovi input: quella selezionata (o dell'input selezionato).
+function addTargetScene() {
+  return sceneOf(selectedId);
 }
 
 // --- Anteprima con trascinamento -----------------------------------------------
 
 const stage = createStage($('stage'), { placeholders: true, showHidden: true });
+const programStage = createStage($('program-stage'), { placeholders: true });
 const overlay = $('overlay');
 let drag = null;
 
 function renderOverlay() {
-  const boxes = state.layers.map((layer, i) => {
+  const boxes = previewLayers().map((layer, i) => {
     const handles = ['nw', 'ne', 'sw', 'se'].map((c) => h('div', { class: `handle ${c}`, 'data-corner': c }));
     if (isVisual(layer.type)) {
       for (const side of ['top', 'right', 'bottom', 'left']) {
@@ -560,9 +1134,9 @@ function onDrag(e) {
   } else {
     patch = cropPatch(o, drag.handle, dx, dy);
   }
-  const layer = state.layers.find((l) => l.id === drag.id);
+  const layer = layerById(drag.id);
   Object.assign(layer, patch);
-  stage.update(state.layers, state.background);
+  stage.update(previewLayers(), state.background);
   renderOverlay();
   refreshBindings();
   if (!drag.pending) {
@@ -575,7 +1149,7 @@ function onDrag(e) {
 }
 
 function sendGeometry(id) {
-  const l = state.layers.find((x) => x.id === id);
+  const l = layerById(id);
   if (l) send({ type: 'update-layer', id, patch: { x: l.x, y: l.y, w: l.w, h: l.h, crop: { ...l.crop } } });
 }
 
@@ -594,7 +1168,6 @@ function render(next) {
   if (selectedId && !selectedLayer()) selectedId = null;
   if (drag) return; // durante il trascinamento comanda l'anteprima locale
 
-  $('preview').style.aspectRatio = `${state.output.width} / ${state.output.height}`;
   $('output-info').textContent = state.output.fullscreen
     ? `Uscita a tutto schermo ${state.output.width}×${state.output.height}`
     : 'Un solo monitor: uscita in finestra di anteprima';
@@ -608,9 +1181,10 @@ function render(next) {
   }
   sel.value = String(state.activeDisplayId);
 
-  stage.update(state.layers, state.background);
+  renderStudio();
+  stage.update(previewLayers(), state.background);
   renderOverlay();
-  renderList();
+  if (!listDrag || !listDrag.active) renderList();
   renderFooter();
 
   const layer = selectedLayer();
@@ -621,10 +1195,12 @@ function render(next) {
 
 for (const b of document.querySelectorAll('[data-add]')) {
   b.addEventListener('click', () => {
-    const before = new Set(state.layers.map((l) => l.id));
+    const before = new Set(allLayers(state.layers).map((l) => l.id));
+    const target = addTargetScene();
+    const sceneId = target ? target.id : null;
     // Per i media prima si sceglie il file, poi arriva il nuovo elemento.
-    if (b.dataset.add === 'media') send({ type: 'add-media' });
-    else send({ type: 'add-layer', layerType: b.dataset.add });
+    if (b.dataset.add === 'media') send({ type: 'add-media', sceneId });
+    else send({ type: 'add-layer', layerType: b.dataset.add, sceneId });
     // Seleziona il nuovo elemento appena arriva lo stato aggiornato.
     pendingSelect = before;
   });
@@ -634,25 +1210,36 @@ let pendingSelect = null;
 $('btn-show-all').onclick = () => send({ type: 'show-all' });
 $('btn-toggle-display').onclick = () => send({ type: 'toggle-display' });
 $('btn-remove').onclick = () => removeSelected();
+$('btn-reset').onclick = () => resetSelected();
 $('btn-save-config').onclick = () => send({ type: 'save-config' });
 $('btn-open-config').onclick = () => send({ type: 'open-config' });
+$('btn-studio').onclick = () => send({ type: 'set-studio', on: !state.studio });
+$('btn-cut').onclick = () => send({ type: 'take', kind: 'cut' });
+$('btn-fade').onclick = () => send({ type: 'take', kind: 'fade' });
+$('sel-fade').onchange = (e) => send({ type: 'set-fade', ms: Number(e.target.value) });
 $('sel-display').onchange = (e) => send({ type: 'set-display', displayId: Number(e.target.value) });
 $('col-background').oninput = (e) => send({ type: 'set-background', color: e.target.value });
+$('btn-pick-background').onclick = async (e) => {
+  e.preventDefault();
+  const color = await api.pickColor();
+  if (color) send({ type: 'set-background', color });
+};
 
 document.addEventListener('keydown', (e) => {
   const tag = e.target.tagName;
-  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || e.target.isContentEditable) return;
+  const layer = selectedLayer();
+  if (layer && layer.type === 'prompter' && prompterKey(e, layer)) return;
   if (e.code === 'Space') {
     e.preventDefault();
-    const layer = selectedLayer();
-    const timer = layer && layer.type === 'timer' ? layer : state.layers.find((l) => l.type === 'timer');
+    const timer = layer && layer.type === 'timer' ? layer : allLayers(state.layers).find((l) => l.type === 'timer');
     if (timer) send({ type: 'timer', id: timer.id, action: timer.run.running ? 'pause' : 'start' });
   }
 });
 
 api.onState((next) => {
   if (pendingSelect) {
-    const added = next.layers.find((l) => !pendingSelect.has(l.id));
+    const added = allLayers(next.layers).find((l) => !pendingSelect.has(l.id));
     if (added) {
       selectedId = added.id;
       pendingSelect = null;
@@ -672,7 +1259,10 @@ function clamp(v, min, max) {
   return Math.min(max, Math.max(min, v));
 }
 // Il pannello si ricostruisce quando cambia l'elemento selezionato, il suo
-// tipo o (per i media) il passaggio tra video e immagine.
+// tipo o (per i media) il passaggio tra video e immagine; per le scene anche
+// quando cambiano modalità studio, scena in onda e numero di input.
 function panelKeyOf(layer) {
-  return layer ? `${layer.id}:${layer.type}:${layer.mediaKind || ''}` : null;
+  if (!layer) return null;
+  const extra = layer.type === 'scene' ? `${state.studio}:${state.program}:${layer.children.length}` : linkCount(layer);
+  return `${layer.id}:${layer.type}:${layer.mediaKind || ''}:${extra}`;
 }

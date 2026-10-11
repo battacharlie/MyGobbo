@@ -4,5 +4,8 @@ contextBridge.exposeInMainWorld('countdown', {
   getState: () => ipcRenderer.invoke('get-state'),
   onState: (cb) => ipcRenderer.on('state', (_evt, state) => cb(state)),
   send: (cmd) => ipcRenderer.send('command', cmd),
-  ndiSources: () => ipcRenderer.invoke('ndi-sources')
+  ndiSources: () => ipcRenderer.invoke('ndi-sources'),
+  pickColor: () => ipcRenderer.invoke('pick-color'),
+  importText: () => ipcRenderer.invoke('import-text'),
+  outputSourceId: () => ipcRenderer.invoke('output-source-id')
 });
