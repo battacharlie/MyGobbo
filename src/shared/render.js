@@ -8,15 +8,15 @@
 //   CSS, li compone la scheda video senza lavoro in JavaScript;
 // - il timer si aggiorna solo quando cambia il secondo mostrato;
 // - la frase scorre con un'animazione CSS gestita dal compositore, a scatti
-//   di MAX_FPS al secondo (come i video, non supera i 25 fps);
+//   dei fotogrammi al secondo scelti (al massimo 25, come i video);
 // - le misure si rileggono solo quando cambiano scena o dimensioni.
 (function (root) {
-  const { MAX_FPS, formatTime, timerValueMs, timerElapsedMs, timerColor, timerOvertime, isVisual, videoRects, hexToRgba, prompterY, TYPE_LABELS } = root.Layers;
+  const { fps, formatTime, timerValueMs, timerElapsedMs, timerColor, timerOvertime, timerShowsClock, formatClock, isVisual, videoRects, hexToRgba, prompterY, TYPE_LABELS } = root.Layers;
 
   // Lampeggio dei numeri a tempo superato e cornice che corre lungo i bordi.
-  // Le animazioni vanno a scatti (steps) per non superare MAX_FPS.
-  const FRAME_STEPS = 12;
-  const FRAME_LOOP_MS = (FRAME_STEPS / MAX_FPS) * 1000;
+  // Le animazioni vanno a scatti (steps) per non superare i fotogrammi al
+  // secondo scelti (fps(), al massimo 25).
+  const FRAME_LOOP_MS = 480; // un giro del tratteggio a velocità normale
   if (!document.getElementById('igor-anim')) {
     const style = document.createElement('style');
     style.id = 'igor-anim';
@@ -165,7 +165,7 @@
         applyFade(entry, fades[layer.id]);
         if (entry.label) {
           s.background = PLACEHOLDER_BG[layer.type];
-          const text = `${TYPE_LABELS[layer.type]}: ${layer.name}`;
+          const text = `${root.I18n ? root.I18n.t(TYPE_LABELS[layer.type]) : TYPE_LABELS[layer.type]}: ${layer.name}`;
           if (entry.label.textContent !== text) entry.label.textContent = text;
         }
       });
@@ -218,7 +218,7 @@
       // La velocità è in pixel al secondo su un'uscita larga 1920 px, così
       // l'anteprima piccola scorre in proporzione.
       const speed = Math.max(1, layer.speed * (container.clientWidth / 1920));
-      const key = `${boxW}|${textW}|${speed}`;
+      const key = `${boxW}|${textW}|${speed}|${fps()}`;
       if (entry.tickerKey === key) return;
       entry.tickerKey = key;
       if (entry.anim) {
@@ -230,10 +230,10 @@
         return;
       }
       entry.text.style.transform = '';
-      // L'andamento a gradini fa avanzare la frase solo MAX_FPS volte al
+      // L'andamento a gradini fa avanzare la frase solo fps() volte al
       // secondo anche se lo schermo si aggiorna più spesso.
       const duration = ((boxW + textW) / speed) * 1000;
-      const steps = Math.max(1, Math.round((duration / 1000) * MAX_FPS));
+      const steps = Math.max(1, Math.round((duration / 1000) * fps()));
       entry.anim = entry.text.animate(
         [{ transform: `translateX(${boxW}px)` }, { transform: `translateX(${-textW}px)` }],
         { duration, iterations: Infinity, easing: `steps(${steps}, end)` }
@@ -241,7 +241,7 @@
     }
 
     // Scorrimento del TelePrompt: un'animazione dalla posizione attuale
-    // alla fine del testo, a scatti di MAX_FPS al secondo.
+    // alla fine del testo, a scatti di fps() al secondo.
     function layoutPrompter(entry, layer) {
       const k = container.clientHeight / 1080 || 1;
       const refW = entry.el.clientWidth / k;
@@ -250,7 +250,7 @@
       const maxY = entry.content.offsetHeight;
       const readY = (layer.guideY / 100) * refH;
       const r = layer.run;
-      const key = `${r.running}|${r.y}|${r.startedAt}|${layer.speed}|${maxY}|${readY}|${refW}|${entry.htmlVer}`;
+      const key = `${r.running}|${r.y}|${r.startedAt}|${layer.speed}|${maxY}|${readY}|${refW}|${entry.htmlVer}|${fps()}`;
       if (entry.scrollKey === key) return;
       entry.scrollKey = key;
       if (entry.scroll) {
@@ -261,14 +261,14 @@
       entry.content.style.transform = `translateY(${readY - y0}px)`;
       if (!r.running || layer.speed <= 0 || y0 >= maxY) return;
       const duration = ((maxY - y0) / layer.speed) * 1000;
-      const steps = Math.max(1, Math.round((duration / 1000) * MAX_FPS));
+      const steps = Math.max(1, Math.round((duration / 1000) * fps()));
       entry.scroll = entry.content.animate(
         [{ transform: `translateY(${readY - y0}px)` }, { transform: `translateY(${readY - maxY}px)` }],
         { duration, easing: `steps(${steps}, end)`, fill: 'forwards' }
       );
     }
 
-    // Dissolvenza tra scene (opacità a scatti di MAX_FPS al secondo).
+    // Dissolvenza tra scene (opacità a scatti di fps() al secondo).
     function applyFade(entry, fade) {
       const key = fade ? `${fade.startedAt}|${fade.durationMs}|${fade.from}|${fade.to}` : null;
       if (entry.fadeKey === key) return;
@@ -276,7 +276,7 @@
       for (const a of entry.fadeAnims || []) a.cancel();
       entry.fadeAnims = [];
       if (!fade) return;
-      const steps = Math.max(1, Math.round((fade.durationMs / 1000) * MAX_FPS));
+      const steps = Math.max(1, Math.round((fade.durationMs / 1000) * fps()));
       for (const target of [entry.el, entry.frame]) {
         if (!target) continue;
         const a = target.animate([{ opacity: fade.from }, { opacity: fade.to }],
@@ -297,6 +297,17 @@
         if (layer.type !== 'timer') continue;
         const entry = els.get(layer.id);
         if (!entry || (!layer.visible && !opts.showHidden)) continue;
+        if (timerShowsClock(layer)) {
+          // Timer fermo: data e ora al posto del conteggio.
+          const text = formatClock(layer, new Date(now));
+          if (entry.text.textContent !== text) entry.text.textContent = text;
+          entry.text.style.color = layer.color;
+          entry.text.classList.remove('igor-blink');
+          showFrame(entry, layer, false);
+          fitTimer(entry);
+          next = Math.min(next, layer.clockMs ? 1000 / fps() : 1000 - (now % 1000));
+          continue;
+        }
         const value = timerValueMs(layer, now);
         const text = formatTime(value, layer.direction);
         if (entry.text.textContent !== text) entry.text.textContent = text;
@@ -325,6 +336,7 @@
         if (entry.frameAnim) {
           entry.frameAnim.cancel();
           entry.frameAnim = null;
+          entry.frameKey = null;
         }
         svg.style.display = 'none';
         return;
@@ -333,14 +345,29 @@
       // piccola si riduce in proporzione. Metà del tratto cade fuori dallo
       // schermo, per questo è raddoppiato.
       const px = Math.max(1, layer.frameWidth * container.clientHeight / 1080);
-      entry.frameRect.setAttribute('stroke', layer.frameColor);
-      entry.frameRect.setAttribute('stroke-width', String(px * 2));
+      const rect = entry.frameRect;
+      rect.setAttribute('stroke', layer.frameColor);
+      rect.setAttribute('stroke-width', String(px * 2));
+      if (layer.frameStyle === 'solid') rect.removeAttribute('stroke-dasharray');
+      else rect.setAttribute('stroke-dasharray', '30 20');
       svg.style.opacity = layer.visible ? '1' : '0.35';
       svg.style.display = 'block';
-      if (!entry.frameAnim) {
-        entry.frameAnim = entry.frameRect.animate(
+      // Movimento: scorre lungo i bordi, lampeggia da ferma oppure resta fissa.
+      const speed = Math.max(0.1, Number(layer.frameSpeed) || 1);
+      const key = `${layer.frameMotion}|${layer.frameStyle}|${speed}|${fps()}`;
+      if (entry.frameKey === key) return;
+      entry.frameKey = key;
+      if (entry.frameAnim) entry.frameAnim.cancel();
+      entry.frameAnim = null;
+      if (layer.frameMotion === 'blink') {
+        entry.frameAnim = svg.animate([{ opacity: 1 }, { opacity: 0 }],
+          { duration: 1000 / speed, iterations: Infinity, easing: 'steps(2, jump-none)' });
+      } else if (layer.frameMotion === 'run' && layer.frameStyle !== 'solid') {
+        const duration = FRAME_LOOP_MS / speed;
+        const steps = Math.max(2, Math.round((duration / 1000) * fps()));
+        entry.frameAnim = rect.animate(
           [{ strokeDashoffset: '0px' }, { strokeDashoffset: '-50px' }],
-          { duration: FRAME_LOOP_MS, iterations: Infinity, easing: `steps(${FRAME_STEPS}, end)` }
+          { duration, iterations: Infinity, easing: `steps(${steps}, end)` }
         );
       }
     }

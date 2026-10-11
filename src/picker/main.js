@@ -8,7 +8,7 @@ const fs = require('fs');
 
 let active = null;
 
-async function captureScreens() {
+async function captureScreens(t) {
   const displays = screen.getAllDisplays();
   const maxW = Math.max(...displays.map((d) => Math.round(d.size.width * d.scaleFactor)));
   const maxH = Math.max(...displays.map((d) => Math.round(d.size.height * d.scaleFactor)));
@@ -22,19 +22,19 @@ async function captureScreens() {
     .filter((s) => !s.thumbnail.isEmpty())
     .map((s, i) => {
       const di = displays.findIndex((d) => String(d.id) === s.display_id);
-      return { label: `Monitor ${di >= 0 ? di + 1 : i + 1}`, order: di >= 0 ? di : 100 + i, displayId: s.display_id, url: s.thumbnail.toDataURL() };
+      return { label: `${t('Monitor')} ${di >= 0 ? di + 1 : i + 1}`, order: di >= 0 ? di : 100 + i, displayId: s.display_id, url: s.thumbnail.toDataURL() };
     })
     .sort((a, b) => a.order - b.order);
 }
 
 const IMAGE_MIME = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp', bmp: 'image/bmp', svg: 'image/svg+xml' };
 
-async function pickColor(parent) {
+async function pickColor(parent, t = (s) => s) {
   if (active) {
     active.focus();
     return null;
   }
-  const shots = await captureScreens();
+  const shots = await captureScreens(t);
   const display = parent && !parent.isDestroyed() ? screen.getDisplayMatching(parent.getBounds()) : screen.getPrimaryDisplay();
   const win = new BrowserWindow({
     ...display.bounds,
@@ -44,7 +44,7 @@ async function pickColor(parent) {
     skipTaskbar: true,
     resizable: false,
     backgroundColor: '#000000',
-    title: 'IGOR - Preleva colore',
+    title: `IGOR - ${t('Preleva colore')}`,
     webPreferences: { preload: path.join(__dirname, 'preload.js'), spellcheck: false }
   });
   active = win;
@@ -58,9 +58,9 @@ async function pickColor(parent) {
     const onOpen = async (evt) => {
       if (evt.sender !== win.webContents) return null;
       const res = await dialog.showOpenDialog(win, {
-        title: 'Apri un\'immagine da cui prelevare il colore',
+        title: t('Apri un\'immagine da cui prelevare il colore'),
         properties: ['openFile'],
-        filters: [{ name: 'Immagini', extensions: Object.keys(IMAGE_MIME) }]
+        filters: [{ name: t('Immagini'), extensions: Object.keys(IMAGE_MIME) }]
       });
       if (res.canceled || !res.filePaths.length) return null;
       const file = res.filePaths[0];
@@ -79,7 +79,15 @@ async function pickColor(parent) {
     win.webContents.once('did-finish-load', () => {
       // Prima lo schermo della regia: sembra di cliccare sullo schermo vero.
       const first = shots.findIndex((s) => s.displayId === String(display.id));
-      win.webContents.send('picker-init', { shots, first: Math.max(0, first) });
+      win.webContents.send('picker-init', {
+        shots,
+        first: Math.max(0, first),
+        texts: {
+          hint: t('Clicca sul colore da prelevare (B sposta questa barra)'),
+          open: t('Apri immagine…'),
+          cancel: t('Annulla (Esc)')
+        }
+      });
       win.setFullScreen(true);
       win.show();
       win.focus();

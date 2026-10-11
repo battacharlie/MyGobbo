@@ -1,15 +1,36 @@
-// Regia: elenco degli elementi, anteprima dell'uscita e proprietà
-// dell'elemento selezionato.
-const { TYPE_LABELS, TIMER_COLORS, isVisual, timerValueMs, formatTime, timerColor, allLayers, findNode, composeLayers, prompterY } = window.Layers;
+// Regia: menu, anteprima dell'uscita (o i due schermi della modalità studio),
+// proprietà dell'elemento selezionato ed elenco degli elementi.
+// I testi sono in italiano e passano da t() per la traduzione in inglese.
+const { TYPE_LABELS, TIMER_COLORS, FPS_CHOICES, isVisual, timerValueMs, formatTime, timerColor, timerShowsClock, formatClock, allLayers, findNode, composeLayers, prompterY } = window.Layers;
+const t = (text, vars) => I18n.t(text, vars);
 const api = window.countdown;
 const send = (cmd) => api.send(cmd);
 const $ = (id) => document.getElementById(id);
+const typeLabel = (type) => t(TYPE_LABELS[type]);
 
 let state = null;
 let selectedId = null;
 let panelKey = null; // id+tipo dell'elemento mostrato nel pannello
 let bindings = []; // campi del pannello da aggiornare quando cambia lo stato
 let panelTick = null; // aggiornamento periodico del pannello (timer, sorgenti)
+
+// Preferenze della regia che restano su questo computer (disposizione,
+// schede chiuse, unità di misura).
+const prefs = {
+  get(key, fallback) {
+    try {
+      const v = localStorage.getItem(`igor.${key}`);
+      return v === null ? fallback : JSON.parse(v);
+    } catch {
+      return fallback;
+    }
+  },
+  set(key, value) {
+    try {
+      localStorage.setItem(`igor.${key}`, JSON.stringify(value));
+    } catch { /* memoria locale non disponibile */ }
+  }
+};
 
 // --- Piccoli aiuti per costruire l'interfaccia -------------------------------
 
@@ -25,6 +46,11 @@ function h(tag, attrs = {}, ...children) {
     if (c != null) el.append(c instanceof Node ? c : document.createTextNode(String(c)));
   }
   return el;
+}
+
+// Spiegazione che si può nascondere dal menu Visualizza.
+function help(text) {
+  return h('p', { class: 'muted small help' }, text);
 }
 
 function selectedLayer() {
@@ -44,6 +70,11 @@ function sceneOf(id) {
   return node.layer.type === 'scene' ? node.layer : node.parent;
 }
 
+// Scene nell'ordine dell'elenco (dall'alto): il numero usato da MIDI e Companion.
+function scenesInOrder() {
+  return [...state.layers].reverse().filter((l) => l.type === 'scene');
+}
+
 // Scena mostrata nell'anteprima della regia: in modalità studio quella in
 // anteprima; altrimenti la scena dell'elemento selezionato o quella in onda.
 function viewSceneId() {
@@ -57,13 +88,17 @@ function previewLayers() {
   return composeLayers(state.layers, id ? [id] : []);
 }
 
+// Elementi in onda adesso (visibili in uscita).
+function onAirLayers() {
+  return composeLayers(state.layers, state.program ? [state.program] : []).filter((l) => l.visible);
+}
+
 // Quante comparse ha lo stesso input (copie collegate in più scene).
 function linkCount(layer) {
   return layer.link ? allLayers(state.layers).filter((l) => l.link === layer.link).length : 1;
 }
 
-function updateLayer(patch) {
-  const layer = selectedLayer();
+function updateLayer(patch, layer = selectedLayer()) {
   if (!layer) return;
   Object.assign(layer, patch.crop ? { ...patch, crop: { ...layer.crop, ...patch.crop } } : patch);
   send({ type: 'update-layer', id: layer.id, patch });
@@ -81,7 +116,7 @@ function bound(el, get, set, event = 'input') {
 }
 
 function field(label, input) {
-  return h('label', { class: 'field' }, h('span', {}, label), input);
+  return h('label', { class: 'field' }, h('span', {}, t(label)), input);
 }
 
 function numberInput(get, set, attrs = {}) {
@@ -90,6 +125,13 @@ function numberInput(get, set, attrs = {}) {
 
 function textInput(prop, attrs = {}) {
   return bound(h('input', { type: 'text', ...attrs }), (l) => l[prop], (v) => updateLayer({ [prop]: v }));
+}
+
+// Cursore con il numero accanto.
+function rangeField(label, prop, min, max, step, clampMin = min, clampMax = max) {
+  return field(label, h('div', { class: 'row' },
+    bound(h('input', { type: 'range', min, max, step }), (l) => l[prop], (v) => updateLayer({ [prop]: v })),
+    numberInput((l) => l[prop], (v) => updateLayer({ [prop]: clamp(v, clampMin, clampMax) }), { min: clampMin, max: clampMax, step, style: 'width:72px' })));
 }
 
 // Colore con contagocce: preleva da qualsiasi punto dello schermo o da un'immagine.
@@ -104,7 +146,7 @@ function colorInput(prop) {
 function pickButton(onColor) {
   return h('button', {
     class: 'pick',
-    title: 'Preleva il colore da qualsiasi punto dello schermo o da un\'immagine',
+    title: t('Preleva il colore da qualsiasi punto dello schermo o da un\'immagine'),
     onclick: async (e) => {
       e.preventDefault();
       const color = await api.pickColor();
@@ -115,11 +157,11 @@ function pickButton(onColor) {
 
 function checkbox(label, prop) {
   const input = bound(h('input', { type: 'checkbox' }), (l) => l[prop], (v) => updateLayer({ [prop]: v }), 'change');
-  return h('label', { class: 'check' }, input, label);
+  return h('label', { class: 'check' }, input, t(label));
 }
 
 function select(options, get, set) {
-  const el = h('select', {}, options.map(([value, label]) => h('option', { value }, label)));
+  const el = h('select', {}, options.map(([value, label]) => h('option', { value }, t(label))));
   return bound(el, get, set, 'change');
 }
 
@@ -136,8 +178,8 @@ function refreshBindings() {
       continue;
     }
     if (b.text) {
-      const t = b.get(layer);
-      if (b.el.textContent !== t) b.el.textContent = t;
+      const text = b.get(layer);
+      if (b.el.textContent !== text) b.el.textContent = text;
       continue;
     }
     if (document.activeElement === b.el) continue;
@@ -147,11 +189,68 @@ function refreshBindings() {
   }
 }
 
-// --- Pannello proprietà ------------------------------------------------------
+// --- Schede del pannello -------------------------------------------------------
+// Ogni scheda ha un titolo cliccabile che la riduce a barra, l'altezza
+// regolabile dall'angolo in basso a destra e il bordo destro che cambia la
+// larghezza delle colonne. Le scelte restano memorizzate.
 
-// Una scheda del pannello: titolo e campi.
+const collapsedCards = new Set(prefs.get('collapsedCards', []));
+const cardHeights = prefs.get('cardHeights', {});
+
 function card(title, ...children) {
-  return h('section', { class: 'card' }, title ? h('h3', {}, title) : null, ...children);
+  const key = title;
+  const el = h('section', { class: `card ${collapsedCards.has(key) ? 'collapsed' : ''}`, 'data-card': key });
+  const head = h('h3', { title: t('Clic per ridurre o aprire la scheda') }, t(title));
+  head.addEventListener('click', () => {
+    el.classList.toggle('collapsed');
+    if (el.classList.contains('collapsed')) collapsedCards.add(key);
+    else collapsedCards.delete(key);
+    prefs.set('collapsedCards', [...collapsedCards]);
+  });
+  const edge = h('div', { class: 'card-edge', title: t('Trascina per cambiare la larghezza delle schede') });
+  edge.addEventListener('pointerdown', startCardWidthDrag);
+  el.append(head, ...children.flat().filter((c) => c != null), edge);
+  if (cardHeights[key]) el.style.height = `${cardHeights[key]}px`;
+  cardResize.observe(el);
+  return el;
+}
+
+// L'altezza cambiata con l'angolo della scheda viene ricordata.
+const cardResize = new ResizeObserver((entries) => {
+  for (const entry of entries) {
+    const el = entry.target;
+    if (!el.style.height || el.classList.contains('collapsed')) continue;
+    const hgt = Math.round(parseFloat(el.style.height));
+    if (cardHeights[el.dataset.card] !== hgt) {
+      cardHeights[el.dataset.card] = hgt;
+      prefs.set('cardHeights', cardHeights);
+    }
+  }
+});
+
+function applyCardWidth() {
+  $('cards').style.setProperty('--card-w', `${prefs.get('cardWidth', 280)}px`);
+}
+
+function startCardWidthDrag(e) {
+  e.preventDefault();
+  e.stopPropagation();
+  const cardEl = e.currentTarget.parentElement;
+  const startX = e.clientX;
+  const startW = cardEl.getBoundingClientRect().width;
+  document.body.classList.add('resizing', 'cols');
+  const move = (ev) => {
+    const w = clamp(Math.round(startW + ev.clientX - startX), 200, 900);
+    // Calamita: le colonne si agganciano alla misura predefinita.
+    $('cards').style.setProperty('--card-w', `${Math.abs(w - 280) < 14 ? 280 : w}px`);
+  };
+  const up = () => {
+    window.removeEventListener('pointermove', move);
+    document.body.classList.remove('resizing', 'cols');
+    prefs.set('cardWidth', parseInt($('cards').style.getPropertyValue('--card-w'), 10) || 280);
+  };
+  window.addEventListener('pointermove', move);
+  window.addEventListener('pointerup', up, { once: true });
 }
 
 // Testo che si aggiorna da solo quando cambia l'elemento (anche durante il
@@ -162,8 +261,10 @@ function liveText(get, attrs = {}) {
   return el;
 }
 
+// --- Pannello proprietà ------------------------------------------------------
+
 function buildPanel() {
-  const panel = $('panel');
+  const panel = $('cards');
   const layer = selectedLayer();
   bindings = [];
   clearInterval(panelTick);
@@ -172,7 +273,7 @@ function buildPanel() {
   panelKey = panelKeyOf(layer);
 
   if (!layer) {
-    panel.append(h('p', { class: 'empty' }, 'Seleziona un elemento dall\'elenco o dall\'anteprima, oppure aggiungine uno nuovo.'));
+    panel.append(h('p', { class: 'empty' }, t('Seleziona un elemento dall\'elenco o dall\'anteprima, oppure aggiungine uno nuovo.')));
     return;
   }
 
@@ -186,14 +287,14 @@ function buildPanel() {
   const copies = linkCount(layer);
   panel.append(card(TYPE_LABELS[layer.type],
     field('Nome', textInput('name')),
-    scene ? h('p', { class: 'muted small' }, `Nella scena "${scene.name}".`) : null,
-    copies > 1 ? h('p', { class: 'muted small' }, `🔗 Input presente in ${copies} punti: sorgente e impostazioni sono condivise, posizione e misure no.`) : null,
+    scene ? h('p', { class: 'muted small' }, t('Nella scena "{name}".', { name: scene.name })) : null,
+    copies > 1 ? h('p', { class: 'muted small' }, t('🔗 Input presente in {n} punti: sorgente e impostazioni sono condivise, posizione e misure no.', { n: copies })) : null,
     h('div', { class: 'row' },
       checkbox(scene ? 'Visibile nella scena' : 'In onda (visibile in uscita)', 'visible')),
     h('div', { class: 'row' },
-      h('button', { onclick: () => send({ type: 'solo', id: layer.id }), title: 'Mostra solo questo elemento (tra quelli dello stesso elenco)' }, 'Solo questo'),
-      h('button', { onclick: () => send({ type: 'move-layer', id: layer.id, dir: 1 }) }, '↑ Avanti'),
-      h('button', { onclick: () => send({ type: 'move-layer', id: layer.id, dir: -1 }) }, '↓ Indietro'))
+      h('button', { onclick: () => send({ type: 'solo', id: layer.id }), title: t('Mostra solo questo elemento (tra quelli dello stesso elenco)') }, t('Solo questo')),
+      h('button', { onclick: () => send({ type: 'move-layer', id: layer.id, dir: 1 }) }, `↑ ${t('Avanti')}`),
+      h('button', { onclick: () => send({ type: 'move-layer', id: layer.id, dir: -1 }) }, `↓ ${t('Indietro')}`))
   ));
 
   if (layer.type === 'timer') panel.append(...timerSection(layer));
@@ -212,38 +313,55 @@ function buildPanel() {
 function pixelInfo(l) {
   const out = state.output;
   const px = (v, total) => Math.round(v * total / 100);
-  let text = `${px(l.w, out.width)} × ${px(l.h, out.height)} px · posizione ${px(l.x, out.width)}, ${px(l.y, out.height)} px`;
+  let text = t('{w} × {h} px · posizione {x}, {y} px', { w: px(l.w, out.width), h: px(l.h, out.height), x: px(l.x, out.width), y: px(l.y, out.height) });
   if (isVisual(l.type)) {
     const c = l.crop;
     const parts = [['sinistra', c.left], ['destra', c.right], ['alto', c.top], ['basso', c.bottom]]
-      .filter(([, v]) => v > 0).map(([k, v]) => `${k} ${round(v)}%`);
-    text += parts.length ? ` · ritaglio ${parts.join(', ')}` : ' · nessun ritaglio';
+      .filter(([, v]) => v > 0).map(([k, v]) => `${t(k)} ${round(v)}%`);
+    text += parts.length ? ` · ${t('ritaglio')} ${parts.join(', ')}` : ` · ${t('nessun ritaglio')}`;
   }
   return text;
 }
 
+// Posizione e misure in % dello schermo oppure in pixel dell'uscita.
 function geometrySection(layer) {
-  const pct = { min: -100, max: 200, step: 0.5 };
+  const unit = prefs.get('unit', '%');
+  const out = state.output;
+  const toUnit = (pct, total) => (unit === 'px' ? Math.round((pct * total) / 100) : round(pct));
+  const fromUnit = (v, total) => (unit === 'px' ? (v * 100) / total : v);
+  const num = (prop, total, min) => numberInput(
+    (l) => toUnit(l[prop], total),
+    (v) => updateLayer({ [prop]: min != null ? Math.max(min, round(fromUnit(v, total))) : round(fromUnit(v, total)) }),
+    unit === 'px' ? { step: 1 } : { min: min != null ? min : -100, max: 400, step: 0.5 });
+  const unitBtn = (u) => h('button', {
+    class: unit === u ? 'on' : '',
+    onclick: () => {
+      prefs.set('unit', u);
+      buildPanel();
+    }
+  }, u);
+  const suffix = unit === 'px' ? 'px' : '%';
   const nodes = [card('Posizione e misure',
     liveText(pixelInfo, { class: 'px-info' }),
+    h('div', { class: 'row' }, h('span', { class: 'muted small' }, t('Unità di misura')), h('span', { class: 'unit-switch' }, unitBtn('%'), unitBtn('px'))),
     h('div', { class: 'grid2' },
-      field('Sinistra (X, %)', numberInput((l) => round(l.x), (v) => updateLayer({ x: v }), pct)),
-      field('Alto (Y, %)', numberInput((l) => round(l.y), (v) => updateLayer({ y: v }), pct)),
-      field('Larghezza (%)', numberInput((l) => round(l.w), (v) => updateLayer({ w: Math.max(1, v) }), { min: 1, max: 400, step: 0.5 })),
-      field('Altezza (%)', numberInput((l) => round(l.h), (v) => updateLayer({ h: Math.max(1, v) }), { min: 1, max: 400, step: 0.5 }))),
+      field(`${t('Sinistra (X)')}, ${suffix}`, num('x', out.width)),
+      field(`${t('Alto (Y)')}, ${suffix}`, num('y', out.height)),
+      field(`${t('Larghezza')}, ${suffix}`, num('w', out.width, 1)),
+      field(`${t('Altezza')}, ${suffix}`, num('h', out.height, 1))),
     h('div', { class: 'row' },
-      h('button', { onclick: () => updateLayer({ x: 0, y: 0, w: 100, h: 100 }) }, 'Schermo intero'),
-      h('button', { onclick: () => center() }, 'Centra'),
-      h('button', { onclick: () => fitToSource() }, 'Proporzioni 16:9'))
+      h('button', { onclick: () => updateLayer({ x: 0, y: 0, w: 100, h: 100 }) }, t('Schermo intero')),
+      h('button', { onclick: () => center() }, t('Centra')),
+      h('button', { onclick: () => fitToSource() }, t('Proporzioni 16:9')))
   )];
   if (isVisual(layer.type)) {
     nodes.push(card('Adattamento e ritaglio',
       field('Adattamento', select(
         [['contain', 'Adatta (mantiene le proporzioni)'], ['cover', 'Riempi (mantiene le proporzioni, taglia)'], ['stretch', 'Deforma (riempie tutto)']],
         (l) => l.fit, (v) => updateLayer({ fit: v }))),
-      h('p', { class: 'muted small' }, 'Per ritagliare trascina nell\'anteprima le maniglie arancioni a metà dei lati.'),
+      help(t('Per ritagliare trascina nell\'anteprima le maniglie arancioni a metà dei lati.')),
       h('div', { class: 'row' },
-        h('button', { onclick: () => updateLayer({ crop: { top: 0, right: 0, bottom: 0, left: 0 } }) }, 'Togli ritaglio'))
+        h('button', { onclick: () => updateLayer({ crop: { top: 0, right: 0, bottom: 0, left: 0 } }) }, t('Togli ritaglio')))
     ));
   }
   return nodes;
@@ -254,7 +372,7 @@ function timerSection(layer) {
   const startBtn = h('button', { class: 'primary', onclick: () => {
     const l = selectedLayer();
     send({ type: 'timer', id: l.id, action: l.run.running ? 'pause' : 'start' });
-  } }, '▶ Avvia');
+  } }, `▶ ${t('Avvia')}`);
   const adj = (s, label) => h('button', { onclick: () => send({ type: 'timer', id: selectedId, action: 'adjust', seconds: s }) }, label);
 
   const durMin = numberInput((l) => Math.floor(l.durationSec / 60), (v) => setDuration(v, null), { min: 0, max: 999, step: 1 });
@@ -263,11 +381,12 @@ function timerSection(layer) {
   const tick = () => {
     const l = selectedLayer();
     if (!l || l.type !== 'timer') return;
+    const clock = timerShowsClock(l);
     const value = timerValueMs(l);
-    const text = formatTime(value, l.direction);
+    const text = clock ? formatClock(l) : formatTime(value, l.direction);
     if (big.textContent !== text) big.textContent = text;
-    big.style.color = timerColor(l, value);
-    const label = l.run.running ? '❚❚ Pausa' : '▶ Avvia';
+    big.style.color = clock ? l.color : timerColor(l, value);
+    const label = l.run.running ? `❚❚ ${t('Pausa')}` : `▶ ${t('Avvia')}`;
     if (startBtn.textContent !== label) startBtn.textContent = label;
     startBtn.className = l.run.running ? 'warn' : 'primary';
   };
@@ -279,16 +398,25 @@ function timerSection(layer) {
     card('Comandi',
       big,
       h('div', { class: 'row' }, startBtn,
-        h('button', { onclick: () => send({ type: 'timer', id: selectedId, action: 'reset' }) }, '↺ Azzera')),
+        h('button', { onclick: () => send({ type: 'timer', id: selectedId, action: 'reset' }) }, `↺ ${t('Azzera')}`)),
       h('div', { class: 'row' }, adj(-60, '−1 min'), adj(-10, '−10 s'), adj(10, '+10 s'), adj(60, '+1 min')),
-      h('p', { class: 'muted small' }, 'Barra spaziatrice: avvia/pausa del timer selezionato.')),
+      help(t('Barra spaziatrice: avvia/pausa del timer selezionato.'))),
     card('Conteggio',
       field('Direzione', select([['down', 'All\'indietro (countdown)'], ['up', 'In avanti (cronometro)']],
         (l) => l.direction, (v) => updateLayer({ direction: v }))),
       h('div', { class: 'grid2' }, field('Durata: minuti', durMin), field('secondi', durSec)),
       h('div', { class: 'row' }, [5, 10, 15, 30, 45, 60].map((m) =>
         h('button', { class: 'small-btn', onclick: () => { updateLayer({ durationSec: m * 60 }); refreshBindings(); } }, `${m}′`))),
-      h('p', { class: 'muted small' }, 'All\'indietro, oltre lo zero il tempo continua con il segno +. In avanti la durata è il limite (0 = nessun limite).')),
+      help(t('All\'indietro, oltre lo zero il tempo continua con il segno +. In avanti la durata è il limite (0 = nessun limite).'))),
+    card('Quando il timer è fermo',
+      checkbox('Mostra data e ora', 'idleClock'),
+      h('div', { class: 'grid2' },
+        checkbox('Data', 'clockDate'),
+        checkbox('Ore', 'clockHours'),
+        checkbox('Minuti', 'clockMinutes'),
+        checkbox('Secondi', 'clockSeconds'),
+        checkbox('Millesimi', 'clockMs')),
+      help(t('Prima dell\'avvio e dopo "Azzera" il timer mostra l\'orologio. Quando parte torna il conteggio.'))),
     card('Colori',
       h('div', { class: 'grid3' },
         field('Partenza', colorInput('color')),
@@ -296,21 +424,23 @@ function timerSection(layer) {
         field('Tempo superato', colorInput('endColor'))),
       field('Scadenza vicina negli ultimi (secondi)', numberInput((l) => l.warningSec, (v) => updateLayer({ warningSec: Math.max(0, v) }), { min: 0, step: 1 })),
       h('div', { class: 'row' },
-        h('button', { class: 'small-btn', onclick: () => updateLayer({ ...TIMER_COLORS }) }, 'Verde, giallo, rosso'))),
+        h('button', { class: 'small-btn', onclick: () => updateLayer({ ...TIMER_COLORS }) }, t('Verde, giallo, rosso')))),
     card('Tempo superato',
       checkbox('Numeri lampeggianti', 'blink'),
-      checkbox('Cornice che corre lungo i bordi dello schermo', 'frame'),
+      checkbox('Cornice lungo i bordi dello schermo', 'frame'),
       h('div', { class: 'grid2' },
         field('Colore cornice', colorInput('frameColor')),
         field('Spessore (px)', numberInput((l) => l.frameWidth, (v) => updateLayer({ frameWidth: clamp(v, 1, 200) }), { min: 1, max: 200, step: 1 }))),
-      h('p', { class: 'muted small' }, 'Spessore in pixel su uno schermo Full HD (1080 righe).')),
+      h('div', { class: 'grid2' },
+        field('Linea', select([['dashed', 'Tratteggiata'], ['solid', 'Continua']], (l) => l.frameStyle, (v) => updateLayer({ frameStyle: v }))),
+        field('Movimento', select([['run', 'Scorre lungo i bordi'], ['blink', 'Lampeggia da ferma'], ['still', 'Fissa']], (l) => l.frameMotion, (v) => updateLayer({ frameMotion: v })))),
+      rangeField('Velocità (1 = normale)', 'frameSpeed', 0.25, 5, 0.25),
+      help(t('Spessore in pixel su uno schermo Full HD (1080 righe). Una linea continua non può scorrere: sceglila con "Lampeggia" o "Fissa".'))),
     card('Aspetto',
       h('div', { class: 'grid2' },
         field('Colore sfondo', colorInput('background')),
         h('div', {}, checkbox('Sfondo trasparente', 'transparent'))),
-      field('Misura carattere (% altezza schermo)', h('div', { class: 'row' },
-        bound(h('input', { type: 'range', min: 2, max: 60, step: 0.5 }), (l) => l.fontSize, (v) => updateLayer({ fontSize: v })),
-        numberInput((l) => l.fontSize, (v) => updateLayer({ fontSize: clamp(v, 1, 100) }), { min: 1, max: 100, step: 0.5, style: 'width:80px' }))),
+      rangeField('Misura carattere (% altezza schermo)', 'fontSize', 2, 60, 0.5, 1, 100),
       field('Carattere', fontSelect()),
       checkbox('Grassetto', 'bold'))
   ];
@@ -325,23 +455,19 @@ function setDuration(min, sec) {
 
 function tickerSection() {
   return [
-    card('Banner',
+    card('Banner di Testo',
       field('Testo', bound(h('textarea', { rows: 3 }), (l) => l.text, (v) => updateLayer({ text: v.replace(/\n/g, ' ') }))),
-      h('p', { class: 'muted small' }, 'Se il testo è più lungo dello spazio disponibile, scorre da destra a sinistra.'),
-      field('Velocità di scorrimento (px/s)', h('div', { class: 'row' },
-        bound(h('input', { type: 'range', min: 20, max: 600, step: 10 }), (l) => l.speed, (v) => updateLayer({ speed: v })),
-        numberInput((l) => l.speed, (v) => updateLayer({ speed: clamp(v, 5, 2000) }), { min: 5, step: 5, style: 'width:80px' }))),
+      help(t('Se il testo è più lungo dello spazio disponibile, scorre da destra a sinistra.')),
+      rangeField('Velocità di scorrimento (px/s)', 'speed', 20, 600, 10, 5, 2000),
       h('div', { class: 'row' },
-        h('button', { onclick: () => updateLayer({ x: 0, y: 86, w: 100, h: 14 }) }, 'Riporta in basso'))),
+        h('button', { onclick: () => updateLayer({ x: 0, y: 86, w: 100, h: 14 }) }, t('Riporta in basso')))),
     card('Aspetto',
       h('div', { class: 'grid2' },
         field('Colore testo', colorInput('color')),
         field('Colore fascia', colorInput('background'))),
       field('Opacità fascia', bound(h('input', { type: 'range', min: 0, max: 1, step: 0.05 }), (l) => l.opacity, (v) => updateLayer({ opacity: v }))),
       checkbox('Fascia trasparente', 'transparent'),
-      field('Misura carattere (% altezza schermo)', h('div', { class: 'row' },
-        bound(h('input', { type: 'range', min: 2, max: 30, step: 0.5 }), (l) => l.fontSize, (v) => updateLayer({ fontSize: v })),
-        numberInput((l) => l.fontSize, (v) => updateLayer({ fontSize: clamp(v, 1, 100) }), { min: 1, max: 100, step: 0.5, style: 'width:80px' }))),
+      rangeField('Misura carattere (% altezza schermo)', 'fontSize', 2, 30, 0.5, 1, 100),
       field('Carattere', fontSelect()),
       checkbox('Grassetto', 'bold'))
   ];
@@ -353,19 +479,30 @@ function mediaSection() {
     updateLayer({ playing: !l.playing });
   } }, '');
   const isVideo = () => selectedLayer().mediaKind !== 'image';
-  bindings.push({ el: playBtn, get: (l) => (l.playing ? '❚❚ Pausa' : '▶ Riproduci'), text: true });
-  const videoControls = h('div', {},
+  bindings.push({ el: playBtn, get: (l) => (l.playing ? `❚❚ ${t('Pausa')}` : `▶ ${t('Riproduci')}`), text: true });
+  const videoControls = [
     h('div', { class: 'row' }, playBtn,
-      h('button', { onclick: () => updateLayer({ playing: true, restartAt: Date.now() }) }, '⏮ Da capo')),
+      h('button', { onclick: () => updateLayer({ playing: true, restartAt: Date.now() }) }, `⏮ ${t('Da capo')}`)),
     checkbox('Ripeti all\'infinito', 'loop'),
-    checkbox('Audio (sull\'uscita)', 'audio'));
+    field('Riproduzione', select([
+      ['always', 'Continua anche quando non è in onda'],
+      ['onair', 'Riproduci solo quando è in onda'],
+      ['restart', 'Riproduci in onda e riavvolgi quando esce']
+    ], (l) => l.playMode, (v) => updateLayer({ playMode: v }))),
+    field('Audio (sull\'uscita)', select([
+      ['off', 'Disattivato'],
+      ['on', 'Attivo'],
+      ['follow', 'Segue l\'onda (attivo solo quando è in onda)']
+    ], (l) => l.audioMode, (v) => updateLayer({ audioMode: v }))),
+    help(t('"In onda" vuol dire visibile sul secondo schermo: nella scena in onda oppure fuori dalle scene.'))
+  ];
   return [
     card('File',
-      liveText((l) => l.file || 'Nessun file scelto', { class: 'px-info' }),
+      liveText((l) => l.file || t('Nessun file scelto'), { class: 'px-info' }),
       h('div', { class: 'row' },
-        h('button', { onclick: () => send({ type: 'pick-media', id: selectedId }) }, 'Scegli file…')),
-      isVideo() ? videoControls : h('p', { class: 'muted small' }, 'Immagine fissa.'),
-      h('p', { class: 'muted small' }, 'I video vanno in uscita a 25 fps al massimo, come gli altri input.'))
+        h('button', { onclick: () => send({ type: 'pick-media', id: selectedId }) }, t('Scegli file…'))),
+      isVideo() ? videoControls : help(t('Immagine fissa.')),
+      help(t('I video vanno in uscita con i fotogrammi al secondo scelti nel menu Uscita (al massimo 25), come gli altri input.')))
   ];
 }
 
@@ -376,8 +513,7 @@ function prompterMetrics(layer) {
   return measurePrompter(layer, state.output.width, state.output.height);
 }
 
-function sendPrompter(action, extra = {}) {
-  const layer = selectedLayer();
+function sendPrompter(action, extra = {}, layer = selectedLayer()) {
   if (!layer || layer.type !== 'prompter') return;
   send({ type: 'prompter', id: layer.id, action, maxY: prompterMetrics(layer).height, ...extra });
 }
@@ -390,12 +526,12 @@ function currentParagraph(layer, metrics) {
   return index;
 }
 
-function jumpParagraph(delta) {
-  const layer = selectedLayer();
+function jumpParagraph(delta, layer = selectedLayer()) {
+  if (!layer || layer.type !== 'prompter') return;
   const m = prompterMetrics(layer);
   if (!m.paragraphs.length) return;
   const i = clamp(currentParagraph(layer, m) + delta, 0, m.paragraphs.length - 1);
-  sendPrompter('goto', { y: m.paragraphs[i].y });
+  sendPrompter('goto', { y: m.paragraphs[i].y }, layer);
 }
 
 // Tasti del TelePrompt (quando è selezionato e non si sta scrivendo).
@@ -416,7 +552,7 @@ function prompterKey(e, layer) {
 }
 
 function prompterSection(layer) {
-  const startBtn = h('button', { class: 'primary', onclick: () => sendPrompter(selectedLayer().run.running ? 'pause' : 'start') }, '▶ Avvia');
+  const startBtn = h('button', { class: 'primary', onclick: () => sendPrompter(selectedLayer().run.running ? 'pause' : 'start') }, `▶ ${t('Avvia')}`);
   const progress = h('div', { class: 'progress' }, h('div', {}));
   const paraList = h('ol', { class: 'para-list' });
   let paraSig = '';
@@ -425,7 +561,7 @@ function prompterSection(layer) {
     const l = selectedLayer();
     if (!l || l.type !== 'prompter') return;
     const m = prompterMetrics(l);
-    const label = l.run.running ? '❚❚ Pausa' : '▶ Avvia';
+    const label = l.run.running ? `❚❚ ${t('Pausa')}` : `▶ ${t('Avvia')}`;
     if (startBtn.textContent !== label) startBtn.textContent = label;
     startBtn.className = l.run.running ? 'warn' : 'primary';
     const pct = m.height ? clamp(prompterY(l) / m.height, 0, 1) * 100 : 0;
@@ -434,10 +570,10 @@ function prompterSection(layer) {
     if (sig !== paraSig) {
       paraSig = sig;
       paraList.replaceChildren(...m.paragraphs.map((p, i) => h('li', {
-        title: 'Vai a questo paragrafo',
+        title: t('Vai a questo paragrafo'),
         onclick: () => sendPrompter('goto', { y: prompterMetrics(selectedLayer()).paragraphs[i].y })
       }, p.text.length > 70 ? `${p.text.slice(0, 70)}…` : p.text)));
-      if (!m.paragraphs.length) paraList.append(h('li', { class: 'muted' }, 'Nessun paragrafo'));
+      if (!m.paragraphs.length) paraList.append(h('li', { class: 'muted' }, t('Nessun paragrafo')));
     }
     const cur = currentParagraph(l, m);
     [...paraList.children].forEach((li, i) => li.classList.toggle('current', i === cur && m.paragraphs.length > 0));
@@ -477,7 +613,7 @@ function prompterSection(layer) {
 
   const fmt = (cmd, label, title, value) => h('button', {
     class: 'small-btn',
-    title,
+    title: t(title),
     onmousedown: (e) => e.preventDefault(),
     onclick: () => {
       editor.focus();
@@ -485,34 +621,35 @@ function prompterSection(layer) {
       save();
     }
   }, label);
-  const colorBtn = h('input', { type: 'color', value: '#ffcc00', title: 'Colore del testo selezionato' });
+  const colorBtn = h('input', { type: 'color', value: '#ffcc00', title: t('Colore del testo selezionato') });
   const applyColor = (c) => {
     editor.focus();
     document.execCommand('foreColor', false, c);
     save();
   };
   colorBtn.addEventListener('input', () => applyColor(colorBtn.value));
+  const en = I18n.getLang() === 'en';
   const toolbar = h('div', { class: 'row toolbar' },
-    fmt('bold', 'G', 'Grassetto'), fmt('italic', 'C', 'Corsivo'), fmt('underline', 'S', 'Sottolineato'), fmt('strikeThrough', 'ab̶', 'Barrato'),
+    fmt('bold', en ? 'B' : 'G', 'Grassetto'), fmt('italic', en ? 'I' : 'C', 'Corsivo'), fmt('underline', en ? 'U' : 'S', 'Sottolineato'), fmt('strikeThrough', 'ab̶', 'Barrato'),
     h('span', { class: 'color-pick' }, colorBtn, pickButton((c) => { colorBtn.value = c; applyColor(c); })),
-    fmt('removeFormat', 'Togli stile', 'Toglie lo stile dal testo selezionato'));
+    fmt('removeFormat', t('Togli stile'), 'Toglie lo stile dal testo selezionato'));
 
   return [
     card('TelePrompt',
       progress,
       h('div', { class: 'row' }, startBtn,
-        h('button', { onclick: () => sendPrompter('top'), title: 'Torna all\'inizio (Home)' }, '⏮ Inizio'),
-        h('button', { onclick: () => jumpParagraph(-1), title: 'Paragrafo precedente (Pagina su)' }, '⇞ Par.'),
-        h('button', { onclick: () => jumpParagraph(1), title: 'Paragrafo successivo (Pagina giù)' }, '⇟ Par.')),
+        h('button', { onclick: () => sendPrompter('top'), title: t('Torna all\'inizio (Home)') }, `⏮ ${t('Inizio')}`),
+        h('button', { onclick: () => jumpParagraph(-1), title: t('Paragrafo precedente (Pagina su)') }, `⇞ ${t('Par.')}`),
+        h('button', { onclick: () => jumpParagraph(1), title: t('Paragrafo successivo (Pagina giù)') }, `⇟ ${t('Par.')}`)),
       h('div', { class: 'row' },
-        h('button', { onclick: () => sendPrompter('nudge', { dy: -60 }), title: 'Indietro di poco (freccia su)' }, '▲ Indietro'),
-        h('button', { onclick: () => sendPrompter('nudge', { dy: 60 }), title: 'Avanti di poco (freccia giù)' }, '▼ Avanti')),
+        h('button', { onclick: () => sendPrompter('nudge', { dy: -60 }), title: t('Indietro di poco (freccia su)') }, `▲ ${t('Indietro')}`),
+        h('button', { onclick: () => sendPrompter('nudge', { dy: 60 }), title: t('Avanti di poco (freccia giù)') }, `▼ ${t('Avanti')}`)),
       field('Velocità (pixel al secondo su 1080)', h('div', { class: 'row' },
         h('button', { class: 'small-btn', onclick: () => updateLayer({ speed: Math.max(0, selectedLayer().speed - 5) }) }, '−'),
         bound(h('input', { type: 'range', min: 0, max: 300, step: 1 }), (l) => l.speed, (v) => updateLayer({ speed: v })),
         h('button', { class: 'small-btn', onclick: () => updateLayer({ speed: selectedLayer().speed + 5 }) }, '+'),
         numberInput((l) => l.speed, (v) => updateLayer({ speed: clamp(v, 0, 2000) }), { min: 0, step: 1, style: 'width:70px' }))),
-      h('p', { class: 'muted small' }, 'Tasti: spazio avvia/pausa, Pagina su/giù cambia paragrafo, frecce su/giù spostano il testo, Home torna all\'inizio.')),
+      help(t('Tasti: spazio avvia/pausa, Pagina su/giù cambia paragrafo, frecce su/giù spostano il testo, Home torna all\'inizio.'))),
     card('Paragrafi (clic per saltare)', paraList),
     card('Testo',
       h('div', { class: 'row' },
@@ -523,30 +660,22 @@ function prompterSection(layer) {
           editor.innerHTML = html;
           updateLayer({ html });
           sendPrompter('top');
-        } }, 'Importa file…'),
-        h('span', { class: 'muted small' }, 'Word (.docx), RTF (TextEdit, WordPad), testo (.txt), HTML')),
+        } }, t('Importa file…')),
+        h('span', { class: 'muted small' }, t('Word (.docx), RTF (TextEdit, WordPad), testo (.txt), HTML'))),
       toolbar,
       editor,
-      h('p', { class: 'muted small' }, 'Puoi anche copiare e incollare da Word, Blocco note, Pages o TextEdit: grassetto, corsivo, colori e grandezze restano.')),
+      help(t('Puoi anche copiare e incollare da Word, Blocco note, Pages o TextEdit: grassetto, corsivo, colori e grandezze restano.'))),
     card('Aspetto',
       field('Carattere', fontSelect()),
-      field('Misura carattere (% altezza schermo)', h('div', { class: 'row' },
-        bound(h('input', { type: 'range', min: 1, max: 25, step: 0.5 }), (l) => l.fontSize, (v) => updateLayer({ fontSize: v })),
-        numberInput((l) => l.fontSize, (v) => updateLayer({ fontSize: clamp(v, 0.5, 100) }), { min: 0.5, max: 100, step: 0.5, style: 'width:70px' }))),
+      rangeField('Misura carattere (% altezza schermo)', 'fontSize', 1, 25, 0.5, 0.5, 100),
       checkbox('Grassetto', 'bold'),
       h('div', { class: 'grid2' },
         field('Colore testo', colorInput('color')),
         field('Colore sfondo', colorInput('background'))),
       checkbox('Sfondo trasparente', 'transparent'),
-      field('Interlinea', h('div', { class: 'row' },
-        bound(h('input', { type: 'range', min: 0.8, max: 3, step: 0.05 }), (l) => l.lineHeight, (v) => updateLayer({ lineHeight: v })),
-        numberInput((l) => l.lineHeight, (v) => updateLayer({ lineHeight: clamp(v, 0.5, 5) }), { min: 0.5, max: 5, step: 0.05, style: 'width:70px' }))),
-      field('Spaziatura tra le lettere (px)', h('div', { class: 'row' },
-        bound(h('input', { type: 'range', min: -5, max: 40, step: 0.5 }), (l) => l.letterSpacing, (v) => updateLayer({ letterSpacing: v })),
-        numberInput((l) => l.letterSpacing, (v) => updateLayer({ letterSpacing: clamp(v, -20, 200) }), { step: 0.5, style: 'width:70px' }))),
-      field('Margini a destra e sinistra (%)', h('div', { class: 'row' },
-        bound(h('input', { type: 'range', min: 0, max: 40, step: 1 }), (l) => l.margin, (v) => updateLayer({ margin: v })),
-        numberInput((l) => l.margin, (v) => updateLayer({ margin: clamp(v, 0, 45) }), { min: 0, max: 45, step: 1, style: 'width:70px' }))),
+      rangeField('Interlinea', 'lineHeight', 0.8, 3, 0.05, 0.5, 5),
+      rangeField('Spaziatura tra le lettere (px)', 'letterSpacing', -5, 40, 0.5, -20, 200),
+      rangeField('Margini a destra e sinistra (%)', 'margin', 0, 40, 1, 0, 45),
       field('Allineamento', select([['left', 'A sinistra'], ['center', 'Al centro'], ['right', 'A destra'], ['justify', 'Giustificato']],
         (l) => l.align, (v) => updateLayer({ align: v })))),
     card('Specchio e linea di lettura',
@@ -561,19 +690,19 @@ function prompterSection(layer) {
 function fontSelect() {
   const fonts = ['Segoe UI', 'Arial', 'Arial Black', 'Bahnschrift', 'Calibri', 'Cambria', 'Consolas', 'Courier New', 'Georgia', 'Helvetica', 'Impact',
     'Tahoma', 'Times New Roman', 'Trebuchet MS', 'Verdana'];
-  return select(fonts.map((f) => [f, f]), (l) => l.fontFamily, (v) => updateLayer({ fontFamily: v }));
+  const el = h('select', {}, fonts.map((f) => h('option', { value: f }, f)));
+  return bound(el, (l) => l.fontFamily, (v) => updateLayer({ fontFamily: v }), 'change');
 }
 
 function ndiSection() {
   const nodes = [];
   if (!state.ndiAvailable) {
     nodes.push(h('div', { class: 'notice' },
-      'NDI non è disponibile in questa installazione: il modulo NDI non è stato caricato. ',
-      'Vedi il README per installarlo. ',
+      t('NDI non è disponibile in questa installazione: il modulo NDI non è stato caricato. Vedi il README per installarlo.'),
       state.ndiError ? h('div', { class: 'muted small' }, state.ndiError) : null));
   }
   const sel = h('select', {});
-  const status = h('div', { class: 'muted small' }, 'Ricerca delle sorgenti in rete…');
+  const status = h('div', { class: 'muted small' }, t('Ricerca delle sorgenti in rete…'));
   sel.addEventListener('change', () => {
     const [name, urlAddress] = JSON.parse(sel.value || 'null') || [];
     updateLayer({ source: name ? { name, urlAddress } : null, name: name ? shortNdiName(name) : selectedLayer().name });
@@ -586,15 +715,15 @@ function ndiSection() {
     const current = layer.source;
     const list = [...sources];
     if (current && !list.some((s) => s.name === current.name)) list.push({ ...current, missing: true });
-    const opts = [h('option', { value: '' }, '— nessuna —'),
-      ...list.map((s) => h('option', { value: JSON.stringify([s.name, s.urlAddress]) }, s.missing ? `${s.name} (non trovata)` : s.name))];
+    const opts = [h('option', { value: '' }, t('— nessuna —')),
+      ...list.map((s) => h('option', { value: JSON.stringify([s.name, s.urlAddress]) }, s.missing ? `${s.name} (${t('non trovata')})` : s.name))];
     const signature = list.map((s) => s.name + s.missing).join('|');
     if (sel.dataset.sig !== signature) {
       sel.dataset.sig = signature;
       sel.replaceChildren(...opts);
     }
     sel.value = current ? JSON.stringify([current.name, current.urlAddress]) : '';
-    status.textContent = sources.length ? `${sources.length} sorgenti trovate in rete` : 'Nessuna sorgente NDI trovata (la ricerca continua)';
+    status.textContent = sources.length ? t('{n} sorgenti trovate in rete', { n: sources.length }) : t('Nessuna sorgente NDI trovata (la ricerca continua)');
   };
   panelTick = setInterval(refresh, 2000);
   setTimeout(refresh);
@@ -627,27 +756,27 @@ function captureSection() {
     if (askPermission && devices.some((d) => !d.label)) {
       try {
         const s = await navigator.mediaDevices.getUserMedia({ video: true });
-        s.getTracks().forEach((t) => t.stop());
+        s.getTracks().forEach((tr) => tr.stop());
         devices = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === 'videoinput');
       } catch { /* nessuna periferica o permesso negato */ }
     }
     const layer = selectedLayer();
     if (!layer || layer.type !== 'capture') return;
-    const opts = [h('option', { value: '' }, '— nessuna —'),
-      ...devices.map((d, i) => h('option', { value: d.deviceId }, d.label || `Periferica ${i + 1}`))];
+    const opts = [h('option', { value: '' }, t('— nessuna —')),
+      ...devices.map((d, i) => h('option', { value: d.deviceId }, d.label || `${t('Periferica')} ${i + 1}`))];
     if (layer.deviceId && !devices.some((d) => d.deviceId === layer.deviceId)) {
-      opts.push(h('option', { value: layer.deviceId }, `${layer.deviceLabel || 'Periferica'} (non collegata)`));
+      opts.push(h('option', { value: layer.deviceId }, `${layer.deviceLabel || t('Periferica')} (${t('non collegata')})`));
     }
     sel.replaceChildren(...opts);
     sel.value = layer.deviceId || '';
-    status.textContent = devices.length ? `${devices.length} periferiche video trovate` : 'Nessuna periferica video trovata';
+    status.textContent = devices.length ? t('{n} periferiche video trovate', { n: devices.length }) : t('Nessuna periferica video trovata');
   };
   setTimeout(() => refresh(true));
 
   return [card('Periferica di acquisizione',
     field('Periferica', sel),
-    h('div', { class: 'row' }, status, h('button', { class: 'small-btn', onclick: () => refresh(true) }, 'Aggiorna elenco')),
-    h('p', { class: 'muted small' }, 'Schede di acquisizione, webcam e convertitori HDMI/SDI → USB.')
+    h('div', { class: 'row' }, status, h('button', { class: 'small-btn', onclick: () => refresh(true) }, t('Aggiorna elenco'))),
+    help(t('Schede di acquisizione, webcam e convertitori HDMI/SDI → USB.'))
   )];
 }
 
@@ -668,8 +797,8 @@ function renderFooter() {
   const layer = selectedLayer();
   $('panel-footer').hidden = !layer;
   if (!layer) return;
-  $('remove-name').textContent = `${TYPE_LABELS[layer.type]}: ${layer.name}`;
-  $('btn-remove').textContent = layer.type === 'scene' ? '✕ Elimina scena' : '✕ Elimina input';
+  $('remove-name').textContent = `${typeLabel(layer.type)}: ${layer.name}`;
+  $('btn-remove').textContent = layer.type === 'scene' ? `✕ ${t('Elimina scena')}` : `✕ ${t('Elimina input')}`;
   $('btn-reset').hidden = layer.type === 'scene';
 }
 
@@ -677,8 +806,8 @@ function removeSelected() {
   const layer = selectedLayer();
   if (!layer) return;
   const msg = layer.type === 'scene' && layer.children.length
-    ? `Eliminare la scena "${layer.name}" e i ${layer.children.length} input che contiene?`
-    : `Eliminare "${layer.name}"?`;
+    ? t('Eliminare la scena "{name}" e i {n} input che contiene?', { name: layer.name, n: layer.children.length })
+    : t('Eliminare "{name}"?', { name: layer.name });
   if (!confirm(msg)) return;
   send({ type: 'remove-layer', id: layer.id });
   selectedId = null;
@@ -688,7 +817,7 @@ function removeSelected() {
 function resetSelected() {
   const layer = selectedLayer();
   if (!layer || layer.type === 'scene') return;
-  if (!confirm(`Riportare "${layer.name}" alle misure e impostazioni iniziali?`)) return;
+  if (!confirm(t('Riportare "{name}" alle misure e impostazioni iniziali?', { name: layer.name }))) return;
   send({ type: 'reset-layer', id: layer.id });
 }
 
@@ -699,18 +828,19 @@ const collapsed = new Set(); // scene chiuse nell'elenco
 function renderList() {
   const list = $('layer-list');
   const rows = [];
+  const numbers = new Map(scenesInOrder().map((s, i) => [s.id, i + 1]));
   for (const layer of [...state.layers].reverse()) {
-    rows.push(listRow(layer, null));
+    rows.push(listRow(layer, null, numbers.get(layer.id)));
     if (layer.type === 'scene' && !collapsed.has(layer.id)) {
       for (const child of [...layer.children].reverse()) rows.push(listRow(child, layer));
-      if (!layer.children.length) rows.push(h('li', { class: 'child empty-scene', 'data-scene': layer.id }, 'Scena vuota: trascina qui gli input'));
+      if (!layer.children.length) rows.push(h('li', { class: 'child empty-scene', 'data-scene': layer.id }, t('Scena vuota: trascina qui gli input')));
     }
   }
   list.replaceChildren(...rows);
-  if (!state.layers.length) list.append(h('li', { class: 'empty' }, 'Nessun elemento: aggiungine uno.'));
+  if (!state.layers.length) list.append(h('li', { class: 'empty' }, t('Nessun elemento: aggiungine uno.')));
 }
 
-function listRow(layer, parent) {
+function listRow(layer, parent, sceneNumber) {
   const isScene = layer.type === 'scene';
   let button;
   if (isScene) {
@@ -719,27 +849,27 @@ function listRow(layer, parent) {
     if (state.studio) {
       button = h('button', {
         class: `small-btn ${live ? 'live' : pvw ? 'on' : ''}`,
-        title: live ? 'Questa scena è in onda' : 'Metti in anteprima: poi CUT o FADE la manda in onda',
+        title: live ? t('Questa scena è in onda') : t('Metti in anteprima: poi CUT o FADE la manda in onda'),
         onclick: (e) => { e.stopPropagation(); send({ type: 'preview', id: layer.id }); }
-      }, live ? 'In onda' : 'Anteprima');
+      }, live ? t('In onda') : t('Anteprima'));
     } else {
       button = h('button', {
         class: `small-btn ${live ? 'live' : ''}`,
-        title: live ? 'In onda: clic per toglierla' : 'Manda subito in onda questa scena',
+        title: live ? t('In onda: clic per toglierla') : t('Manda subito in onda questa scena'),
         onclick: (e) => { e.stopPropagation(); send({ type: 'program', id: layer.id }); }
-      }, live ? 'In onda' : 'Manda in onda');
+      }, live ? t('In onda') : t('Manda in onda'));
     }
   } else {
     button = h('button', {
       class: `small-btn ${layer.visible ? 'on' : ''}`,
-      title: layer.visible ? 'Visibile: clic per nascondere' : 'Nascosto: clic per mostrare',
+      title: layer.visible ? t('Visibile: clic per nascondere') : t('Nascosto: clic per mostrare'),
       onclick: (e) => { e.stopPropagation(); send({ type: 'update-layer', id: layer.id, patch: { visible: !layer.visible } }); }
-    }, layer.visible ? 'Visibile' : 'Nascosto');
+    }, layer.visible ? t('Visibile') : t('Nascosto'));
   }
   const caret = isScene
     ? h('span', {
       class: 'caret',
-      title: 'Apri/chiudi la scena',
+      title: t('Apri/chiudi la scena'),
       onclick: (e) => {
         e.stopPropagation();
         if (collapsed.has(layer.id)) collapsed.delete(layer.id);
@@ -760,9 +890,9 @@ function listRow(layer, parent) {
     'data-id': layer.id
   },
   caret,
-  h('span', { class: 'tag' }, TYPE_LABELS[layer.type]),
+  h('span', { class: 'tag' }, isScene ? `${typeLabel('scene')} ${sceneNumber}` : typeLabel(layer.type)),
   h('span', { class: 'name' }, layer.name, isScene ? h('span', { class: 'muted' }, ` (${layer.children.length})`) : null),
-  copies > 1 ? h('span', { class: 'link', title: `Stesso input in ${copies} punti: la sorgente è condivisa` }, '🔗') : null,
+  copies > 1 ? h('span', { class: 'link', title: t('Stesso input in {n} punti: la sorgente è condivisa', { n: copies }) }, '🔗') : null,
   button);
   li.addEventListener('pointerdown', (e) => startListDrag(e, layer, li));
   return li;
@@ -841,26 +971,26 @@ function dropTarget(y) {
   return null;
 }
 
-function showDropTarget(t) {
+function showDropTarget(target) {
   const line = $('drop-line');
   for (const el of document.querySelectorAll('#layer-list li.drop-into')) el.classList.remove('drop-into');
-  if (!t) {
+  if (!target) {
     line.hidden = true;
     return;
   }
-  if (t.into) {
+  if (target.into) {
     line.hidden = true;
-    const row = $('layer-list').querySelector(`li[data-id="${t.into}"]`);
+    const row = $('layer-list').querySelector(`li[data-id="${target.into}"]`);
     if (row) row.classList.add('drop-into');
     return;
   }
   const wrap = $('list-wrap').getBoundingClientRect();
-  let ref = t.row.getBoundingClientRect();
-  let y = t.before ? ref.top : ref.bottom;
-  if (t.end) ref = $('layer-list').getBoundingClientRect();
-  if (t.afterGroup) {
+  let ref = target.row.getBoundingClientRect();
+  let y = target.before ? ref.top : ref.bottom;
+  if (target.end) ref = $('layer-list').getBoundingClientRect();
+  if (target.afterGroup) {
     // Dopo tutto il gruppo della scena (scena + suoi input).
-    let last = t.row;
+    let last = target.row;
     while (last.nextElementSibling && last.nextElementSibling.classList.contains('child')) last = last.nextElementSibling;
     ref = last.getBoundingClientRect();
     y = ref.bottom;
@@ -882,31 +1012,33 @@ function endListDrag(e) {
     if (d) select_(d.layer.id);
     return;
   }
-  const t = d.target;
-  if (!t || t.refId === d.layer.id) return;
-  send({ type: 'move-node', id: d.layer.id, parentId: t.parentId, refId: t.refId, where: t.where, copy: e.ctrlKey || d.copy });
+  const target = d.target;
+  if (!target || target.refId === d.layer.id) return;
+  send({ type: 'move-node', id: d.layer.id, parentId: target.parentId, refId: target.refId, where: target.where, copy: e.ctrlKey || d.copy });
 }
 
 // --- Scene e modalità studio ---------------------------------------------------
 
 function sceneSection(scene) {
   const live = state.program === scene.id;
+  const number = scenesInOrder().indexOf(scene) + 1;
   const actions = state.studio
     ? h('div', { class: 'row' },
-      h('button', { class: 'primary', onclick: () => send({ type: 'preview', id: scene.id }) }, 'Metti in anteprima'),
-      h('span', { class: 'muted small' }, live ? 'Questa scena è in onda.' : 'Poi CUT o FADE la manda in onda.'))
+      h('button', { class: 'primary', onclick: () => send({ type: 'preview', id: scene.id }) }, t('Metti in anteprima')),
+      h('span', { class: 'muted small' }, live ? t('Questa scena è in onda.') : t('Poi CUT o FADE la manda in onda.')))
     : h('div', { class: 'row' },
-      h('button', { class: live ? 'live' : 'primary', onclick: () => send({ type: 'program', id: scene.id }) }, live ? 'Togli dall\'onda' : 'Manda in onda'),
-      h('span', { class: 'muted small' }, live ? 'Questa scena è in onda.' : 'Il cambio di scena è immediato.'));
+      h('button', { class: live ? 'live' : 'primary', onclick: () => send({ type: 'program', id: scene.id }) }, live ? t('Togli dall\'onda') : t('Manda in onda')),
+      h('span', { class: 'muted small' }, live ? t('Questa scena è in onda.') : t('Il cambio di scena è immediato.')));
   return [
     card('Scena',
       field('Nome', textInput('name')),
       actions,
-      h('p', { class: 'muted small' }, `Contiene ${scene.children.length} input. In onda va una scena alla volta, insieme agli input che non sono in nessuna scena (per esempio un logo sempre presente).`)),
+      h('p', { class: 'muted small' }, t('Scena numero {n} (per MIDI e Companion). Contiene {count} input.', { n: number, count: scene.children.length })),
+      help(t('In onda va una scena alla volta, insieme agli input che non sono in nessuna scena (per esempio un logo sempre presente).'))),
     card('Come si usa',
-      h('p', { class: 'muted small' }, 'Con la scena selezionata, i pulsanti "Aggiungi" mettono i nuovi input dentro la scena.'),
-      h('p', { class: 'muted small' }, 'Trascina un input sulla scena per spostarlo dentro. Tieni premuto Ctrl mentre rilasci per usare lo stesso input anche in questa scena: la sorgente (videocamera, NDI, video) resta una sola e la CPU non lavora il doppio.'),
-      h('p', { class: 'muted small' }, 'Modalità studio (in alto a destra): a sinistra l\'anteprima della prossima scena, a destra quella in onda, e in mezzo CUT e FADE.'))
+      help(t('Con la scena selezionata, i pulsanti "Aggiungi" mettono i nuovi input dentro la scena.')),
+      help(t('Trascina un input sulla scena per spostarlo dentro. Tieni premuto Ctrl mentre rilasci per usare lo stesso input anche in questa scena: la sorgente (videocamera, NDI, video) resta una sola e la CPU non lavora il doppio.')),
+      help(t('Modalità studio (menu Visualizza o pulsante in alto a destra): sopra l\'anteprima della prossima scena e quella in onda, con CUT e FADE in mezzo.')))
   ];
 }
 
@@ -926,7 +1058,7 @@ async function startProgramMonitor() {
       video: { mandatory: { chromeMediaSource: 'desktop', chromeMediaSourceId: id, maxWidth: 640, maxHeight: 360, maxFrameRate: 15 } }
     });
     if (!state.studio) {
-      stream.getTracks().forEach((t) => t.stop());
+      stream.getTracks().forEach((tr) => tr.stop());
       return;
     }
     programStream = stream;
@@ -941,7 +1073,7 @@ async function startProgramMonitor() {
 }
 
 function stopProgramMonitor() {
-  if (programStream) programStream.getTracks().forEach((t) => t.stop());
+  if (programStream) programStream.getTracks().forEach((tr) => tr.stop());
   programStream = null;
   $('program-video').srcObject = null;
   $('program').classList.remove('has-video');
@@ -963,25 +1095,17 @@ function fitScreens() {
   if (!state) return;
   fitScreen($('preview-wrap'), $('preview'));
   fitScreen($('program-wrap'), $('program'));
-  // In modalità studio gli schermi sono più stretti: l'altezza avanzata va ai comandi.
-  const mon = $('monitors');
-  if (state.studio) {
-    const need = $('preview').offsetHeight + $('preview-title').offsetHeight + 4;
-    const max = Math.max(200, window.innerHeight * 0.36);
-    const hgt = `${Math.min(max, Math.max(need, 160))}px`;
-    if (mon.style.height !== hgt) mon.style.height = hgt;
-  } else if (mon.style.height) {
-    mon.style.height = '';
-  }
 }
 new ResizeObserver(fitScreens).observe($('preview-wrap'));
 new ResizeObserver(fitScreens).observe($('program-wrap'));
 
 function renderStudio() {
   const studio = !!state.studio;
+  const changed = document.body.classList.contains('studio') !== studio;
   document.body.classList.toggle('studio', studio);
+  if (changed) applyLayout();
   $('btn-studio').classList.toggle('on', studio);
-  $('btn-studio').textContent = studio ? 'Modalità studio: attiva' : 'Modalità studio';
+  $('btn-studio').textContent = studio ? t('Modalità studio: attiva') : t('Modalità studio');
   $('switcher').hidden = !studio;
   $('mon-program').hidden = !studio;
   if (document.activeElement !== $('sel-fade')) $('sel-fade').value = String(state.fadeMs);
@@ -989,32 +1113,230 @@ function renderStudio() {
   const viewScene = layerById(viewId);
   const program = layerById(state.program);
   const title = $('preview-title');
-  title.classList.remove('live', 'off');
+  title.classList.remove('live', 'off', 'pvw');
   if (studio) {
-    title.textContent = viewScene ? `Anteprima: ${viewScene.name}` : 'Anteprima: nessuna scena';
+    title.textContent = viewScene ? t('Anteprima: {name}', { name: viewScene.name }) : t('Anteprima: nessuna scena');
     title.classList.add('pvw');
-    $('program-title').textContent = program ? `In onda: ${program.name}` : 'In onda: nessuna scena';
+    $('program-title').textContent = program ? t('In onda: {name}', { name: program.name }) : t('In onda: nessuna scena');
     programStage.update(composeLayers(state.layers, program ? [program.id] : []), state.background);
     startProgramMonitor();
   } else {
-    title.classList.remove('pvw');
     if (viewScene && viewId !== state.program) {
-      title.textContent = `Scena "${viewScene.name}" (non in onda)`;
+      title.textContent = t('Scena "{name}" (non in onda)', { name: viewScene.name });
       title.classList.add('off');
     } else {
-      title.textContent = program ? `Uscita: ${program.name}` : 'Uscita';
+      title.textContent = program ? t('Uscita: {name}', { name: program.name }) : t('Uscita');
       title.classList.add('live');
     }
     stopProgramMonitor();
   }
   const target = addTargetScene();
-  $('add-target').textContent = target ? `I nuovi input vanno nella scena "${target.name}".` : '';
+  $('add-target').textContent = target ? t('I nuovi input vanno nella scena "{name}".', { name: target.name }) : '';
   fitScreens();
 }
 
 // Scena in cui finiscono i nuovi input: quella selezionata (o dell'input selezionato).
 function addTargetScene() {
   return sceneOf(selectedId);
+}
+
+// --- Zone ridimensionabili -------------------------------------------------------
+// I bordi tra anteprima, dettagli e colonna degli input si trascinano; vicino
+// alle posizioni "naturali" (misura predefinita, bordi degli schermi) si
+// agganciano come una calamita. La disposizione è memorizzata separatamente
+// per la modalità normale e per la modalità studio.
+
+const SNAP = 14;
+
+function layoutKey() {
+  return document.body.classList.contains('studio') ? 'layout.studio' : 'layout.normal';
+}
+
+// Altezza della zona anteprima che fa stare gli schermi senza spazio vuoto.
+function fittedTop(rightW) {
+  const L = $('layout').getBoundingClientRect();
+  const studio = document.body.classList.contains('studio');
+  const out = state ? state.output : { width: 16, height: 9 };
+  const avail = studio ? L.width - 32 - 112 - 24 : L.width - rightW - 6 - 32;
+  const screenW = studio ? avail / 2 : avail;
+  const helpH = document.body.classList.contains('hide-help') ? 0 : $('hint').offsetHeight + 6;
+  return Math.round(screenW * (out.height / out.width) + 22 + 14 + helpH);
+}
+
+function defaultLayout() {
+  const L = $('layout').getBoundingClientRect();
+  const studio = document.body.classList.contains('studio');
+  const right = 360;
+  const top = studio ? Math.min(fittedTop(right), Math.round(L.height * 0.5)) : Math.max(200, Math.round(window.innerHeight * 0.36));
+  return { top, right };
+}
+
+function applyLayout() {
+  const L = $('layout').getBoundingClientRect();
+  if (!L.height) return;
+  const saved = prefs.get(layoutKey(), null);
+  const d = defaultLayout();
+  const top = clamp(saved ? saved.top : d.top, 120, Math.max(120, L.height - 160));
+  const right = clamp(saved ? saved.right : d.right, 240, Math.max(240, L.width - 320));
+  $('layout').style.setProperty('--top-h', `${top}px`);
+  $('layout').style.setProperty('--right-w', `${right}px`);
+  fitScreens();
+}
+
+function snapTo(value, targets) {
+  let best = value;
+  let dist = SNAP;
+  for (const target of targets) {
+    if (Math.abs(value - target) < dist) {
+      dist = Math.abs(value - target);
+      best = target;
+    }
+  }
+  return best;
+}
+
+function startSplit(e, kind) {
+  e.preventDefault();
+  const L = $('layout').getBoundingClientRect();
+  const splitter = e.currentTarget;
+  splitter.classList.add('dragging');
+  document.body.classList.add('resizing', kind === 'h' ? 'rows' : 'cols');
+  const cur = () => ({
+    top: parseFloat($('layout').style.getPropertyValue('--top-h')) || defaultLayout().top,
+    right: parseFloat($('layout').style.getPropertyValue('--right-w')) || 360
+  });
+  const move = (ev) => {
+    const d = defaultLayout();
+    if (kind === 'h') {
+      let top = clamp(ev.clientY - L.top, 120, L.height - 160);
+      top = snapTo(top, [d.top, fittedTop(cur().right)]);
+      $('layout').style.setProperty('--top-h', `${top}px`);
+    } else {
+      let right = clamp(L.right - ev.clientX, 240, L.width - 320);
+      // Calamita: larghezza predefinita e allineamento con i bordi degli schermi.
+      const targets = [d.right];
+      for (const id of ['preview', 'program', 'switcher']) {
+        const el = $(id);
+        if (!el.offsetParent) continue;
+        const r = el.getBoundingClientRect();
+        targets.push(Math.round(L.right - r.left + 8), Math.round(L.right - r.right - 8));
+      }
+      right = snapTo(right, targets);
+      $('layout').style.setProperty('--right-w', `${right}px`);
+    }
+    fitScreens();
+  };
+  const up = () => {
+    window.removeEventListener('pointermove', move);
+    splitter.classList.remove('dragging');
+    document.body.classList.remove('resizing', 'rows', 'cols');
+    prefs.set(layoutKey(), cur());
+  };
+  window.addEventListener('pointermove', move);
+  window.addEventListener('pointerup', up, { once: true });
+}
+
+$('split-h').addEventListener('pointerdown', (e) => startSplit(e, 'h'));
+$('split-v').addEventListener('pointerdown', (e) => startSplit(e, 'v'));
+window.addEventListener('resize', () => applyLayout());
+
+function resetLayout() {
+  prefs.set('layout.normal', null);
+  prefs.set('layout.studio', null);
+  prefs.set('cardWidth', 280);
+  prefs.set('cardHeights', {});
+  for (const k of Object.keys(cardHeights)) delete cardHeights[k];
+  prefs.set('collapsedCards', []);
+  collapsedCards.clear();
+  applyLayout();
+  applyCardWidth();
+  buildPanel();
+}
+
+// --- Menu ------------------------------------------------------------------------
+
+let openMenu = null;
+
+function closeMenus() {
+  if (openMenu) openMenu.classList.remove('open');
+  openMenu = null;
+}
+
+for (const menu of document.querySelectorAll('.menu')) {
+  const title = menu.querySelector('.menu-title');
+  title.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const wasOpen = openMenu === menu;
+    closeMenus();
+    if (!wasOpen) {
+      menu.classList.add('open');
+      openMenu = menu;
+    }
+  });
+  // Con un menu aperto, passando sopra un altro titolo si apre quello.
+  title.addEventListener('mouseenter', () => {
+    if (openMenu && openMenu !== menu) {
+      closeMenus();
+      menu.classList.add('open');
+      openMenu = menu;
+    }
+  });
+  menu.querySelector('.menu-list').addEventListener('click', (e) => {
+    const item = e.target.closest('button[data-cmd]');
+    if (!item) return;
+    menuCommand(item.dataset.cmd, item.dataset);
+    closeMenus();
+  });
+}
+document.addEventListener('click', (e) => {
+  if (openMenu && !openMenu.contains(e.target)) closeMenus();
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') closeMenus();
+});
+
+function menuCommand(cmd, data) {
+  switch (cmd) {
+    case 'open-config': send({ type: 'open-config' }); break;
+    case 'save-config': send({ type: 'save-config' }); break;
+    case 'toggle-display': send({ type: 'toggle-display' }); break;
+    case 'display': send({ type: 'set-display', displayId: Number(data.id) }); break;
+    case 'fps': send({ type: 'set-fps', fps: Number(data.fps) }); break;
+    case 'studio': send({ type: 'set-studio', on: !state.studio }); break;
+    case 'help': send({ type: 'set-help', on: !state.showHelp }); break;
+    case 'reset-layout': resetLayout(); break;
+    case 'lang': send({ type: 'set-lang', lang: data.lang }); break;
+    case 'midi': openMidiDialog(); break;
+    case 'http': openHttpDialog(); break;
+  }
+}
+
+function renderMenus() {
+  const displays = $('menu-displays');
+  const sig = JSON.stringify([state.displays, state.activeDisplayId, I18n.getLang()]);
+  if (displays.dataset.sig !== sig) {
+    displays.dataset.sig = sig;
+    displays.replaceChildren(...state.displays.map((d) => h('button', {
+      'data-cmd': 'display',
+      'data-id': d.id,
+      class: `check ${d.id === state.activeDisplayId ? 'checked' : ''}`
+    }, `${t('Monitor')} ${d.index} · ${d.width}×${d.height}${d.hz ? ` · ${d.hz} Hz` : ''}${d.primary ? ` · ${t('principale')}` : ''}`)));
+  }
+  $('menu-fps').replaceChildren(...FPS_CHOICES.map((f) => h('button', {
+    'data-cmd': 'fps', 'data-fps': f, class: `check ${state.fps === f ? 'checked' : ''}`
+  }, `${f} fps`)));
+  $('menu-studio').classList.toggle('checked', !!state.studio);
+  $('menu-help').classList.toggle('checked', !!state.showHelp);
+  $('menu-lang-it').classList.toggle('checked', I18n.getLang() === 'it');
+  $('menu-lang-en').classList.toggle('checked', I18n.getLang() === 'en');
+  $('menu-toggle-display').textContent = state.displayVisible ? t('Nascondi l\'uscita') : t('Mostra l\'uscita');
+}
+
+// Testi fissi della pagina (attributi data-i18n e data-i18n-title).
+function translateStatic() {
+  for (const el of document.querySelectorAll('[data-i18n]')) el.textContent = t(el.dataset.i18n);
+  for (const el of document.querySelectorAll('[data-i18n-title]')) el.title = t(el.dataset.i18nTitle);
+  document.documentElement.lang = I18n.getLang();
 }
 
 // --- Anteprima con trascinamento -----------------------------------------------
@@ -1029,7 +1351,7 @@ function renderOverlay() {
     const handles = ['nw', 'ne', 'sw', 'se'].map((c) => h('div', { class: `handle ${c}`, 'data-corner': c }));
     if (isVisual(layer.type)) {
       for (const side of ['top', 'right', 'bottom', 'left']) {
-        handles.push(h('div', { class: `handle crop c-${side}`, 'data-crop': side, title: 'Trascina per ritagliare' }));
+        handles.push(h('div', { class: `handle crop c-${side}`, 'data-crop': side, title: t('Trascina per ritagliare') }));
       }
     }
     const box = h('div', {
@@ -1061,7 +1383,7 @@ function startDrag(e, layer, mode, handle) {
 }
 
 function snap(v) {
-  for (const t of [0, 50, 100]) if (Math.abs(v - t) < 1) return t;
+  for (const target of [0, 50, 100]) if (Math.abs(v - target) < 1) return target;
   return round(v);
 }
 
@@ -1163,24 +1485,28 @@ overlay.addEventListener('pointerdown', () => { select_(null); });
 
 // --- Stato generale ----------------------------------------------------------
 
+let currentLang = null;
+
 function render(next) {
   state = next;
   if (selectedId && !selectedLayer()) selectedId = null;
+  // Lingua e fotogrammi al secondo arrivano con lo stato.
+  Layers.setFps(state.fps);
+  if (currentLang !== state.lang) {
+    currentLang = state.lang;
+    I18n.setLang(state.lang);
+    translateStatic();
+    panelKey = null; // ricostruisce il pannello nella nuova lingua
+  }
+  document.body.classList.toggle('hide-help', !state.showHelp);
   if (drag) return; // durante il trascinamento comanda l'anteprima locale
 
   $('output-info').textContent = state.output.fullscreen
-    ? `Uscita a tutto schermo ${state.output.width}×${state.output.height}`
-    : 'Un solo monitor: uscita in finestra di anteprima';
+    ? t('Uscita a tutto schermo {w}×{h} · {fps} fps', { w: state.output.width, h: state.output.height, fps: state.fps })
+    : t('Un solo monitor: uscita in finestra di anteprima · {fps} fps', { fps: state.fps });
   if (document.activeElement !== $('col-background')) $('col-background').value = state.background;
 
-  const sel = $('sel-display');
-  const sig = state.displays.map((d) => d.id + d.label).join('|');
-  if (sel.dataset.sig !== sig) {
-    sel.dataset.sig = sig;
-    sel.replaceChildren(...state.displays.map((d) => h('option', { value: d.id }, d.label)));
-  }
-  sel.value = String(state.activeDisplayId);
-
+  renderMenus();
   renderStudio();
   stage.update(previewLayers(), state.background);
   renderOverlay();
@@ -1191,6 +1517,7 @@ function render(next) {
   const key = panelKeyOf(layer);
   if (key !== panelKey) buildPanel();
   else refreshBindings();
+  if (typeof Remote !== 'undefined') Remote.onState(state);
 }
 
 for (const b of document.querySelectorAll('[data-add]')) {
@@ -1208,19 +1535,17 @@ for (const b of document.querySelectorAll('[data-add]')) {
 let pendingSelect = null;
 
 $('btn-show-all').onclick = () => send({ type: 'show-all' });
-$('btn-toggle-display').onclick = () => send({ type: 'toggle-display' });
 $('btn-remove').onclick = () => removeSelected();
 $('btn-reset').onclick = () => resetSelected();
-$('btn-save-config').onclick = () => send({ type: 'save-config' });
-$('btn-open-config').onclick = () => send({ type: 'open-config' });
 $('btn-studio').onclick = () => send({ type: 'set-studio', on: !state.studio });
 $('btn-cut').onclick = () => send({ type: 'take', kind: 'cut' });
 $('btn-fade').onclick = () => send({ type: 'take', kind: 'fade' });
 $('sel-fade').onchange = (e) => send({ type: 'set-fade', ms: Number(e.target.value) });
-$('sel-display').onchange = (e) => send({ type: 'set-display', displayId: Number(e.target.value) });
 $('col-background').oninput = (e) => send({ type: 'set-background', color: e.target.value });
 $('btn-pick-background').onclick = async (e) => {
   e.preventDefault();
+  e.stopPropagation();
+  closeMenus();
   const color = await api.pickColor();
   if (color) send({ type: 'set-background', color });
 };
@@ -1228,6 +1553,7 @@ $('btn-pick-background').onclick = async (e) => {
 document.addEventListener('keydown', (e) => {
   const tag = e.target.tagName;
   if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || e.target.isContentEditable) return;
+  if (document.querySelector('dialog[open]')) return;
   const layer = selectedLayer();
   if (layer && layer.type === 'prompter' && prompterKey(e, layer)) return;
   if (e.code === 'Space') {
@@ -1250,6 +1576,8 @@ api.onState((next) => {
 api.getState().then((s) => {
   if (!selectedId && s.layers.length) selectedId = s.layers[s.layers.length - 1].id;
   render(s);
+  applyLayout();
+  applyCardWidth();
 });
 
 function round(v) {
@@ -1263,6 +1591,6 @@ function clamp(v, min, max) {
 // quando cambiano modalità studio, scena in onda e numero di input.
 function panelKeyOf(layer) {
   if (!layer) return null;
-  const extra = layer.type === 'scene' ? `${state.studio}:${state.program}:${layer.children.length}` : linkCount(layer);
+  const extra = layer.type === 'scene' ? `${state.studio}:${state.program}:${layer.children.length}:${scenesInOrder().indexOf(layer)}` : linkCount(layer);
   return `${layer.id}:${layer.type}:${layer.mediaKind || ''}:${extra}`;
 }

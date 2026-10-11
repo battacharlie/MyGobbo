@@ -6,6 +6,9 @@ const { createLayer, timerElapsedMs, prompterY, TIMER_COLORS, TYPE_LABELS, VIDEO
 const ndi = require('./ndi');
 const { readTextFile, TEXT_EXT } = require('./textimport');
 const { pickColor } = require('./picker/main');
+const i18n = require('./shared/i18n');
+const remote = require('./remote');
+const t = i18n.t;
 
 const ICON = path.join(__dirname, 'assets', 'igor.png');
 
@@ -22,8 +25,16 @@ const DEFAULT_STATE = {
   studio: false,
   program: null,
   preview: null,
-  fadeMs: 1000
+  fadeMs: 1000,
+  fps: 25, // fotogrammi al secondo dell'uscita (al massimo 25)
+  // Preferenze della regia (non finiscono nei file di configurazione).
+  lang: 'it',
+  showHelp: true,
+  midi: [], // associazioni MIDI: { key, action, arg }
+  http: { enabled: false, port: 8765, lan: false } // comandi per Companion / Stream Deck
 };
+// Parti dello stato salvate in "Esporta configurazione".
+const CONFIG_KEYS = ['layers', 'background', 'displayId', 'studio', 'program', 'preview', 'fadeMs', 'fps'];
 // Dissolvenza in corso tra due scene (non viene salvata).
 let transition = null;
 let transitionTimer = null;
@@ -88,65 +99,67 @@ function normalizeState(raw) {
   const isScene = (id) => loaded.layers.some((l) => l.id === id && l.type === 'scene');
   if (!isScene(loaded.program)) loaded.program = null;
   if (!isScene(loaded.preview)) loaded.preview = null;
+  loaded.fps = Math.max(1, Math.min(25, Number(loaded.fps) || 25));
+  loaded.http = { ...DEFAULT_STATE.http, ...(raw.http || {}) };
+  if (!Array.isArray(loaded.midi)) loaded.midi = [];
   return loaded;
 }
 
 // --- Configurazioni salvate dall'utente --------------------------------------
 
-const CONFIG_FILTERS = [{ name: 'Configurazione IGOR', extensions: ['igor'] }, { name: 'Tutti i file', extensions: ['*'] }];
+const configFilters = () => [{ name: t('Configurazione IGOR'), extensions: ['igor'] }, { name: t('Tutti i file'), extensions: ['*'] }];
 
 async function saveConfig() {
   const res = await dialog.showSaveDialog(controlWin, {
-    title: 'Salva configurazione',
-    defaultPath: path.join(app.getPath('documents'), 'Configurazione.igor'),
-    filters: CONFIG_FILTERS
+    title: t('Esporta configurazione'),
+    defaultPath: path.join(app.getPath('documents'), `${t('Configurazione')}.igor`),
+    filters: configFilters()
   });
   if (res.canceled || !res.filePath) return;
   const data = {
     app: 'IGOR - ABit/s',
     version: require('../package.json').version,
-    savedAt: new Date().toISOString(),
-    layers: state.layers,
-    background: state.background,
-    displayId: state.displayId,
-    studio: state.studio,
-    program: state.program,
-    preview: state.preview,
-    fadeMs: state.fadeMs
+    savedAt: new Date().toISOString()
   };
+  for (const k of CONFIG_KEYS) data[k] = state[k];
   try {
     fs.writeFileSync(res.filePath, JSON.stringify(data, null, 2));
   } catch (err) {
-    dialog.showMessageBox(controlWin, { type: 'error', title: 'Salva configurazione', message: 'Impossibile salvare la configurazione.', detail: String(err.message || err) });
+    dialog.showMessageBox(controlWin, { type: 'error', title: t('Esporta configurazione'), message: t('Impossibile salvare la configurazione.'), detail: String(err.message || err) });
   }
 }
 
 async function openConfig() {
   const res = await dialog.showOpenDialog(controlWin, {
-    title: 'Importa configurazione',
+    title: t('Importa configurazione'),
     defaultPath: app.getPath('documents'),
     properties: ['openFile'],
-    filters: CONFIG_FILTERS
+    filters: configFilters()
   });
   if (res.canceled || !res.filePaths.length) return;
   try {
     const loaded = normalizeState(JSON.parse(fs.readFileSync(res.filePaths[0], 'utf8')));
-    state = {};
-    for (const k of Object.keys(DEFAULT_STATE)) state[k] = loaded[k];
+    // Le preferenze della regia (lingua, MIDI, Companion) restano quelle attuali.
+    for (const k of CONFIG_KEYS) state[k] = loaded[k];
     endTransition();
     placeDisplayWindow();
     saveState();
     broadcast();
   } catch (err) {
-    dialog.showMessageBox(controlWin, { type: 'error', title: 'Importa configurazione', message: 'Impossibile importare la configurazione.', detail: String(err.message || err) });
+    dialog.showMessageBox(controlWin, { type: 'error', title: t('Importa configurazione'), message: t('Impossibile importare la configurazione.'), detail: String(err.message || err) });
   }
 }
 
 // I timer con i vecchi colori predefiniti (bianco, arancio, rosso) passano
 // ai nuovi: verde, giallo, rosso.
 function upgradeLayer(l) {
-  // La "Frase" che scorre si chiama ora Banner.
-  if (l.type === 'ticker' && l.name === 'Frase') l.name = TYPE_LABELS.ticker;
+  // La "Frase" che scorre si chiama ora Banner di Testo.
+  if (l.type === 'ticker' && (l.name === 'Frase' || l.name === 'Banner')) l.name = TYPE_LABELS.ticker;
+  // Audio dei video: da sì/no a attivo / disattivo / segue l'onda.
+  if (l.type === 'media' && typeof l.audio === 'boolean') {
+    l.audioMode = l.audio ? 'on' : 'off';
+    delete l.audio;
+  }
   if (l.type === 'timer' && l.color === '#ffffff' && l.warningColor === '#ffb020' && l.endColor === '#ff3b30') {
     Object.assign(l, TIMER_COLORS);
   }
@@ -177,8 +190,13 @@ function snapshot() {
     output: { width: target.size.width, height: target.size.height, fullscreen: target.id !== primaryId },
     displays: screen.getAllDisplays().map((d, i) => ({
       id: d.id,
-      label: `Monitor ${i + 1} (${d.size.width}×${d.size.height})${d.id === primaryId ? ' – principale' : ''}`
+      index: i + 1,
+      width: Math.round(d.size.width * d.scaleFactor),
+      height: Math.round(d.size.height * d.scaleFactor),
+      hz: Math.round(d.displayFrequency || 0),
+      primary: d.id === primaryId
     })),
+    httpStatus: remote.status(),
     activeDisplayId: target.id,
     displayVisible: !!(displayWin && displayWin.isVisible())
   };
@@ -276,12 +294,12 @@ function createWindows() {
 // livello Media, oppure null se l'utente annulla.
 async function pickMediaFile() {
   const res = await dialog.showOpenDialog(controlWin, {
-    title: 'Scegli un video o un\'immagine',
+    title: t('Scegli un video o un\'immagine'),
     properties: ['openFile'],
     filters: [
-      { name: 'Video e immagini', extensions: [...VIDEO_EXT, ...IMAGE_EXT] },
-      { name: 'Video', extensions: VIDEO_EXT },
-      { name: 'Immagini', extensions: IMAGE_EXT }
+      { name: t('Video e immagini'), extensions: [...VIDEO_EXT, ...IMAGE_EXT] },
+      { name: t('Video'), extensions: VIDEO_EXT },
+      { name: t('Immagini'), extensions: IMAGE_EXT }
     ]
   });
   if (res.canceled || !res.filePaths.length) return null;
@@ -312,11 +330,16 @@ function addLayer(layer, sceneId) {
   const scene = layer.type !== 'scene' && findLayer(sceneId);
   const list = scene && scene.type === 'scene' ? scene.children : state.layers;
   insertLayer(list, layer);
+  // Nome e testi iniziali nella lingua dell'interfaccia.
+  if (layer.type !== 'media' && layer.name === TYPE_LABELS[layer.type]) layer.name = t(layer.name);
+  if (layer.type === 'ticker') layer.text = t(layer.text);
+  if (layer.type === 'prompter') layer.html = t(layer.html);
   if (layer.type === 'scene') {
     const names = new Set(state.layers.map((l) => l.name));
+    const label = t(TYPE_LABELS.scene);
     let n = 1;
-    while (names.has(`${TYPE_LABELS.scene} ${n}`)) n++;
-    layer.name = `${TYPE_LABELS.scene} ${n}`;
+    while (names.has(`${label} ${n}`)) n++;
+    layer.name = `${label} ${n}`;
     if (state.studio && !state.preview) state.preview = layer.id;
   }
 }
@@ -475,18 +498,18 @@ function prompterAction(layer, cmd) {
 ipcMain.handle('get-state', () => snapshot());
 ipcMain.handle('ndi-sources', () => ndi.sources());
 ipcMain.handle('output-source-id', () => (displayWin && !displayWin.isDestroyed() ? displayWin.getMediaSourceId() : null));
-ipcMain.handle('pick-color', () => pickColor(controlWin));
+ipcMain.handle('pick-color', () => pickColor(controlWin, t));
 ipcMain.handle('import-text', async () => {
   const res = await dialog.showOpenDialog(controlWin, {
-    title: 'Importa testo per il TelePrompt',
+    title: t('Importa testo per il TelePrompt'),
     properties: ['openFile'],
-    filters: [{ name: 'Testi', extensions: TEXT_EXT }, { name: 'Tutti i file', extensions: ['*'] }]
+    filters: [{ name: t('Testi'), extensions: TEXT_EXT }, { name: t('Tutti i file'), extensions: ['*'] }]
   });
   if (res.canceled || !res.filePaths.length) return null;
   try {
     return readTextFile(res.filePaths[0]);
   } catch (err) {
-    dialog.showMessageBox(controlWin, { type: 'error', title: 'Importa testo', message: 'Impossibile leggere il file.', detail: String(err.message || err) });
+    dialog.showMessageBox(controlWin, { type: 'error', title: t('Importa testo'), message: t('Impossibile leggere il file.'), detail: String(err.message || err) });
     return null;
   }
 });
@@ -576,7 +599,8 @@ ipcMain.on('command', (_evt, cmd) => {
     case 'program': {
       // Senza modalità studio: la scena va subito in onda (di nuovo = la toglie).
       endTransition();
-      state.program = state.program === cmd.id ? null : cmd.id;
+      // Da MIDI o Companion (force) la scena va in onda senza fare da interruttore.
+      state.program = !cmd.force && state.program === cmd.id ? null : cmd.id;
       break;
     }
     case 'preview':
@@ -598,6 +622,24 @@ ipcMain.on('command', (_evt, cmd) => {
     case 'set-background':
       state.background = cmd.color;
       break;
+    case 'set-fps':
+      state.fps = Math.max(1, Math.min(25, Number(cmd.fps) || 25));
+      break;
+    case 'set-lang':
+      state.lang = cmd.lang === 'en' ? 'en' : 'it';
+      i18n.setLang(state.lang);
+      break;
+    case 'set-help':
+      state.showHelp = !!cmd.on;
+      break;
+    case 'set-midi':
+      state.midi = Array.isArray(cmd.midi) ? cmd.midi : [];
+      break;
+    case 'set-http':
+      state.http = { ...state.http, ...cmd.http };
+      state.http.port = Math.max(1024, Math.min(65535, Number(state.http.port) || 8765));
+      startRemote();
+      break;
     case 'set-display':
       state.displayId = cmd.displayId;
       placeDisplayWindow();
@@ -613,15 +655,29 @@ ipcMain.on('command', (_evt, cmd) => {
   broadcast();
 });
 
+// --- Comandi a distanza (Companion / Stream Deck) -------------------------------
+// Le richieste HTTP arrivano qui e vengono eseguite dalla regia, che conosce
+// anche le misure del TelePrompt: così MIDI e Companion fanno le stesse cose.
+function startRemote() {
+  remote.configure(state.http, (action) => {
+    if (!controlWin || controlWin.isDestroyed()) return false;
+    controlWin.webContents.send('remote-action', action);
+    return true;
+  }, () => broadcast());
+}
+
 // --- Avvio -----------------------------------------------------------------
 
 app.whenReady().then(() => {
-  // Permette alle finestre di usare le periferiche di acquisizione.
-  session.defaultSession.setPermissionRequestHandler((_wc, permission, cb) => cb(permission === 'media'));
-  session.defaultSession.setPermissionCheckHandler((_wc, permission) => permission === 'media');
+  // Permette alle finestre di usare le periferiche di acquisizione e i controller MIDI.
+  const allowed = ['media', 'midi', 'midiSysex'];
+  session.defaultSession.setPermissionRequestHandler((_wc, permission, cb) => cb(allowed.includes(permission)));
+  session.defaultSession.setPermissionCheckHandler((_wc, permission) => allowed.includes(permission));
 
+  i18n.setLang(state.lang);
   ndi.startDiscovery();
   createWindows();
+  startRemote();
 
   const onDisplaysChanged = () => {
     placeDisplayWindow();
@@ -633,4 +689,7 @@ app.whenReady().then(() => {
 });
 
 app.on('window-all-closed', () => app.quit());
-app.on('before-quit', () => ndi.stopDiscovery());
+app.on('before-quit', () => {
+  ndi.stopDiscovery();
+  remote.stop();
+});

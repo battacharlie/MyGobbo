@@ -125,7 +125,12 @@ function addSourceButton(item, index) {
   document.getElementById('sources').appendChild(b);
 }
 
-window.picker.onInit(({ shots, first }) => {
+window.picker.onInit(({ shots, first, texts }) => {
+  if (texts) {
+    document.getElementById('hint').textContent = texts.hint;
+    document.getElementById('open').textContent = texts.open;
+    document.getElementById('cancel').textContent = texts.cancel;
+  }
   images = shots;
   images.forEach(addSourceButton);
   if (images.length) show(first);
