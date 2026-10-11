@@ -6,6 +6,7 @@ const { createLayer, timerElapsedMs, prompterY, TIMER_COLORS, TYPE_LABELS, VIDEO
 const ndi = require('./ndi');
 const { readTextFile, TEXT_EXT } = require('./textimport');
 const { pickColor } = require('./picker/main');
+const displayNumbers = require('./displaynumbers');
 const i18n = require('./shared/i18n');
 const remote = require('./remote');
 const t = i18n.t;
@@ -178,6 +179,21 @@ function saveState() {
   }, 300);
 }
 
+// Monitor con il numero che usa Windows, in ordine di numero.
+function displayList() {
+  const primaryId = screen.getPrimaryDisplay().id;
+  const displays = screen.getAllDisplays();
+  const numbers = displayNumbers.numbers(displays);
+  return displays.map((d) => ({
+    id: d.id,
+    index: numbers.get(d.id),
+    width: Math.round(d.size.width * d.scaleFactor),
+    height: Math.round(d.size.height * d.scaleFactor),
+    hz: Math.round(d.displayFrequency || 0),
+    primary: d.id === primaryId
+  })).sort((a, b) => a.index - b.index);
+}
+
 function snapshot() {
   const primaryId = screen.getPrimaryDisplay().id;
   const target = targetDisplay();
@@ -188,14 +204,7 @@ function snapshot() {
     ndiAvailable: ndi.available,
     ndiError: ndi.error,
     output: { width: target.size.width, height: target.size.height, fullscreen: target.id !== primaryId },
-    displays: screen.getAllDisplays().map((d, i) => ({
-      id: d.id,
-      index: i + 1,
-      width: Math.round(d.size.width * d.scaleFactor),
-      height: Math.round(d.size.height * d.scaleFactor),
-      hz: Math.round(d.displayFrequency || 0),
-      primary: d.id === primaryId
-    })),
+    displays: displayList(),
     httpStatus: remote.status(),
     activeDisplayId: target.id,
     displayVisible: !!(displayWin && displayWin.isVisible())
@@ -678,10 +687,12 @@ app.whenReady().then(() => {
   ndi.startDiscovery();
   createWindows();
   startRemote();
+  displayNumbers.refresh().then(broadcast);
 
   const onDisplaysChanged = () => {
     placeDisplayWindow();
     broadcast();
+    displayNumbers.refresh().then(broadcast);
   };
   screen.on('display-added', onDisplaysChanged);
   screen.on('display-removed', onDisplaysChanged);
