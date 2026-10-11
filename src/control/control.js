@@ -1185,7 +1185,7 @@ function sceneSection(scene) {
       h('p', { class: 'muted small' }, t('Scena numero {n} (per MIDI e Companion). Contiene {count} input.', { n: number, count: scene.children.length })),
       help(t('In onda va una scena alla volta, insieme agli input che non sono in nessuna scena (per esempio un logo sempre presente).'))),
     card('Come si usa',
-      help(t('Con la scena selezionata, i pulsanti "Aggiungi" mettono i nuovi input dentro la scena.')),
+      help(t('Con la scena selezionata, il pulsante + propone di mettere i nuovi input dentro la scena.')),
       help(t('Trascina un input sulla scena per spostarlo dentro. Tieni premuto Ctrl mentre rilasci per usare lo stesso input anche in questa scena: la sorgente (videocamera, NDI, video) resta una sola e la CPU non lavora il doppio.')),
       help(t('Modalità studio (menu Visualizza o pulsante in alto a destra): sopra l\'anteprima della prossima scena e quella in onda, con CUT e FADE in mezzo.')))
   ];
@@ -1279,8 +1279,6 @@ function renderStudio() {
     }
     stopProgramMonitor();
   }
-  const target = addTargetScene();
-  $('add-target').textContent = target ? t('I nuovi input vanno nella scena "{name}".', { name: target.name }) : '';
   fitScreens();
 }
 
@@ -1668,19 +1666,141 @@ function render(next) {
   if (typeof Remote !== 'undefined') Remote.onState(state);
 }
 
-for (const b of document.querySelectorAll('[data-add]')) {
-  b.addEventListener('click', () => {
-    const before = new Set(allLayers(state.layers).map((l) => l.id));
-    const target = addTargetScene();
-    const sceneId = target ? target.id : null;
-    // Per i media prima si sceglie il file, poi arriva il nuovo elemento.
-    if (b.dataset.add === 'media') send({ type: 'add-media', sceneId });
-    else send({ type: 'add-layer', layerType: b.dataset.add, sceneId });
-    // Seleziona il nuovo elemento appena arriva lo stato aggiornato.
-    pendingSelect = before;
-  });
-}
 let pendingSelect = null;
+
+// --- Finestra "Aggiungi" ---------------------------------------------------------
+// Il pulsante + apre una finestra: si sceglie il tipo di input, poi (se serve)
+// la sorgente NDI, la periferica o il file, e la scena in cui metterlo.
+
+const ADD_TYPES = [
+  { type: 'scene', ico: '🎬', label: 'Scena', hint: 'Raccoglie più input' },
+  { type: 'ndi', ico: '📡', label: 'Segnale NDI', hint: 'Sorgente video in rete' },
+  { type: 'capture', ico: '🎥', label: 'Periferica di acquisizione', hint: 'Scheda, webcam, HDMI/SDI → USB' },
+  { type: 'media', ico: '🖼', label: 'Media (video o immagine)', hint: 'File dal disco' },
+  { type: 'timer', ico: '⏱', label: 'Timer', hint: 'Countdown, cronometro, orologio' },
+  { type: 'ticker', ico: '💬', label: 'Banner di Testo', hint: 'Testo in sovraimpressione' },
+  { type: 'prompter', ico: '📜', label: 'TelePrompt', hint: 'Testo che scorre in verticale' }
+];
+const addDlg = { type: null, source: null, sceneId: null, items: [], loading: false };
+
+function openAddDialog() {
+  const target = addTargetScene();
+  Object.assign(addDlg, { type: null, source: null, items: [], loading: false, sceneId: target ? target.id : null });
+  renderAddDialog();
+  $('dlg-add').showModal();
+}
+
+async function chooseAddType(type) {
+  Object.assign(addDlg, { type, source: null, items: [], loading: type === 'ndi' || type === 'capture' });
+  if (type === 'scene') addDlg.sceneId = null;
+  renderAddDialog();
+  if (type === 'ndi') {
+    addDlg.items = (await api.ndiSources()).map((s) => ({ value: s, label: s.name }));
+  } else if (type === 'capture') {
+    let devices = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === 'videoinput');
+    if (devices.some((d) => !d.label)) {
+      try {
+        const st = await navigator.mediaDevices.getUserMedia({ video: true });
+        st.getTracks().forEach((tr) => tr.stop());
+        devices = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === 'videoinput');
+      } catch { /* nessuna periferica o permesso negato */ }
+    }
+    addDlg.items = devices.map((d, i) => ({ value: d, label: d.label || `${t('Periferica')} ${i + 1}` }));
+  }
+  if (addDlg.type !== type) return;
+  addDlg.loading = false;
+  if (addDlg.items.length === 1) addDlg.source = addDlg.items[0];
+  renderAddDialog();
+}
+
+function confirmAdd() {
+  const { type, source, sceneId } = addDlg;
+  if (!type) return;
+  pendingSelect = new Set(allLayers(state.layers).map((l) => l.id));
+  if (type === 'media') {
+    // La finestra di Windows per scegliere il file si apre subito dopo.
+    send({ type: 'add-media', sceneId });
+  } else {
+    let extra;
+    if (type === 'ndi' && source) extra = { source: { name: source.value.name, urlAddress: source.value.urlAddress }, name: shortNdiName(source.value.name) };
+    if (type === 'capture' && source) extra = { deviceId: source.value.deviceId, deviceLabel: source.label, name: source.label };
+    send({ type: 'add-layer', layerType: type, sceneId, extra });
+  }
+  $('dlg-add').close();
+}
+
+function renderAddDialog() {
+  const d = addDlg;
+  const types = h('div', { class: 'add-types' }, ADD_TYPES.map((a) => h('button', {
+    class: d.type === a.type ? 'on' : '',
+    'data-type': a.type,
+    onclick: () => chooseAddType(a.type)
+  }, h('span', { class: 'ico' }, a.ico), h('strong', {}, t(a.label)), h('span', { class: 'muted small' }, t(a.hint)))));
+
+  let sourcePart = null;
+  if (d.type === 'ndi' || d.type === 'capture') {
+    const title = d.type === 'ndi' ? t('Sorgente NDI') : t('Periferica');
+    let list;
+    if (d.loading) list = h('p', { class: 'muted small' }, d.type === 'ndi' ? t('Ricerca delle sorgenti in rete…') : t('Ricerca delle periferiche…'));
+    else if (!d.items.length) list = h('p', { class: 'muted small' }, d.type === 'ndi' ? t('Nessuna sorgente NDI trovata (la ricerca continua)') : t('Nessuna periferica video trovata'));
+    else list = h('div', { class: 'add-sources' }, d.items.map((it, i) => h('button', {
+      class: d.source === it ? 'on' : '',
+      'data-index': i,
+      onclick: () => { d.source = it; renderAddDialog(); }
+    }, it.label)));
+    sourcePart = h('div', {},
+      h('h2', {}, title),
+      list,
+      h('div', { class: 'row' },
+        h('button', { class: 'small-btn', onclick: () => chooseAddType(d.type) }, t('Aggiorna elenco')),
+        h('span', { class: 'muted small' }, t('Puoi anche sceglierla dopo, nei dettagli dell\'input.'))));
+  } else if (d.type === 'media') {
+    sourcePart = help(t('Premendo "Aggiungi" si apre la finestra per scegliere il video o l\'immagine dal disco.'));
+  }
+
+  let scenePart = null;
+  if (d.type && d.type !== 'scene') {
+    const scenes = scenesInOrder();
+    const sel = h('select', {},
+      h('option', { value: '' }, t('Fuori dalle scene (sempre in onda)')),
+      scenes.map((s, i) => h('option', { value: s.id }, `${t('Scena')} ${i + 1}: ${s.name}`)));
+    sel.value = d.sceneId || '';
+    sel.addEventListener('change', () => { d.sceneId = sel.value || null; });
+    if (scenes.length) scenePart = field('Dove', sel);
+  }
+
+  const canAdd = !!d.type && !d.loading;
+  $('dlg-add').replaceChildren(...[
+    h('h2', {}, t('Aggiungi')),
+    help(t('Scegli il tipo di input (doppio clic per aggiungerlo subito).')),
+    types,
+    sourcePart,
+    scenePart,
+    h('div', { class: 'row end' },
+      h('button', { onclick: () => $('dlg-add').close() }, t('Annulla')),
+      h('button', { class: 'primary', disabled: !canAdd, onclick: confirmAdd },
+        d.type === 'media' ? t('Scegli file e aggiungi…') : t('Aggiungi')))
+  ].filter(Boolean));
+}
+
+// Doppio clic: aggiunge subito (sul tipo, se non serve scegliere la sorgente,
+// oppure sulla sorgente). Il primo clic ridisegna la finestra, per questo il
+// doppio clic si ascolta sulla finestra intera.
+$('dlg-add').addEventListener('dblclick', (e) => {
+  const typeBtn = e.target.closest('.add-types button');
+  if (typeBtn && !['ndi', 'capture'].includes(typeBtn.dataset.type)) {
+    addDlg.type = typeBtn.dataset.type;
+    if (addDlg.type === 'scene') addDlg.sceneId = null;
+    confirmAdd();
+    return;
+  }
+  const srcBtn = e.target.closest('.add-sources button');
+  if (srcBtn && addDlg.items[srcBtn.dataset.index]) {
+    addDlg.source = addDlg.items[srcBtn.dataset.index];
+    confirmAdd();
+  }
+});
+$('btn-add').onclick = () => openAddDialog();
 
 $('btn-show-all').onclick = () => send({ type: 'show-all' });
 $('btn-remove').onclick = () => removeSelected();
