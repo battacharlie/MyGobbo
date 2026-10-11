@@ -5,13 +5,15 @@ const { MAX_FPS } = require('../shared/layers');
 // I fotogrammi NDI vengono ricevuti qui e disegnati direttamente in un
 // <canvas> della pagina (il DOM è condiviso con la pagina), così le immagini
 // non passano dal processo principale.
-const receivers = new Map(); // layerId -> { key, active }
+// Una sola ricezione per sorgente, anche se compare in più scene: ogni
+// fotogramma viene disegnato nel canvas di ogni comparsa.
+const receivers = new Map(); // sorgente|qualità -> { active, canvasIds }
 
 // Come il resto dell'uscita, NDI non supera i 25 fps: i fotogrammi in più
 // vengono scartati senza disegnarli.
 const FRAME_MS = 1000 / MAX_FPS;
 
-async function receiveLoop(entry, source, quality, canvasId) {
+async function receiveLoop(entry, source, quality) {
   const g = ndi.grandiose;
   let receiver;
   try {
@@ -39,14 +41,9 @@ async function receiveLoop(entry, source, quality, canvasId) {
     // Piccola tolleranza per non perdere fotogrammi di una sorgente a 25 fps.
     if (now < nextDue - 3) continue;
     nextDue = Math.max(nextDue + FRAME_MS, now);
-    const canvas = document.getElementById(canvasId);
-    if (!canvas) continue;
     const { xres, yres, lineStrideBytes, data } = frame;
-    const resized = canvas.width !== xres || canvas.height !== yres;
-    if (resized) {
-      canvas.width = xres;
-      canvas.height = yres;
-    }
+    const canvases = entry.canvasIds.map((id) => document.getElementById(id)).filter(Boolean);
+    if (!canvases.length) continue;
     const rowBytes = xres * 4;
     let pixels;
     if (lineStrideBytes === rowBytes) {
@@ -58,12 +55,23 @@ async function receiveLoop(entry, source, quality, canvasId) {
         pixels.set(data.subarray(y * lineStrideBytes, y * lineStrideBytes + rowBytes), y * rowBytes);
       }
     }
-    // alpha: false ignora il quarto byte (X) di RGBX e rende più veloce il disegno.
-    canvas.getContext('2d', { alpha: false }).putImageData(new ImageData(pixels, xres, yres), 0, 0);
-    if (resized || !canvas.dataset.ready) {
-      canvas.dataset.ready = '1';
-      canvas.dispatchEvent(new Event('ndi-resize'));
-    }
+    const image = new ImageData(pixels, xres, yres);
+    canvases.forEach((canvas, i) => {
+      const resized = canvas.width !== xres || canvas.height !== yres;
+      if (resized) {
+        canvas.width = xres;
+        canvas.height = yres;
+      }
+      // alpha: false ignora il quarto byte (X) di RGBX e rende più veloce il disegno.
+      const ctx = canvas.getContext('2d', { alpha: false });
+      // Il primo canvas riceve i pixel, gli altri copiano dal primo (lavoro della scheda video).
+      if (i === 0) ctx.putImageData(image, 0, 0);
+      else ctx.drawImage(canvases[0], 0, 0);
+      if (resized || !canvas.dataset.ready) {
+        canvas.dataset.ready = '1';
+        canvas.dispatchEvent(new Event('ndi-resize'));
+      }
+    });
   }
 }
 
@@ -73,23 +81,26 @@ contextBridge.exposeInMainWorld('countdown', {
 });
 
 contextBridge.exposeInMainWorld('ndi', {
-  // Avvia (o cambia) la ricezione di una sorgente per un livello.
-  attach(layerId, source, quality, canvasId) {
-    const key = `${source && source.name}|${quality}`;
-    const current = receivers.get(layerId);
-    if (current && current.key === key) return;
-    if (current) current.active = false;
-    if (!ndi.available || !source) {
-      receivers.delete(layerId);
-      return;
+  // Elenco completo delle sorgenti da ricevere: [{ key, source, quality, canvasIds }].
+  // Avvia quelle nuove, ferma quelle non più usate, aggiorna i canvas.
+  sync(list) {
+    const keys = new Set();
+    for (const item of list) {
+      keys.add(item.key);
+      const current = receivers.get(item.key);
+      if (current) {
+        current.canvasIds = item.canvasIds;
+        continue;
+      }
+      if (!ndi.available || !item.source) continue;
+      const entry = { active: true, canvasIds: item.canvasIds };
+      receivers.set(item.key, entry);
+      receiveLoop(entry, item.source, item.quality);
     }
-    const entry = { key, active: true };
-    receivers.set(layerId, entry);
-    receiveLoop(entry, source, quality, canvasId);
-  },
-  detach(layerId) {
-    const current = receivers.get(layerId);
-    if (current) current.active = false;
-    receivers.delete(layerId);
+    for (const [key, entry] of receivers) {
+      if (keys.has(key)) continue;
+      entry.active = false;
+      receivers.delete(key);
+    }
   }
 });

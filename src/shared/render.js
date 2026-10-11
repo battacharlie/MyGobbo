@@ -11,7 +11,7 @@
 //   di MAX_FPS al secondo (come i video, non supera i 25 fps);
 // - le misure si rileggono solo quando cambiano scena o dimensioni.
 (function (root) {
-  const { MAX_FPS, formatTime, timerValueMs, timerElapsedMs, timerColor, timerOvertime, isVisual, videoRects, hexToRgba, TYPE_LABELS } = root.Layers;
+  const { MAX_FPS, formatTime, timerValueMs, timerElapsedMs, timerColor, timerOvertime, isVisual, videoRects, hexToRgba, prompterY, TYPE_LABELS } = root.Layers;
 
   // Lampeggio dei numeri a tempo superato e cornice che corre lungo i bordi.
   // Le animazioni vanno a scatti (steps) per non superare MAX_FPS.
@@ -21,7 +21,9 @@
     const style = document.createElement('style');
     style.id = 'igor-anim';
     style.textContent = '@keyframes igor-blink { 0%, 50% { opacity: 1 } 50.01%, 100% { opacity: 0 } }'
-      + '.igor-blink { animation: igor-blink 1s steps(1, end) infinite; }';
+      + '.igor-blink { animation: igor-blink 1s steps(1, end) infinite; }'
+      // Paragrafi del TelePrompt.
+      + '.igor-prompter > * { margin: 0 0 0.6em; min-height: 1em; }';
     document.head.appendChild(style);
   }
   const PLACEHOLDER_BG = { ndi: '#1d3557', capture: '#264d33', media: '#4a2d5c' };
@@ -77,6 +79,22 @@
         container.appendChild(svg);
         entry.frame = svg;
         entry.frameRect = rect;
+      } else if (layer.type === 'prompter') {
+        // Il testo è impaginato come su uno schermo alto 1080 e poi
+        // rimpicciolito: anteprima e uscita vanno a capo negli stessi punti.
+        const flip = document.createElement('div');
+        flip.style.cssText = 'position:absolute;inset:0';
+        const page = document.createElement('div');
+        page.style.cssText = 'position:absolute;left:0;top:0;transform-origin:0 0;overflow:hidden';
+        const content = document.createElement('div');
+        content.className = 'igor-prompter';
+        content.style.cssText = 'position:absolute;left:0;top:0;width:100%;will-change:transform';
+        const guide = document.createElement('div');
+        guide.style.cssText = 'position:absolute;left:0;right:0;pointer-events:none';
+        page.appendChild(content);
+        flip.append(page, guide);
+        el.appendChild(flip);
+        Object.assign(entry, { flip, page, content, guide });
       } else if (layer.type === 'ticker') {
         el.style.display = 'flex';
         el.style.alignItems = 'center';
@@ -90,7 +108,8 @@
       return entry;
     }
 
-    function update(next, bg) {
+    // fades: dissolvenze in corso tra le scene, { layerId: { from, to, startedAt, durationMs } }.
+    function update(next, bg, fades = {}) {
       layers = next;
       background = bg || background;
       container.style.background = background;
@@ -98,6 +117,7 @@
       for (const [id, entry] of els) {
         if (!ids.has(id)) {
           if (entry.anim) entry.anim.cancel();
+          if (entry.scroll) entry.scroll.cancel();
           if (entry.frame) entry.frame.remove();
           entry.el.remove();
           els.delete(id);
@@ -128,6 +148,21 @@
         if (layer.type === 'ticker' && entry.text.textContent !== layer.text) {
           entry.text.textContent = layer.text;
         }
+        if (layer.type === 'prompter') {
+          s.background = hexToRgba(layer.background, layer.transparent ? 0 : 1);
+          if (entry.html !== layer.html) {
+            entry.html = layer.html;
+            entry.htmlVer = (entry.htmlVer || 0) + 1;
+            entry.content.innerHTML = layer.html;
+          }
+          stylePrompter(entry.content, layer);
+          entry.flip.style.transform = `scale(${layer.mirrorX ? -1 : 1}, ${layer.mirrorY ? -1 : 1})`;
+          const g = entry.guide.style;
+          g.display = layer.guide ? 'block' : 'none';
+          g.top = `${layer.guideY}%`;
+          g.borderTop = `max(1px, 0.25cqh) solid ${hexToRgba(layer.guideColor, 0.85)}`;
+        }
+        applyFade(entry, fades[layer.id]);
         if (entry.label) {
           s.background = PLACEHOLDER_BG[layer.type];
           const text = `${TYPE_LABELS[layer.type]}: ${layer.name}`;
@@ -145,6 +180,7 @@
         if (!entry || (!layer.visible && !opts.showHidden)) continue;
         if (entry.clip) layoutMedia(entry, layer);
         else if (layer.type === 'ticker') layoutTicker(entry, layer);
+        else if (layer.type === 'prompter') layoutPrompter(entry, layer);
         else if (layer.type === 'timer') entry.fitKey = null; // ricalcola al prossimo aggiornamento
       }
     }
@@ -202,6 +238,52 @@
         [{ transform: `translateX(${boxW}px)` }, { transform: `translateX(${-textW}px)` }],
         { duration, iterations: Infinity, easing: `steps(${steps}, end)` }
       );
+    }
+
+    // Scorrimento del TelePrompt: un'animazione dalla posizione attuale
+    // alla fine del testo, a scatti di MAX_FPS al secondo.
+    function layoutPrompter(entry, layer) {
+      const k = container.clientHeight / 1080 || 1;
+      const refW = entry.el.clientWidth / k;
+      const refH = entry.el.clientHeight / k;
+      Object.assign(entry.page.style, { width: `${refW}px`, height: `${refH}px`, transform: `scale(${k})` });
+      const maxY = entry.content.offsetHeight;
+      const readY = (layer.guideY / 100) * refH;
+      const r = layer.run;
+      const key = `${r.running}|${r.y}|${r.startedAt}|${layer.speed}|${maxY}|${readY}|${refW}|${entry.htmlVer}`;
+      if (entry.scrollKey === key) return;
+      entry.scrollKey = key;
+      if (entry.scroll) {
+        entry.scroll.cancel();
+        entry.scroll = null;
+      }
+      const y0 = Math.max(0, Math.min(maxY, prompterY(layer)));
+      entry.content.style.transform = `translateY(${readY - y0}px)`;
+      if (!r.running || layer.speed <= 0 || y0 >= maxY) return;
+      const duration = ((maxY - y0) / layer.speed) * 1000;
+      const steps = Math.max(1, Math.round((duration / 1000) * MAX_FPS));
+      entry.scroll = entry.content.animate(
+        [{ transform: `translateY(${readY - y0}px)` }, { transform: `translateY(${readY - maxY}px)` }],
+        { duration, easing: `steps(${steps}, end)`, fill: 'forwards' }
+      );
+    }
+
+    // Dissolvenza tra scene (opacità a scatti di MAX_FPS al secondo).
+    function applyFade(entry, fade) {
+      const key = fade ? `${fade.startedAt}|${fade.durationMs}|${fade.from}|${fade.to}` : null;
+      if (entry.fadeKey === key) return;
+      entry.fadeKey = key;
+      for (const a of entry.fadeAnims || []) a.cancel();
+      entry.fadeAnims = [];
+      if (!fade) return;
+      const steps = Math.max(1, Math.round((fade.durationMs / 1000) * MAX_FPS));
+      for (const target of [entry.el, entry.frame]) {
+        if (!target) continue;
+        const a = target.animate([{ opacity: fade.from }, { opacity: fade.to }],
+          { duration: fade.durationMs, easing: `steps(${steps}, end)`, fill: 'forwards' });
+        a.currentTime = Math.max(0, Math.min(fade.durationMs, Date.now() - fade.startedAt));
+        entry.fadeAnims.push(a);
+      }
     }
 
     // Aggiorna i timer e programma il prossimo aggiornamento al cambio del
@@ -285,5 +367,54 @@
     return { update, relayout, elementFor: (id) => els.get(id) && els.get(id).el };
   }
 
+  // Stile del testo del TelePrompt, in pixel di uno schermo alto 1080.
+  function stylePrompter(content, layer) {
+    Object.assign(content.style, {
+      fontSize: `${layer.fontSize * 10.8}px`,
+      fontFamily: `"${layer.fontFamily}", "Segoe UI", system-ui, sans-serif`,
+      fontWeight: layer.bold ? '700' : '400',
+      color: layer.color,
+      lineHeight: String(layer.lineHeight),
+      letterSpacing: `${layer.letterSpacing}px`,
+      textAlign: layer.align,
+      padding: `0 ${layer.margin}%`,
+      boxSizing: 'border-box',
+      overflowWrap: 'break-word'
+    });
+  }
+
+  // Misura il testo del TelePrompt come apparirà in uscita (schermo outW×outH):
+  // inizio di ogni paragrafo e altezza totale, in pixel su 1080.
+  let measureHost = null;
+  const measureCache = new Map();
+  function measurePrompter(layer, outW, outH) {
+    const refW = (layer.w / 100) * outW * (1080 / outH);
+    const key = [layer.html, refW, layer.fontSize, layer.fontFamily, layer.bold, layer.lineHeight, layer.letterSpacing, layer.margin, layer.align].join('|');
+    if (measureCache.has(key)) return measureCache.get(key);
+    if (!measureHost) {
+      measureHost = document.createElement('div');
+      measureHost.style.cssText = 'position:fixed;left:-100000px;top:0;visibility:hidden;pointer-events:none';
+      document.body.appendChild(measureHost);
+    }
+    // Stessa struttura dell'uscita: pagina larga refW e testo al 100%.
+    const page = document.createElement('div');
+    page.style.cssText = `position:relative;width:${refW}px`;
+    const content = document.createElement('div');
+    content.className = 'igor-prompter';
+    content.style.cssText = 'position:absolute;left:0;top:0;width:100%';
+    stylePrompter(content, layer);
+    content.innerHTML = layer.html;
+    page.appendChild(content);
+    measureHost.replaceChildren(page);
+    const paragraphs = [...content.children]
+      .filter((p) => p.textContent.trim())
+      .map((p) => ({ y: p.offsetTop, text: p.textContent.trim() }));
+    const result = { paragraphs, height: content.offsetHeight };
+    if (measureCache.size > 20) measureCache.clear();
+    measureCache.set(key, result);
+    return result;
+  }
+
   root.createStage = createStage;
+  root.measurePrompter = measurePrompter;
 })(window);

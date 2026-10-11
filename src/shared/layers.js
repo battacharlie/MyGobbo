@@ -8,9 +8,21 @@
     ndi: 'NDI',
     capture: 'Acquisizione',
     timer: 'Timer',
-    ticker: 'Frase',
-    media: 'Media'
+    ticker: 'Banner',
+    prompter: 'TelePrompt',
+    media: 'Media',
+    scene: 'Scena'
   };
+
+  // Proprietà di ogni singola comparsa di un input. Tutte le altre (sorgente,
+  // file, testo, colori, stato del timer...) sono condivise tra le copie dello
+  // stesso input messe in scene diverse, come in OBS.
+  const PER_ITEM = ['id', 'type', 'name', 'visible', 'x', 'y', 'w', 'h', 'crop', 'fit', 'link', 'children'];
+
+  // Proprietà che "Ripristina misure" non tocca: identità e contenuto
+  // dell'input (sorgente, file, testo) e lo stato di timer e TelePrompt.
+  const KEEP_ON_RESET = ['id', 'type', 'name', 'visible', 'link', 'children', 'source', 'deviceId', 'deviceLabel',
+    'file', 'src', 'mediaKind', 'text', 'html', 'run', 'playing', 'restartAt'];
 
   // Colori predefiniti del timer: partenza, scadenza vicina, tempo superato.
   const TIMER_COLORS = { color: '#22c55e', warningColor: '#facc15', endColor: '#ef4444' };
@@ -72,6 +84,34 @@
           run: { running: false, baseMs: 0, startedAt: 0 }
         });
         break;
+      case 'scene':
+        // Raccoglitore di input: in onda va una scena alla volta.
+        Object.assign(base, { children: [] });
+        break;
+      case 'prompter':
+        Object.assign(base, {
+          html: '<p>Incolla qui il testo da leggere (da Word, Blocco note, Pages...) oppure importalo da un file.</p>'
+            + '<p>Il testo scorre dal basso verso l\'alto alla velocità scelta.</p>',
+          fontSize: 6, // % dell'altezza dello schermo
+          fontFamily: 'Arial',
+          bold: false,
+          color: '#ffffff',
+          background: '#000000',
+          transparent: false,
+          lineHeight: 1.5,
+          letterSpacing: 0, // pixel su uno schermo alto 1080
+          margin: 8, // margine a sinistra e a destra, in % della larghezza
+          align: 'left',
+          speed: 40, // pixel al secondo su uno schermo alto 1080
+          mirrorX: false,
+          mirrorY: false,
+          guide: true, // linea di lettura
+          guideY: 30, // % dall'alto
+          guideColor: '#ef4444',
+          // y: posizione del testo in pixel (su 1080) sotto la linea di lettura.
+          run: { running: false, y: 0, startedAt: 0 }
+        });
+        break;
       case 'ticker':
         Object.assign(base, {
           x: 0, y: 86, w: 100, h: 14,
@@ -88,6 +128,47 @@
         break;
     }
     return Object.assign(base, extra);
+  }
+
+  // --- Scene: elementi annidati ---------------------------------------------
+
+  // Tutti gli elementi, compresi quelli dentro le scene.
+  function allLayers(layers) {
+    const out = [];
+    for (const l of layers) {
+      out.push(l);
+      if (l.type === 'scene') out.push(...l.children);
+    }
+    return out;
+  }
+
+  // Trova un elemento e l'elenco che lo contiene (la scena o il livello principale).
+  function findNode(layers, id) {
+    for (const l of layers) {
+      if (l.id === id) return { layer: l, parent: null, list: layers };
+      if (l.type === 'scene') {
+        const c = l.children.find((x) => x.id === id);
+        if (c) return { layer: c, parent: l, list: l.children };
+      }
+    }
+    return null;
+  }
+
+  // Elementi da disegnare, dal fondo al primo piano: gli input fuori dalle
+  // scene sono sempre presenti, delle scene solo quelle indicate.
+  function composeLayers(layers, sceneIds) {
+    const out = [];
+    for (const l of layers) {
+      if (l.type !== 'scene') out.push(l);
+      else if (sceneIds.includes(l.id)) out.push(...l.children);
+    }
+    return out;
+  }
+
+  // Posizione del TelePrompt (pixel su 1080 sotto la linea di lettura).
+  function prompterY(layer, now = Date.now()) {
+    const r = layer.run;
+    return r.y + (r.running ? (layer.speed * (now - r.startedAt)) / 1000 : 0);
   }
 
   // Millisecondi trascorsi dall'avvio del timer, considerando le pause.
@@ -159,7 +240,7 @@
     return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`;
   }
 
-  const api = { MAX_FPS, TYPE_LABELS, TIMER_COLORS, VIDEO_EXT, IMAGE_EXT, isVisual, newId, createLayer, timerElapsedMs, timerValueMs, timerOvertime, formatTime, timerColor, videoRects, hexToRgba };
+  const api = { MAX_FPS, TYPE_LABELS, PER_ITEM, KEEP_ON_RESET, allLayers, findNode, composeLayers, prompterY, TIMER_COLORS, VIDEO_EXT, IMAGE_EXT, isVisual, newId, createLayer, timerElapsedMs, timerValueMs, timerOvertime, formatTime, timerColor, videoRects, hexToRgba };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Layers = api;
 })(typeof window !== 'undefined' ? window : globalThis);

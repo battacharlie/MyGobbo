@@ -2,7 +2,7 @@
 <html lang="it">
 <head>
   <meta charset="utf-8">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; media-src 'self' blob: mediastream:">
   <title>IGOR - ABit/s – Regia</title>
   <link rel="stylesheet" href="control.css">
 </head>
@@ -10,7 +10,7 @@
   <header class="topbar">
     <span class="brand"><img src="../assets/igor.png" alt=""><strong>IGOR - ABit/s</strong></span>
     <label>Uscita <select id="sel-display"></select></label>
-    <label>Sfondo <input type="color" id="col-background"></label>
+    <label class="color-pick">Sfondo <input type="color" id="col-background"><button id="btn-pick-background" class="pick" title="Preleva il colore dallo schermo o da un'immagine">💧</button></label>
     <button id="btn-toggle-display">Mostra/nascondi uscita</button>
     <span id="output-info" class="muted"></span>
     <img class="company" src="../assets/abits.png" alt="ABit/s" title="ABit/s">
@@ -18,37 +18,77 @@
 
   <div class="layout">
     <div class="left">
-      <div id="preview-wrap">
-        <div id="preview">
-          <div id="stage"></div>
-          <div id="overlay"></div>
+      <div id="monitors">
+        <div class="monitor" id="mon-preview">
+          <div class="mon-title" id="preview-title">Uscita</div>
+          <div class="mon-wrap" id="preview-wrap">
+            <div id="preview" class="screen">
+              <div id="stage"></div>
+              <div id="overlay"></div>
+            </div>
+          </div>
+        </div>
+        <div id="switcher" hidden>
+          <button id="btn-cut" class="cut" title="Manda subito in onda la scena in anteprima">CUT</button>
+          <button id="btn-fade" class="fade" title="Manda in onda la scena in anteprima con una dissolvenza">FADE</button>
+          <label class="field"><span>Durata dissolvenza</span>
+            <select id="sel-fade">
+              <option value="250">0,25 s</option>
+              <option value="500">0,5 s</option>
+              <option value="1000">1 s</option>
+              <option value="1500">1,5 s</option>
+              <option value="2000">2 s</option>
+              <option value="3000">3 s</option>
+              <option value="5000">5 s</option>
+            </select>
+          </label>
+        </div>
+        <div class="monitor" id="mon-program" hidden>
+          <div class="mon-title live" id="program-title">In onda</div>
+          <div class="mon-wrap" id="program-wrap">
+            <div id="program" class="screen">
+              <div id="program-stage"></div>
+              <video id="program-video" muted playsinline></video>
+            </div>
+          </div>
         </div>
       </div>
-      <p class="muted small">Anteprima dell'uscita: trascina un elemento per spostarlo e uno dei quattro angoli per ridimensionarlo (Maiusc mantiene le proporzioni). Su video e immagini le maniglie arancioni a metà dei lati ritagliano la sorgente. Gli elementi nascosti sono semitrasparenti.</p>
+      <p class="muted small" id="hint">Trascina un elemento per spostarlo e uno dei quattro angoli per ridimensionarlo (Maiusc mantiene le proporzioni). Su video e immagini le maniglie arancioni a metà dei lati ritagliano la sorgente. Gli elementi nascosti sono semitrasparenti.</p>
 
       <div id="panel"></div>
 
       <div id="panel-footer" hidden>
+        <button id="btn-reset" title="Riporta posizione, misure e impostazioni ai valori iniziali (sorgente e testo restano)">↺ Ripristina misure</button>
         <button id="btn-remove" class="remove" title="Elimina l'input selezionato e chiude la sua sorgente">✕ Elimina input</button>
         <span id="remove-name" class="muted"></span>
       </div>
     </div>
 
     <aside class="right">
+      <div class="studio-row">
+        <button id="btn-studio" title="Due schermi: anteprima della prossima scena e scena in onda, con CUT e dissolvenza">Modalità studio</button>
+      </div>
       <h2>Aggiungi</h2>
       <div class="add-list">
+        <button data-add="scene" class="add-scene">+ Scena</button>
         <button data-add="ndi">+ Segnale NDI</button>
         <button data-add="capture">+ Periferica di acquisizione</button>
         <button data-add="media">+ Media (video o immagine)</button>
         <button data-add="timer">+ Timer</button>
-        <button data-add="ticker">+ Frase</button>
+        <button data-add="ticker">+ Banner</button>
+        <button data-add="prompter">+ TelePrompt</button>
       </div>
+      <p class="muted small" id="add-target"></p>
 
       <div class="list-head">
         <h2>Elementi (dal primo piano allo sfondo)</h2>
         <button id="btn-show-all" class="small-btn">Mostra tutti</button>
       </div>
-      <ul id="layer-list"></ul>
+      <p class="muted small">Trascina gli elementi per cambiare l'ordine o per metterli in una scena. Tieni premuto Ctrl mentre rilasci per mettere lo stesso input anche in un'altra scena (la sorgente resta una sola).</p>
+      <div id="list-wrap">
+        <ul id="layer-list"></ul>
+        <div id="drop-line" hidden></div>
+      </div>
 
       <div class="config">
         <h2>Configurazione</h2>
@@ -60,6 +100,7 @@
 
   <script src="../shared/layers.js"></script>
   <script src="../shared/render.js"></script>
+  <script src="textconv.js"></script>
   <script src="control.js"></script>
 </body>
 </html>

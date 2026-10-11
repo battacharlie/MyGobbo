@@ -2,8 +2,10 @@ const { app, BrowserWindow, ipcMain, screen, session, dialog } = require('electr
 const path = require('path');
 const fs = require('fs');
 const { pathToFileURL } = require('url');
-const { createLayer, timerElapsedMs, TIMER_COLORS, TYPE_LABELS, VIDEO_EXT, IMAGE_EXT } = require('./shared/layers');
+const { createLayer, timerElapsedMs, prompterY, TIMER_COLORS, TYPE_LABELS, VIDEO_EXT, IMAGE_EXT, PER_ITEM, KEEP_ON_RESET, allLayers, findNode, newId, isVisual } = require('./shared/layers');
 const ndi = require('./ndi');
+const { readTextFile, TEXT_EXT } = require('./textimport');
+const { pickColor } = require('./picker/main');
 
 const ICON = path.join(__dirname, 'assets', 'igor.png');
 
@@ -14,8 +16,17 @@ const ICON = path.join(__dirname, 'assets', 'igor.png');
 const DEFAULT_STATE = {
   layers: [createLayer('timer', { x: 0, y: 0, w: 100, h: 100 })],
   background: '#000000',
-  displayId: null
+  displayId: null,
+  // Scene: program = scena in onda, preview = scena in anteprima (modalità
+  // studio), fadeMs = durata della dissolvenza tra le scene.
+  studio: false,
+  program: null,
+  preview: null,
+  fadeMs: 1000
 };
+// Dissolvenza in corso tra due scene (non viene salvata).
+let transition = null;
+let transitionTimer = null;
 
 migrateOldState();
 let state = loadState();
@@ -57,15 +68,26 @@ function normalizeState(raw) {
   if (!raw || !Array.isArray(raw.layers)) throw new Error('Il file non contiene una configurazione di IGOR.');
   const loaded = { ...structuredClone(DEFAULT_STATE), ...raw };
   // Le scene salvate da versioni precedenti ricevono le nuove proprietà.
-  loaded.layers = loaded.layers
-    .filter((l) => l && TYPE_LABELS[l.type])
-    .map((l) => upgradeLayer({ ...createLayer(l.type), ...l }));
-  // Un timer rimasto in corsa riparte in pausa.
-  for (const l of loaded.layers) {
+  const upgrade = (list, nested) => list
+    .filter((l) => l && TYPE_LABELS[l.type] && !(nested && l.type === 'scene'))
+    .map((l) => {
+      const layer = upgradeLayer({ ...createLayer(l.type), ...l });
+      if (layer.type === 'scene') layer.children = upgrade(Array.isArray(l.children) ? l.children : [], true);
+      return layer;
+    });
+  loaded.layers = upgrade(loaded.layers, false);
+  // Timer e TelePrompt rimasti in corsa ripartono in pausa.
+  for (const l of allLayers(loaded.layers)) {
     if (l.type === 'timer' && l.run.running) {
       l.run = { running: false, baseMs: timerElapsedMs(l), startedAt: 0 };
     }
+    if (l.type === 'prompter' && l.run.running) {
+      l.run = { running: false, y: prompterY(l), startedAt: 0 };
+    }
   }
+  const isScene = (id) => loaded.layers.some((l) => l.id === id && l.type === 'scene');
+  if (!isScene(loaded.program)) loaded.program = null;
+  if (!isScene(loaded.preview)) loaded.preview = null;
   return loaded;
 }
 
@@ -86,7 +108,11 @@ async function saveConfig() {
     savedAt: new Date().toISOString(),
     layers: state.layers,
     background: state.background,
-    displayId: state.displayId
+    displayId: state.displayId,
+    studio: state.studio,
+    program: state.program,
+    preview: state.preview,
+    fadeMs: state.fadeMs
   };
   try {
     fs.writeFileSync(res.filePath, JSON.stringify(data, null, 2));
@@ -105,7 +131,9 @@ async function openConfig() {
   if (res.canceled || !res.filePaths.length) return;
   try {
     const loaded = normalizeState(JSON.parse(fs.readFileSync(res.filePaths[0], 'utf8')));
-    state = { layers: loaded.layers, background: loaded.background, displayId: loaded.displayId };
+    state = {};
+    for (const k of Object.keys(DEFAULT_STATE)) state[k] = loaded[k];
+    endTransition();
     placeDisplayWindow();
     saveState();
     broadcast();
@@ -117,6 +145,8 @@ async function openConfig() {
 // I timer con i vecchi colori predefiniti (bianco, arancio, rosso) passano
 // ai nuovi: verde, giallo, rosso.
 function upgradeLayer(l) {
+  // La "Frase" che scorre si chiama ora Banner.
+  if (l.type === 'ticker' && l.name === 'Frase') l.name = TYPE_LABELS.ticker;
   if (l.type === 'timer' && l.color === '#ffffff' && l.warningColor === '#ffb020' && l.endColor === '#ff3b30') {
     Object.assign(l, TIMER_COLORS);
   }
@@ -140,6 +170,7 @@ function snapshot() {
   const target = targetDisplay();
   return {
     ...state,
+    transition,
     now: Date.now(),
     ndiAvailable: ndi.available,
     ndiError: ndi.error,
@@ -265,14 +296,125 @@ async function pickMediaFile() {
 }
 
 function findLayer(id) {
-  return state.layers.find((l) => l.id === id);
+  const node = findNode(state.layers, id);
+  return node && node.layer;
 }
 
-function addLayer(layer) {
-  if (layer.type === 'timer' || layer.type === 'ticker') {
-    state.layers.push(layer); // in primo piano
+// Lo stesso input può comparire in più scene: le copie hanno lo stesso
+// "link" e condividono sorgente e impostazioni (non posizione e misure).
+function linkedLayers(layer) {
+  return layer.link ? allLayers(state.layers).filter((l) => l.link === layer.link) : [layer];
+}
+
+// Gli input nuovi vanno nella scena indicata (quella selezionata in regia),
+// altrimenti nel livello principale. Le scene stanno sempre nel livello principale.
+function addLayer(layer, sceneId) {
+  const scene = layer.type !== 'scene' && findLayer(sceneId);
+  const list = scene && scene.type === 'scene' ? scene.children : state.layers;
+  insertLayer(list, layer);
+  if (layer.type === 'scene') {
+    const names = new Set(state.layers.map((l) => l.name));
+    let n = 1;
+    while (names.has(`${TYPE_LABELS.scene} ${n}`)) n++;
+    layer.name = `${TYPE_LABELS.scene} ${n}`;
+    if (state.studio && !state.preview) state.preview = layer.id;
+  }
+}
+
+// Posto di un nuovo elemento nell'elenco (dal fondo al primo piano).
+function insertLayer(list, layer) {
+  if (layer.type === 'timer' || layer.type === 'ticker' || layer.type === 'prompter') {
+    list.push(layer); // in primo piano
+  } else if (layer.type === 'scene') {
+    list.unshift(layer); // le scene stanno sotto a tutto
   } else {
-    state.layers.unshift(layer); // video e immagini vanno sotto agli elementi grafici
+    // Video e immagini: sopra agli altri video e immagini (e alle scene),
+    // sotto agli elementi grafici come timer e banner.
+    let i = list.length;
+    while (i > 0 && !isVisual(list[i - 1].type) && list[i - 1].type !== 'scene') i--;
+    list.splice(i, 0, layer);
+  }
+}
+
+// Copia collegata di un input (stessa sorgente, condivisa).
+function linkedCopy(layer) {
+  if (!layer.link) layer.link = layer.id;
+  return { ...structuredClone(layer), id: newId() };
+}
+
+// Sposta (o copia) un elemento nell'elenco: parentId = scena di
+// destinazione (null = livello principale), refId/where = accanto a quale
+// elemento (front = davanti, behind = dietro), oppure in primo piano.
+function moveNode({ id, parentId, refId, where, copy }) {
+  const node = findNode(state.layers, id);
+  if (!node || refId === id) return;
+  let target = state.layers;
+  if (parentId) {
+    const scene = findLayer(parentId);
+    if (!scene || scene.type !== 'scene' || node.layer.type === 'scene') return;
+    target = scene.children;
+  }
+  const layer = copy && node.layer.type !== 'scene' ? linkedCopy(node.layer) : node.layer;
+  if (layer === node.layer) node.list.splice(node.list.indexOf(layer), 1);
+  const ref = refId ? target.findIndex((l) => l.id === refId) : -1;
+  if (ref < 0) insertLayer(target, layer);
+  else target.splice(where === 'behind' ? ref : ref + 1, 0, layer);
+}
+
+function removeLayer(id) {
+  const node = findNode(state.layers, id);
+  if (!node) return;
+  node.list.splice(node.list.indexOf(node.layer), 1);
+  if (state.program === id) state.program = null;
+  if (state.preview === id) state.preview = null;
+  if (transition && (transition.from === id || transition.to === id)) endTransition();
+}
+
+// Riporta l'elemento ai valori iniziali, tenendo sorgente e contenuto.
+function resetLayer(layer) {
+  const fresh = createLayer(layer.type);
+  const patch = {};
+  for (const [k, v] of Object.entries(fresh)) if (!KEEP_ON_RESET.includes(k)) patch[k] = v;
+  updateLayer(layer, patch);
+}
+
+function updateLayer(layer, patch) {
+  if (patch.crop) patch.crop = { ...layer.crop, ...patch.crop };
+  // Il TelePrompt che cambia velocità mentre scorre riparte dal punto attuale.
+  if (layer.type === 'prompter' && 'speed' in patch && layer.run.running) {
+    const now = Date.now();
+    patch.run = { running: true, y: prompterY(layer, now), startedAt: now };
+  }
+  const shared = {};
+  for (const [k, v] of Object.entries(patch)) {
+    if (PER_ITEM.includes(k)) layer[k] = v;
+    else shared[k] = v;
+  }
+  for (const l of linkedLayers(layer)) Object.assign(l, structuredClone(shared));
+}
+
+// --- Scene in onda e dissolvenze ----------------------------------------------
+
+function endTransition() {
+  clearTimeout(transitionTimer);
+  transition = null;
+}
+
+// Manda in onda la scena in anteprima; quella che era in onda passa in
+// anteprima (come in OBS), così CUT ripetuti alternano le due scene.
+function take(kind) {
+  const to = state.preview;
+  const from = state.program;
+  if (to === from) return;
+  endTransition();
+  state.program = to;
+  state.preview = from;
+  if (kind === 'fade' && state.fadeMs > 0) {
+    transition = { from, to, startedAt: Date.now(), durationMs: state.fadeMs };
+    transitionTimer = setTimeout(() => {
+      transition = null;
+      broadcast();
+    }, state.fadeMs + 50);
   }
 }
 
@@ -302,13 +444,57 @@ function timerAction(layer, action, seconds) {
   }
 }
 
+// Comandi del TelePrompt. La regia misura il testo e passa le posizioni
+// (y) in pixel su 1080: inizio dei paragrafi e fine del testo (maxY).
+function prompterAction(layer, cmd) {
+  const now = Date.now();
+  const y = prompterY(layer, now);
+  const maxY = Number.isFinite(cmd.maxY) ? cmd.maxY : Infinity;
+  const clampY = (v) => Math.max(0, Math.min(maxY, v));
+  const running = layer.run.running;
+  switch (cmd.action) {
+    case 'start':
+      // Arrivato in fondo, riparte dall'inizio.
+      layer.run = { running: true, y: y >= maxY ? 0 : clampY(y), startedAt: now };
+      break;
+    case 'pause':
+      layer.run = { running: false, y: clampY(y), startedAt: 0 };
+      break;
+    case 'top':
+      layer.run = { running: false, y: 0, startedAt: 0 };
+      break;
+    case 'goto':
+      layer.run = { running, y: clampY(Number(cmd.y) || 0), startedAt: running ? now : 0 };
+      break;
+    case 'nudge':
+      layer.run = { running, y: clampY(y + (Number(cmd.dy) || 0)), startedAt: running ? now : 0 };
+      break;
+  }
+}
+
 ipcMain.handle('get-state', () => snapshot());
 ipcMain.handle('ndi-sources', () => ndi.sources());
+ipcMain.handle('output-source-id', () => (displayWin && !displayWin.isDestroyed() ? displayWin.getMediaSourceId() : null));
+ipcMain.handle('pick-color', () => pickColor(controlWin));
+ipcMain.handle('import-text', async () => {
+  const res = await dialog.showOpenDialog(controlWin, {
+    title: 'Importa testo per il TelePrompt',
+    properties: ['openFile'],
+    filters: [{ name: 'Testi', extensions: TEXT_EXT }, { name: 'Tutti i file', extensions: ['*'] }]
+  });
+  if (res.canceled || !res.filePaths.length) return null;
+  try {
+    return readTextFile(res.filePaths[0]);
+  } catch (err) {
+    dialog.showMessageBox(controlWin, { type: 'error', title: 'Importa testo', message: 'Impossibile leggere il file.', detail: String(err.message || err) });
+    return null;
+  }
+});
 
 ipcMain.on('command', (_evt, cmd) => {
   switch (cmd.type) {
     case 'add-layer':
-      addLayer(createLayer(cmd.layerType, cmd.extra));
+      addLayer(createLayer(cmd.layerType, cmd.extra), cmd.sceneId);
       break;
     case 'save-config':
       saveConfig();
@@ -320,7 +506,7 @@ ipcMain.on('command', (_evt, cmd) => {
       // La finestra di scelta del file è asincrona: il livello arriva dopo.
       pickMediaFile().then((media) => {
         if (!media) return;
-        addLayer(createLayer('media', media));
+        addLayer(createLayer('media', media), cmd.sceneId);
         saveState();
         broadcast();
       });
@@ -330,7 +516,7 @@ ipcMain.on('command', (_evt, cmd) => {
       pickMediaFile().then((media) => {
         const layer = findLayer(id);
         if (!media || !layer) return;
-        Object.assign(layer, media, { playing: true, restartAt: Date.now() });
+        updateLayer(layer, { ...media, playing: true, restartAt: Date.now() });
         saveState();
         broadcast();
       });
@@ -338,34 +524,77 @@ ipcMain.on('command', (_evt, cmd) => {
     }
     case 'update-layer': {
       const layer = findLayer(cmd.id);
-      if (!layer) break;
-      const patch = cmd.patch || {};
-      if (patch.crop) patch.crop = { ...layer.crop, ...patch.crop };
-      Object.assign(layer, patch);
+      if (layer) updateLayer(layer, cmd.patch || {});
+      break;
+    }
+    case 'reset-layer': {
+      const layer = findLayer(cmd.id);
+      if (layer) resetLayer(layer);
       break;
     }
     case 'remove-layer':
-      state.layers = state.layers.filter((l) => l.id !== cmd.id);
+      removeLayer(cmd.id);
       break;
     case 'move-layer': {
-      // dir +1 = più in primo piano, -1 = più dietro
-      const i = state.layers.findIndex((l) => l.id === cmd.id);
+      // dir +1 = più in primo piano, -1 = più dietro (dentro lo stesso elenco)
+      const node = findNode(state.layers, cmd.id);
+      if (!node) break;
+      const list = node.list;
+      const i = list.indexOf(node.layer);
       const j = i + cmd.dir;
-      if (i < 0 || j < 0 || j >= state.layers.length) break;
-      [state.layers[i], state.layers[j]] = [state.layers[j], state.layers[i]];
+      if (j < 0 || j >= list.length) break;
+      [list[i], list[j]] = [list[j], list[i]];
       break;
     }
-    case 'solo':
-      for (const l of state.layers) l.visible = l.id === cmd.id;
+    case 'move-node':
+      moveNode(cmd);
       break;
+    case 'solo': {
+      const node = findNode(state.layers, cmd.id);
+      if (node) for (const l of node.list) if (l.type !== 'scene') l.visible = l.id === cmd.id;
+      break;
+    }
     case 'show-all':
-      for (const l of state.layers) l.visible = true;
+      for (const l of allLayers(state.layers)) l.visible = true;
       break;
     case 'timer': {
       const layer = findLayer(cmd.id);
-      if (layer && layer.type === 'timer') timerAction(layer, cmd.action, cmd.seconds);
+      if (layer && layer.type === 'timer') {
+        timerAction(layer, cmd.action, cmd.seconds);
+        for (const l of linkedLayers(layer)) l.run = { ...layer.run };
+      }
       break;
     }
+    case 'prompter': {
+      const layer = findLayer(cmd.id);
+      if (layer && layer.type === 'prompter') {
+        prompterAction(layer, cmd);
+        for (const l of linkedLayers(layer)) l.run = { ...layer.run };
+      }
+      break;
+    }
+    case 'program': {
+      // Senza modalità studio: la scena va subito in onda (di nuovo = la toglie).
+      endTransition();
+      state.program = state.program === cmd.id ? null : cmd.id;
+      break;
+    }
+    case 'preview':
+      state.preview = cmd.id;
+      break;
+    case 'take':
+      take(cmd.kind);
+      break;
+    case 'set-studio':
+      state.studio = !!cmd.on;
+      if (state.studio && !state.preview) {
+        const other = state.layers.find((l) => l.type === 'scene' && l.id !== state.program);
+        state.preview = other ? other.id : state.program;
+      }
+      break;
+    case 'set-fade':
+      state.fadeMs = Math.max(0, Math.min(10000, Number(cmd.ms) || 0));
+      break;
     case 'set-background':
       state.background = cmd.color;
       break;
