@@ -440,8 +440,8 @@ function buildPanel() {
       checkbox(scene ? 'Visibile nella scena' : 'In onda (visibile in uscita)', 'visible')),
     h('div', { class: 'row' },
       h('button', { onclick: () => send({ type: 'solo', id: layer.id }), title: t('Mostra solo questo elemento (tra quelli dello stesso elenco)') }, t('Solo questo')),
-      h('button', { onclick: () => send({ type: 'move-layer', id: layer.id, dir: 1 }) }, `↑ ${t('Avanti')}`),
-      h('button', { onclick: () => send({ type: 'move-layer', id: layer.id, dir: -1 }) }, `↓ ${t('Indietro')}`))
+      h('button', { onclick: () => send({ type: 'move-layer', id: layer.id, dir: 1 }), title: t('Porta sopra agli altri elementi (più in primo piano)') }, t('Sopra')),
+      h('button', { onclick: () => send({ type: 'move-layer', id: layer.id, dir: -1 }), title: t('Porta sotto agli altri elementi (più verso lo sfondo)') }, t('Sotto')))
   ));
 
   if (layer.type === 'timer') panel.append(...timerSection(layer));
