@@ -5,7 +5,16 @@ const { TYPE_LABELS, TIMER_COLORS, FPS_CHOICES, isVisual, timerValueMs, formatTi
 const t = (text, vars) => I18n.t(text, vars);
 const api = window.countdown;
 const send = (cmd) => api.send(cmd);
-const $ = (id) => document.getElementById(id);
+// Gli elementi restano raggiungibili anche quando la sezione dettagli è
+// spostata in una finestra separata.
+const elCache = {};
+const $ = (id) => {
+  const cached = elCache[id];
+  if (cached && cached.isConnected) return cached;
+  const el = document.getElementById(id);
+  if (el) elCache[id] = el;
+  return el;
+};
 const typeLabel = (type) => t(TYPE_LABELS[type]);
 
 let state = null;
@@ -171,7 +180,7 @@ function refreshBindings() {
   for (const b of bindings) {
     if (b.html) {
       // L'editor del TelePrompt si aggiorna solo quando non ci si sta scrivendo.
-      if (document.activeElement !== b.el && b.el.dataset.html !== b.get(layer)) {
+      if (b.el.ownerDocument.activeElement !== b.el && b.el.dataset.html !== b.get(layer)) {
         b.el.dataset.html = b.get(layer);
         b.el.innerHTML = b.get(layer);
       }
@@ -182,7 +191,7 @@ function refreshBindings() {
       if (b.el.textContent !== text) b.el.textContent = text;
       continue;
     }
-    if (document.activeElement === b.el) continue;
+    if (b.el.ownerDocument.activeElement === b.el) continue;
     const v = b.get(layer);
     if (b.isCheck) b.el.checked = !!v;
     else if (b.el.value !== String(v ?? '')) b.el.value = v ?? '';
@@ -190,44 +199,49 @@ function refreshBindings() {
 }
 
 // --- Schede del pannello -------------------------------------------------------
-// Le schede dei dettagli occupano 4 colonne a tutta altezza; con più di 4
-// schede si passa a 2 righe di uguale altezza (4 schede per riga). Se lo
-// spazio in verticale è poco compare la barra di scorrimento.
-// - Tenendo premuto il titolo e trascinando si sposta la scheda.
-// - Un clic sul titolo (rilascio senza trascinare) o sulla linguetta ▾ la
-//   riduce a barra.
-// - Dai bordi destro e inferiore (o dall'angolo) si cambiano larghezza e
-//   altezza; vicino alle misure di base si agganciano come una calamita.
-// Ordine, schede ridotte e misure restano memorizzati per ogni tipo di input.
+// Le schede dei dettagli sono finestrelle libere: all'inizio sono disposte su
+// 4 colonne (2 righe se sono più di 4), poi ognuna si sposta trascinando il
+// titolo e si ridimensiona dai bordi, indipendentemente dalle altre. Vicino ai
+// bordi delle altre schede si aggancia come una calamita. Se escono dallo
+// spazio visibile compare la barra di scorrimento.
+// - Clic sul titolo senza trascinare, o linguetta ▾: riduce a barra.
+// - Pulsante ⧉: apre la scheda in una finestra separata (si può portare su un
+//   altro monitor). Chiudendo la finestra la scheda torna nella regia.
+// Posizioni, misure e schede ridotte restano memorizzate per ogni tipo di input.
 
 const CARD_GAP = 12;
-const CARD_MIN_H = 200; // sotto questa altezza compare la barra di scorrimento
+const CARD_MIN_W = 200;
+const CARD_MIN_H = 120;
+const CARD_SNAP = 10;
 const collapsedCards = new Set(prefs.get('collapsedCards2', []));
-const cardSizes = prefs.get('cardSizes', {}); // chiave -> { w, h } in pixel
+const cardPos = prefs.get('cardPos', {}); // chiave -> { x, y, w, h } in pixel
+const poppedCards = new Map(); // chiave -> finestra separata
 let panelType = ''; // tipo dell'input mostrato, per memorizzare le scelte
+let cardZ = 10;
 
 function card(title, ...children) {
   const key = `${panelType}:${title}`;
   const el = h('section', { class: `card ${collapsedCards.has(key) ? 'collapsed' : ''}`, 'data-card': title, 'data-key': key });
-  const tab = h('button', { class: 'card-tab', title: t('Riduci o apri la scheda') }, '');
+  const popBtn = h('button', { class: 'card-tab card-pop', title: t('Apri la scheda in una finestra separata') }, '⧉');
+  const tab = h('button', { class: 'card-tab card-fold', title: t('Riduci o apri la scheda') }, '');
   const head = h('h3', { class: 'card-head', title: t('Clic per ridurre o aprire la scheda, tieni premuto e trascina per spostarla') },
-    h('span', { class: 'card-title' }, t(title)), tab);
-  tab.addEventListener('pointerdown', (e) => e.stopPropagation());
+    h('span', { class: 'card-title' }, t(title)), h('span', { class: 'card-btns' }, popBtn, tab));
+  for (const b of [popBtn, tab]) b.addEventListener('pointerdown', (e) => e.stopPropagation());
   tab.addEventListener('click', (e) => {
     e.stopPropagation();
     toggleCard(el);
   });
-  head.addEventListener('pointerdown', (e) => startCardDrag(e, el));
+  popBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (poppedCards.has(key)) returnCard(key);
+    else popOutCard(key, title);
+  });
+  head.addEventListener('pointerdown', (e) => startCardMove(e, el));
   const body = h('div', { class: 'card-body' }, children.flat().filter((c) => c != null));
   el.append(head, body);
   for (const edge of ['r', 'b', 'rb']) {
-    const handle = h('div', { class: `card-edge edge-${edge}`, title: t('Trascina per cambiare le misure della scheda (doppio clic: misura di base)') });
+    const handle = h('div', { class: `card-edge edge-${edge}`, title: t('Trascina per cambiare le misure della scheda') });
     handle.addEventListener('pointerdown', (e) => startCardResize(e, el, edge));
-    handle.addEventListener('dblclick', () => {
-      delete cardSizes[key];
-      prefs.set('cardSizes', cardSizes);
-      layoutCards();
-    });
     el.append(handle);
   }
   return el;
@@ -241,161 +255,327 @@ function toggleCard(el) {
   layoutCards();
 }
 
-// Misure di base: un quarto della larghezza; tutta l'altezza con al massimo
-// 4 schede, metà altezza con di più.
-function cardBase() {
+// Schede nella regia (non quelle aperte in una finestra separata).
+function boardCards() {
+  return [...$('cards').querySelectorAll(':scope > .card')];
+}
+
+function cardArea() {
   const panel = $('panel');
-  const cards = $('cards').querySelectorAll('.card');
-  const W = panel.clientWidth - 2; // spazio per non far comparire la barra orizzontale
-  const H = panel.clientHeight - 2;
-  const rows = cards.length > 4 ? 2 : 1;
-  return {
-    w: Math.max(160, Math.floor((W - CARD_GAP * 3) / 4)),
-    h: Math.max(CARD_MIN_H, Math.floor((H - CARD_GAP * (rows - 1)) / rows)),
-    W,
-    H
-  };
+  return { W: Math.max(CARD_MIN_W, panel.clientWidth - 2), H: Math.max(CARD_MIN_H, panel.clientHeight - 2) };
 }
 
+// Posizioni iniziali: 4 colonne a tutta altezza, 2 righe con più di 4 schede.
+function defaultCardRects(n) {
+  const { W, H } = cardArea();
+  const w = Math.max(CARD_MIN_W, Math.floor((W - CARD_GAP * 3) / 4));
+  const rows = n > 4 ? 2 : 1;
+  const hh = Math.max(CARD_MIN_H * 1.5, Math.floor((H - CARD_GAP * (rows - 1)) / rows));
+  return Array.from({ length: n }, (_, i) => ({
+    x: (i % 4) * (w + CARD_GAP),
+    y: Math.floor(i / 4) * (hh + CARD_GAP),
+    w,
+    h: hh
+  }));
+}
+
+// Mette ogni scheda al suo posto: quello memorizzato o, per le schede mai
+// spostate, quello iniziale (sotto le altre se qualcuna è già stata spostata).
 function layoutCards() {
-  const cards = [...$('cards').querySelectorAll('.card')];
-  if (!cards.length) return;
-  const base = cardBase();
+  const cards = boardCards();
+  const defaults = defaultCardRects(cards.length);
+  const anySaved = cards.some((el) => cardPos[el.dataset.key]);
+  let bottom = 0;
   for (const el of cards) {
-    const size = cardSizes[el.dataset.key] || {};
-    el.style.width = `${Math.min(base.W, size.w || base.w)}px`;
-    el.style.height = el.classList.contains('collapsed') ? '' : `${size.h || base.h}px`;
+    const p = cardPos[el.dataset.key];
+    if (p) bottom = Math.max(bottom, p.y + p.h);
   }
+  let extra = 0;
+  const { W } = cardArea();
+  cards.forEach((el, i) => {
+    let r = cardPos[el.dataset.key];
+    if (!r) {
+      r = defaults[i];
+      if (anySaved) {
+        const w = defaults[0].w;
+        r = { x: (extra % 4) * (w + CARD_GAP), y: bottom + CARD_GAP + Math.floor(extra / 4) * (CARD_MIN_H * 2 + CARD_GAP), w, h: CARD_MIN_H * 2 };
+        extra++;
+      }
+    }
+    el.style.left = `${Math.min(r.x, Math.max(0, W - 60))}px`;
+    el.style.top = `${r.y}px`;
+    el.style.width = `${r.w}px`;
+    el.style.height = el.classList.contains('collapsed') ? '' : `${r.h}px`;
+  });
+  updateCardsHeight();
 }
-new ResizeObserver(() => requestAnimationFrame(layoutCards)).observe($('panel'));
 
-// Ordine memorizzato delle schede di questo tipo di input.
-function applyCardOrder() {
-  const order = prefs.get(`cardOrder.${panelType}`, null);
-  if (!order) return;
-  const box = $('cards');
-  const cards = [...box.querySelectorAll('.card')];
-  const rank = (el) => {
-    const i = order.indexOf(el.dataset.key);
-    return i === -1 ? order.length + cards.indexOf(el) : i;
-  };
-  cards.sort((a, b) => rank(a) - rank(b)).forEach((el) => box.append(el));
+// L'area delle schede è alta quanto serve: se è più alta dello spazio
+// visibile compare la barra di scorrimento.
+function updateCardsHeight() {
+  let bottom = 0;
+  for (const el of boardCards()) bottom = Math.max(bottom, el.offsetTop + el.offsetHeight);
+  $('cards').style.height = `${bottom + 4}px`;
+}
+
+function cardRect(el) {
+  return { x: el.offsetLeft, y: el.offsetTop, w: el.offsetWidth, h: el.offsetHeight };
+}
+
+function saveCardRect(el) {
+  const r = cardRect(el);
+  const saved = cardPos[el.dataset.key];
+  // Una scheda ridotta conserva l'altezza che aveva da aperta.
+  if (el.classList.contains('collapsed') && saved) r.h = saved.h;
+  cardPos[el.dataset.key] = r;
+  // Fissa anche le altre schede dove sono adesso, così non si spostano più.
+  for (const other of boardCards()) {
+    if (!cardPos[other.dataset.key]) {
+      const o = cardRect(other);
+      if (other.classList.contains('collapsed')) o.h = parseFloat(other.dataset.openH) || CARD_MIN_H * 2;
+      cardPos[other.dataset.key] = o;
+    }
+  }
+  prefs.set('cardPos', cardPos);
+}
+
+// Calamita: aggancia un valore ai bordi delle altre schede.
+function snapValue(v, targets) {
+  let best = v;
+  let dist = CARD_SNAP;
+  for (const tv of targets) {
+    if (Math.abs(v - tv) < dist) {
+      dist = Math.abs(v - tv);
+      best = tv;
+    }
+  }
+  return best;
+}
+
+function snapTargets(el) {
+  const xs = [0];
+  const ys = [0];
+  for (const o of boardCards()) {
+    if (o === el) continue;
+    const r = cardRect(o);
+    xs.push(r.x, r.x + r.w, r.x + r.w + CARD_GAP, r.x - CARD_GAP);
+    ys.push(r.y, r.y + r.h, r.y + r.h + CARD_GAP, r.y - CARD_GAP);
+  }
+  return { xs, ys };
 }
 
 // Trascinamento dal titolo: sotto i 5 pixel di movimento è un clic, che
-// riduce o apre la scheda; oltre, la scheda si sposta dove indica la linea.
-function startCardDrag(e, el) {
+// riduce o apre la scheda; oltre, la scheda si sposta dove si vuole.
+function startCardMove(e, el) {
   if (e.button !== 0) return;
   e.preventDefault();
+  el.style.zIndex = ++cardZ;
+  const win = el.ownerDocument.defaultView;
+  const popped = !el.parentElement || el.parentElement !== $('cards');
   const startX = e.clientX;
   const startY = e.clientY;
-  let dragging = false;
-  let ghost = null;
-  let target = null;
-  const line = $('card-drop');
+  const start = cardRect(el);
+  let moving = false;
+  let targets = null;
   const move = (ev) => {
-    if (!dragging) {
-      if (Math.hypot(ev.clientX - startX, ev.clientY - startY) < 5) return;
-      dragging = true;
-      const r = el.getBoundingClientRect();
-      ghost = h('div', { class: 'card-ghost' }, el.querySelector('.card-title').textContent);
-      ghost.style.width = `${Math.min(r.width, 260)}px`;
-      document.body.append(ghost);
-      el.classList.add('dragging');
-      document.body.classList.add('card-dragging');
+    if (!moving) {
+      if (Math.hypot(ev.clientX - startX, ev.clientY - startY) < 5 || popped) return;
+      moving = true;
+      targets = snapTargets(el);
+      el.classList.add('moving');
+      el.ownerDocument.body.classList.add('card-dragging');
     }
-    ghost.style.left = `${ev.clientX + 12}px`;
-    ghost.style.top = `${ev.clientY + 8}px`;
-    target = cardDropTarget(ev.clientX, ev.clientY, el);
-    showCardDrop(line, target);
+    const { W } = cardArea();
+    let x = clamp(start.x + ev.clientX - startX, 0, Math.max(0, W - 60));
+    let y = Math.max(0, start.y + ev.clientY - startY);
+    // Aggancia il bordo sinistro o destro, quello alto o basso.
+    const sx = snapValue(x, targets.xs);
+    const sxr = snapValue(x + start.w, targets.xs) - start.w;
+    x = sx !== x ? sx : sxr;
+    const sy = snapValue(y, targets.ys);
+    const syb = snapValue(y + el.offsetHeight, targets.ys) - el.offsetHeight;
+    y = sy !== y ? sy : syb;
+    el.style.left = `${Math.max(0, x)}px`;
+    el.style.top = `${Math.max(0, y)}px`;
+    updateCardsHeight();
   };
   const up = () => {
-    window.removeEventListener('pointermove', move);
-    if (!dragging) {
-      toggleCard(el);
+    win.removeEventListener('pointermove', move);
+    el.classList.remove('moving');
+    el.ownerDocument.body.classList.remove('card-dragging');
+    if (!moving) {
+      if (!popped) toggleCard(el);
       return;
     }
-    ghost.remove();
-    line.hidden = true;
-    el.classList.remove('dragging');
-    document.body.classList.remove('card-dragging');
-    if (!target) return;
-    if (target.ref) target.ref.before(el);
-    else $('cards').append(el);
-    prefs.set(`cardOrder.${panelType}`, [...$('cards').querySelectorAll('.card')].map((c) => c.dataset.key));
-    layoutCards();
+    saveCardRect(el);
   };
-  window.addEventListener('pointermove', move);
-  window.addEventListener('pointerup', up, { once: true });
-}
-
-// La scheda va prima di quella sotto il puntatore (o dopo, nella metà destra).
-function cardDropTarget(x, y, dragged) {
-  const cards = [...$('cards').querySelectorAll('.card')];
-  for (const c of cards) {
-    const r = c.getBoundingClientRect();
-    if (x < r.left || x > r.right || y < r.top || y > r.bottom) continue;
-    if (c === dragged) return null;
-    const after = x > r.left + r.width / 2;
-    const ref = after ? c.nextElementSibling : c;
-    if (ref === dragged || (after && c.nextElementSibling === dragged)) return null;
-    return { ref: ref && ref.classList.contains('card') ? ref : null, rect: r, after };
-  }
-  // Oltre l'ultima scheda: in fondo.
-  const last = cards[cards.length - 1];
-  if (last && last !== dragged) {
-    const r = last.getBoundingClientRect();
-    if (y > r.bottom || (y >= r.top && x > r.right)) return { ref: null, rect: r, after: true };
-  }
-  return null;
-}
-
-function showCardDrop(line, target) {
-  if (!target) {
-    line.hidden = true;
-    return;
-  }
-  const p = $('panel').getBoundingClientRect();
-  const r = target.rect;
-  line.hidden = false;
-  line.style.left = `${(target.after ? r.right + CARD_GAP / 2 : r.left - CARD_GAP / 2) - p.left + $('panel').scrollLeft - 2}px`;
-  line.style.top = `${r.top - p.top + $('panel').scrollTop}px`;
-  line.style.height = `${r.height}px`;
+  win.addEventListener('pointermove', move);
+  win.addEventListener('pointerup', up, { once: true });
 }
 
 // Bordi della scheda: destro = larghezza, inferiore = altezza, angolo = entrambe.
+// Le schede attaccate sotto (o a destra) si accorciano per fare spazio, e si
+// allungano quando la scheda si rimpicciolisce; le altre colonne non cambiano.
 function startCardResize(e, el, edge) {
   e.preventDefault();
   e.stopPropagation();
-  const r = el.getBoundingClientRect();
+  if (el.parentElement !== $('cards')) return; // nella finestra separata decide la finestra
+  if (el.classList.contains('collapsed')) toggleCard(el);
+  el.style.zIndex = ++cardZ;
+  const win = el.ownerDocument.defaultView;
+  const start = cardRect(el);
   const startX = e.clientX;
   const startY = e.clientY;
-  const base = cardBase();
-  const key = el.dataset.key;
-  const size = { ...(cardSizes[key] || {}) };
-  const snapW = [base.w, base.w * 2 + CARD_GAP, base.w * 3 + CARD_GAP * 2, base.W];
-  const snapH = [base.h, base.H, Math.floor((base.H - CARD_GAP) / 2)];
-  if (el.classList.contains('collapsed')) toggleCard(el);
-  document.body.classList.add('resizing', edge === 'b' ? 'rows' : edge === 'r' ? 'cols' : 'both');
+  const targets = snapTargets(el);
+  const { W } = cardArea();
+  const near = CARD_GAP + 6;
+  const others = boardCards().filter((o) => o !== el && !o.classList.contains('collapsed')).map((o) => ({ el: o, r: cardRect(o) }));
+  // Schede attaccate sotto: si sovrappongono in orizzontale e iniziano subito dopo.
+  const below = others.filter(({ r }) => r.x < start.x + start.w - 2 && r.x + r.w > start.x + 2 && Math.abs(r.y - (start.y + start.h)) <= near);
+  // Schede attaccate a destra: si sovrappongono in verticale e iniziano subito dopo.
+  const right = others.filter(({ r }) => r.y < start.y + start.h - 2 && r.y + r.h > start.y + 2 && Math.abs(r.x - (start.x + start.w)) <= near);
+  el.ownerDocument.body.classList.add('resizing', edge === 'b' ? 'rows' : edge === 'r' ? 'cols' : 'both');
   const move = (ev) => {
     if (edge !== 'b') {
-      size.w = snapTo(clamp(Math.round(r.width + ev.clientX - startX), 160, base.W), snapW);
-      el.style.width = `${size.w}px`;
+      // La scheda a destra non può scendere sotto la larghezza minima.
+      const limit = Math.min(W, ...right.map(({ r }) => r.x + r.w - CARD_GAP - CARD_MIN_W));
+      const edgeX = snapValue(clamp(start.x + start.w + ev.clientX - startX, start.x + CARD_MIN_W, Math.max(start.x + CARD_MIN_W, limit)), targets.xs.concat([W]));
+      el.style.width = `${edgeX - start.x}px`;
+      for (const { el: o, r } of right) {
+        o.style.left = `${edgeX + CARD_GAP}px`;
+        o.style.width = `${r.x + r.w - edgeX - CARD_GAP}px`;
+      }
     }
     if (edge !== 'r') {
-      size.h = snapTo(Math.max(80, Math.round(r.height + ev.clientY - startY)), snapH);
-      el.style.height = `${size.h}px`;
+      const edgeY = snapValue(Math.max(start.y + CARD_MIN_H, start.y + start.h + ev.clientY - startY), targets.ys);
+      el.style.height = `${edgeY - start.y}px`;
+      for (const { el: o, r } of below) {
+        // Il bordo inferiore della scheda sotto resta fermo finché c'è spazio.
+        const top = edgeY + CARD_GAP;
+        o.style.top = `${top}px`;
+        o.style.height = `${Math.max(CARD_MIN_H, r.y + r.h - top)}px`;
+      }
     }
+    updateCardsHeight();
   };
   const up = () => {
-    window.removeEventListener('pointermove', move);
-    document.body.classList.remove('resizing', 'rows', 'cols', 'both');
-    cardSizes[key] = size;
-    prefs.set('cardSizes', cardSizes);
+    win.removeEventListener('pointermove', move);
+    el.ownerDocument.body.classList.remove('resizing', 'rows', 'cols', 'both');
+    saveCardRect(el);
+    for (const { el: o } of below.concat(right)) saveCardRect(o);
   };
-  window.addEventListener('pointermove', move);
-  window.addEventListener('pointerup', up, { once: true });
+  win.addEventListener('pointermove', move);
+  win.addEventListener('pointerup', up, { once: true });
 }
+
+// --- Finestre separate ---------------------------------------------------------
+
+// Apre una finestra vuota con gli stessi stili della regia.
+function openSideWindow(name, title, width, height) {
+  const win = window.open('about:blank', name, `width=${Math.round(width)},height=${Math.round(height)}`);
+  if (!win) return null;
+  const doc = win.document;
+  doc.title = `IGOR - ${title}`;
+  doc.documentElement.lang = I18n.getLang();
+  const css = [...document.styleSheets].map((sheet) => {
+    try {
+      return [...sheet.cssRules].map((r) => r.cssText).join('\n');
+    } catch {
+      return '';
+    }
+  }).join('\n');
+  doc.head.append(Object.assign(doc.createElement('style'), { textContent: css }));
+  doc.body.className = `side-window ${document.body.classList.contains('hide-help') ? 'hide-help' : ''}`;
+  // Gli stessi tasti della regia (spazio, TelePrompt) funzionano anche qui.
+  doc.addEventListener('keydown', onControlKey);
+  return win;
+}
+
+function popOutCard(key, title) {
+  const el = $('cards').querySelector(`.card[data-key="${CSS.escape(key)}"]`);
+  const r = el ? el.getBoundingClientRect() : { width: 360, height: 420 };
+  const win = openSideWindow(`card-${key}`, t(title), Math.max(320, r.width + 40), Math.max(260, r.height + 80));
+  if (!win) return;
+  const doc = win.document;
+  doc.body.append(
+    h('div', { class: 'side-bar' },
+      h('span', { class: 'muted small side-for' }, ''),
+      h('button', { class: 'small-btn', onclick: () => win.close() }, t('Riporta nella regia'))),
+    h('div', { class: 'side-content' }));
+  win.cardTitle = title;
+  win.addEventListener('beforeunload', () => {
+    poppedCards.delete(key);
+    buildPanel();
+  });
+  poppedCards.set(key, win);
+  buildPanel();
+}
+
+function returnCard(key) {
+  const win = poppedCards.get(key);
+  if (win && !win.closed) win.close();
+  poppedCards.delete(key);
+  buildPanel();
+}
+
+// Dopo aver costruito il pannello: le schede aperte in una finestra separata
+// vanno lì, le altre restano nella regia.
+function distributePoppedCards() {
+  for (const [key, win] of poppedCards) {
+    if (win.closed) {
+      poppedCards.delete(key);
+      continue;
+    }
+    const box = win.document.querySelector('.side-content');
+    const label = win.document.querySelector('.side-for');
+    const el = $('cards').querySelector(`.card[data-key="${CSS.escape(key)}"]`);
+    const layer = selectedLayer();
+    label.textContent = layer ? `${typeLabel(layer.type)}: ${layer.name}` : '';
+    if (el) {
+      el.classList.remove('collapsed');
+      el.removeAttribute('style');
+      box.replaceChildren(el);
+      el.querySelector('.card-pop').title = t('Riporta la scheda nella regia');
+    } else {
+      const [type] = key.split(':');
+      box.replaceChildren(h('p', { class: 'empty' }, t('Questa scheda compare quando selezioni un input di tipo "{type}".', { type: typeLabel(type) })));
+    }
+    win.document.body.classList.toggle('hide-help', document.body.classList.contains('hide-help'));
+  }
+}
+
+// Tutta la sezione dettagli in una finestra separata.
+let detailsWin = null;
+
+function popOutDetails() {
+  if (detailsWin && !detailsWin.closed) {
+    detailsWin.focus();
+    return;
+  }
+  const zone = $('zone-details');
+  const r = zone.getBoundingClientRect();
+  const win = openSideWindow('details', t('Dettagli input'), r.width, r.height + 40);
+  if (!win) return;
+  detailsWin = win;
+  const panel = $('panel');
+  const footer = $('panel-footer');
+  win.document.body.classList.add('side-details');
+  win.document.body.append(panel, footer);
+  zone.append(h('div', { class: 'details-away', id: 'details-away' },
+    h('p', { class: 'muted' }, t('I dettagli degli input sono aperti in una finestra separata.')),
+    h('button', { onclick: () => win.close() }, t('Riporta nella regia'))));
+  new win.ResizeObserver(() => win.requestAnimationFrame(layoutCards)).observe(panel);
+  win.addEventListener('beforeunload', () => {
+    zone.append(panel, footer);
+    const away = $('details-away');
+    if (away) away.remove();
+    detailsWin = null;
+    requestAnimationFrame(layoutCards);
+  });
+  requestAnimationFrame(layoutCards);
+}
+
+new ResizeObserver(() => requestAnimationFrame(layoutCards)).observe($('panel'));
 
 // Testo che si aggiorna da solo quando cambia l'elemento (anche durante il
 // trascinamento nell'anteprima).
@@ -406,6 +586,11 @@ function liveText(get, attrs = {}) {
 }
 
 // --- Pannello proprietà ------------------------------------------------------
+
+function placeCards() {
+  distributePoppedCards();
+  layoutCards();
+}
 
 function buildPanel() {
   const panel = $('cards');
@@ -423,9 +608,8 @@ function buildPanel() {
   }
 
   if (layer.type === 'scene') {
-    panel.append(...sceneSection(layer));
-    applyCardOrder();
-    layoutCards();
+    panel.append(...sceneSection(layer).filter(Boolean));
+    placeCards();
     refreshBindings();
     return;
   }
@@ -452,8 +636,7 @@ function buildPanel() {
   if (layer.type === 'media') panel.append(...mediaSection());
 
   panel.append(...geometrySection(layer));
-  applyCardOrder();
-  layoutCards();
+  placeCards();
   refreshBindings();
 }
 
@@ -755,7 +938,7 @@ function prompterSection(layer) {
     const rtf = e.clipboardData.getData('text/rtf');
     const text = e.clipboardData.getData('text/plain');
     const clean = html ? TextConv.sanitizeHtml(html) : rtf ? TextConv.rtfToHtml(rtf) : TextConv.textToHtml(text);
-    document.execCommand('insertHTML', false, clean);
+    editor.ownerDocument.execCommand('insertHTML', false, clean);
     save();
   });
   bindings.push({ el: editor, get: (l) => l.html, html: true });
@@ -766,14 +949,14 @@ function prompterSection(layer) {
     onmousedown: (e) => e.preventDefault(),
     onclick: () => {
       editor.focus();
-      document.execCommand(cmd, false, value);
+      editor.ownerDocument.execCommand(cmd, false, value);
       save();
     }
   }, label);
   const colorBtn = h('input', { type: 'color', value: '#ffcc00', title: t('Colore del testo selezionato') });
   const applyColor = (c) => {
     editor.focus();
-    document.execCommand('foreColor', false, c);
+    editor.ownerDocument.execCommand('foreColor', false, c);
     save();
   };
   colorBtn.addEventListener('input', () => applyColor(colorBtn.value));
@@ -859,7 +1042,7 @@ function ndiSection() {
 
   const refresh = async () => {
     const layer = selectedLayer();
-    if (!layer || layer.type !== 'ndi' || document.activeElement === sel) return;
+    if (!layer || layer.type !== 'ndi' || sel.ownerDocument.activeElement === sel) return;
     const sources = await api.ndiSources();
     const current = layer.source;
     const list = [...sources];
@@ -997,7 +1180,7 @@ function listRow(layer, parent, sceneNumber) {
     const pvw = state.studio && state.preview === layer.id;
     if (state.studio) {
       button = h('button', {
-        class: `small-btn ${live ? 'live' : pvw ? 'on' : ''}`,
+        class: `small-btn ${live ? 'live' : pvw ? 'pvw' : ''}`,
         title: live ? t('Questa scena è in onda') : t('Metti in anteprima: poi CUT o FADE la manda in onda'),
         onclick: (e) => { e.stopPropagation(); send({ type: 'preview', id: layer.id }); }
       }, live ? t('In onda') : t('Anteprima'));
@@ -1184,10 +1367,11 @@ function sceneSection(scene) {
       actions,
       h('p', { class: 'muted small' }, t('Scena numero {n} (per MIDI e Companion). Contiene {count} input.', { n: number, count: scene.children.length })),
       help(t('In onda va una scena alla volta, insieme agli input che non sono in nessuna scena (per esempio un logo sempre presente).'))),
-    card('Come si usa',
+    // Con le istruzioni nascoste la scheda "Come si usa" non serve.
+    !state.showHelp ? null : card('Come si usa',
       help(t('Con la scena selezionata, il pulsante + propone di mettere i nuovi input dentro la scena.')),
       help(t('Trascina un input sulla scena per spostarlo dentro. Tieni premuto Ctrl mentre rilasci per usare lo stesso input anche in questa scena: la sorgente (videocamera, NDI, video) resta una sola e la CPU non lavora il doppio.')),
-      help(t('Modalità studio (menu Visualizza o pulsante in alto a destra): sopra l\'anteprima della prossima scena e quella in onda, con CUT e FADE in mezzo.')))
+      help(t('Modalità studio (menu Visualizza, solo in modalità full): sopra l\'anteprima della prossima scena e quella in onda, con CUT e FADE in mezzo.')))
   ];
 }
 
@@ -1253,8 +1437,8 @@ function renderStudio() {
   const changed = document.body.classList.contains('studio') !== studio;
   document.body.classList.toggle('studio', studio);
   if (changed) applyLayout();
-  $('btn-studio').classList.toggle('on', studio);
-  $('btn-studio').textContent = studio ? t('Modalità studio: attiva') : t('Modalità studio');
+  $('btn-light').classList.toggle('on', !!state.light);
+  $('btn-light').textContent = state.light ? t('Modalità light: attiva') : t('Modalità light');
   $('switcher').hidden = !studio;
   $('mon-program').hidden = !studio;
   if (document.activeElement !== $('sel-fade')) $('sel-fade').value = String(state.fadeMs);
@@ -1390,11 +1574,10 @@ window.addEventListener('resize', () => applyLayout());
 function resetLayout() {
   prefs.set('layout.normal', null);
   prefs.set('layout.studio', null);
-  prefs.set('cardSizes', {});
-  for (const k of Object.keys(cardSizes)) delete cardSizes[k];
+  prefs.set('cardPos', {});
+  for (const k of Object.keys(cardPos)) delete cardPos[k];
   prefs.set('collapsedCards2', []);
   collapsedCards.clear();
-  for (const type of Object.keys(TYPE_LABELS)) prefs.set(`cardOrder.${type}`, null);
   applyLayout();
   buildPanel();
 }
@@ -1404,6 +1587,7 @@ function resetLayout() {
 let openMenu = null;
 
 function closeMenus() {
+  for (const sub of document.querySelectorAll('.menu-sub.open')) sub.classList.remove('open');
   if (openMenu) openMenu.classList.remove('open');
   openMenu = null;
 }
@@ -1427,6 +1611,12 @@ for (const menu of document.querySelectorAll('.menu')) {
       openMenu = menu;
     }
   });
+  for (const sub of menu.querySelectorAll('.menu-sub-title')) {
+    sub.addEventListener('click', (e) => {
+      e.stopPropagation();
+      sub.parentElement.classList.toggle('open');
+    });
+  }
   menu.querySelector('.menu-list').addEventListener('click', (e) => {
     const item = e.target.closest('button[data-cmd]');
     if (!item) return;
@@ -1448,13 +1638,26 @@ function menuCommand(cmd, data) {
     case 'toggle-display': send({ type: 'toggle-display' }); break;
     case 'display': send({ type: 'set-display', displayId: Number(data.id) }); break;
     case 'fps': send({ type: 'set-fps', fps: Number(data.fps) }); break;
-    case 'studio': send({ type: 'set-studio', on: !state.studio }); break;
+    case 'studio': if (!state.light) send({ type: 'set-studio', on: !state.studio }); break;
+    case 'light': send({ type: 'set-light', on: !state.light }); break;
+    case 'ndi-out': send({ type: 'set-ndi-out', on: !state.ndiOut }); break;
     case 'help': send({ type: 'set-help', on: !state.showHelp }); break;
     case 'reset-layout': resetLayout(); break;
+    case 'popout-details': popOutDetails(); break;
+    case 'manual': send({ type: 'open-manual' }); break;
     case 'lang': send({ type: 'set-lang', lang: data.lang }); break;
     case 'midi': openMidiDialog(); break;
     case 'http': openHttpDialog(); break;
   }
+}
+
+// Stato dell'uscita NDI, per il menu e la barra in alto.
+function ndiOutText() {
+  const s = state.ndiOutStatus || {};
+  if (!state.ndiOut) return state.ndiAvailable ? '' : t('NDI non disponibile su questo computer.');
+  if (s.error && !s.on) return t('NDI non avviato: {err}', { err: s.error });
+  if (!s.on) return t('Avvio di NDI…');
+  return t('In rete come "{name}" · {w}×{h} · ricevitori collegati: {n}', { name: s.name, w: s.width, h: s.height, n: s.connections });
 }
 
 function renderMenus() {
@@ -1472,6 +1675,10 @@ function renderMenus() {
     'data-cmd': 'fps', 'data-fps': f, class: `check ${state.fps === f ? 'checked' : ''}`
   }, `${f} fps`)));
   $('menu-studio').classList.toggle('checked', !!state.studio);
+  $('menu-studio').disabled = !!state.light;
+  $('menu-light').classList.toggle('checked', !!state.light);
+  $('menu-ndi-out').classList.toggle('checked', !!state.ndiOut);
+  $('menu-ndi-status').textContent = ndiOutText();
   $('menu-help').classList.toggle('checked', !!state.showHelp);
   $('menu-lang-it').classList.toggle('checked', I18n.getLang() === 'it');
   $('menu-lang-en').classList.toggle('checked', I18n.getLang() === 'en');
@@ -1650,6 +1857,9 @@ function render(next) {
   $('output-info').textContent = state.output.fullscreen
     ? t('Uscita a tutto schermo {w}×{h} · {fps} fps', { w: state.output.width, h: state.output.height, fps: state.fps })
     : t('Un solo monitor: uscita in finestra di anteprima · {fps} fps', { fps: state.fps });
+  if (state.ndiOut) $('output-info').textContent += ` · NDI${state.ndiOutStatus && state.ndiOutStatus.on ? '' : ' (!)'}`;
+  if (state.light) $('output-info').textContent += ` · ${t('light')}`;
+  document.body.classList.toggle('light', !!state.light);
   if (document.activeElement !== $('col-background')) $('col-background').value = state.background;
 
   renderMenus();
@@ -1731,7 +1941,7 @@ function confirmAdd() {
 
 function renderAddDialog() {
   const d = addDlg;
-  const types = h('div', { class: 'add-types' }, ADD_TYPES.map((a) => h('button', {
+  const types = h('div', { class: 'add-types' }, ADD_TYPES.filter((a) => !(state.light && a.type === 'scene')).map((a) => h('button', {
     class: d.type === a.type ? 'on' : '',
     'data-type': a.type,
     onclick: () => chooseAddType(a.type)
@@ -1804,8 +2014,9 @@ $('btn-add').onclick = () => openAddDialog();
 
 $('btn-show-all').onclick = () => send({ type: 'show-all' });
 $('btn-remove').onclick = () => removeSelected();
+$('btn-popout-details').onclick = () => (detailsWin && !detailsWin.closed ? detailsWin.close() : popOutDetails());
 $('btn-reset').onclick = () => resetSelected();
-$('btn-studio').onclick = () => send({ type: 'set-studio', on: !state.studio });
+$('btn-light').onclick = () => send({ type: 'set-light', on: !state.light });
 $('btn-cut').onclick = () => send({ type: 'take', kind: 'cut' });
 $('btn-fade').onclick = () => send({ type: 'take', kind: 'fade' });
 $('sel-fade').onchange = (e) => send({ type: 'set-fade', ms: Number(e.target.value) });
@@ -1818,7 +2029,8 @@ $('btn-pick-background').onclick = async (e) => {
   if (color) send({ type: 'set-background', color });
 };
 
-document.addEventListener('keydown', (e) => {
+// Tasti della regia (anche nelle finestre separate delle schede).
+function onControlKey(e) {
   const tag = e.target.tagName;
   if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || e.target.isContentEditable) return;
   if (document.querySelector('dialog[open]')) return;
@@ -1829,7 +2041,8 @@ document.addEventListener('keydown', (e) => {
     const timer = layer && layer.type === 'timer' ? layer : allLayers(state.layers).find((l) => l.type === 'timer');
     if (timer) send({ type: 'timer', id: timer.id, action: timer.run.running ? 'pause' : 'start' });
   }
-});
+}
+document.addEventListener('keydown', onControlKey);
 
 api.onState((next) => {
   if (pendingSelect) {
@@ -1858,6 +2071,6 @@ function clamp(v, min, max) {
 // quando cambiano modalità studio, scena in onda e numero di input.
 function panelKeyOf(layer) {
   if (!layer) return null;
-  const extra = layer.type === 'scene' ? `${state.studio}:${state.program}:${layer.children.length}:${scenesInOrder().indexOf(layer)}` : linkCount(layer);
+  const extra = layer.type === 'scene' ? `${state.studio}:${state.program}:${layer.children.length}:${scenesInOrder().indexOf(layer)}:${state.showHelp}` : linkCount(layer);
   return `${layer.id}:${layer.type}:${layer.mediaKind || ''}:${extra}`;
 }
