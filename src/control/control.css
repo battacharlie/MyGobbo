@@ -365,3 +365,7 @@ button.pick { padding: 2px 6px; font-size: 13px; line-height: 1.2; }
 .ok { color: #4ade80; }
 .dialog .row { margin-bottom: 8px; }
 .dialog select { max-width: 380px; }
+/* Testo del TelePrompt: la casella di scrittura riempie tutta l'altezza della scheda. */
+.card[data-key="prompter:Testo"] .card-body { display: flex; flex-direction: column; }
+.card[data-key="prompter:Testo"] .card-body > * { flex: none; }
+.card[data-key="prompter:Testo"] .card-body > .editor { flex: 1 1 auto; max-height: none; }

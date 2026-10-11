@@ -11,7 +11,7 @@ IGOR è una piccola regia video per Windows. La **regia** sta sul monitor princi
 
 ### La regia in breve
 - **Menu in alto**
-  - *File*: colore di sfondo dell'uscita.
+  - *File*: importa ed esporta la configurazione, colore di sfondo dell'uscita.
   - *Visualizza*: modalità light, modalità studio, istruzioni sì/no, ripristina la disposizione, questo manuale.
 - **Barra in basso**
   - A sinistra (blu): **Ripristina finestre tab** riporta tutte le schede dei dettagli al loro posto iniziale; **Separa Finestra Dettagli** apre i dettagli input in una finestra a parte (lo stesso pulsante, *Riunisci Finestra Dettagli*, li riporta nella regia).
@@ -63,7 +63,7 @@ IGOR is a small video mixer for Windows. The **control window** sits on the main
 
 ### The control window at a glance
 - **Top menu**
-  - *File*: output background colour.
+  - *File*: import and export the configuration, output background colour.
   - *View*: light mode, studio mode, instructions on/off, reset the layout, this guide.
 - **Bottom bar**
   - On the left (blue): **Reset panel windows** puts all detail panels back in their original place; **Separate Details Window** opens the input details in a window of their own (the same button, *Rejoin Details Window*, brings them back).

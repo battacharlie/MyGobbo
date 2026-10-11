@@ -14,7 +14,7 @@ Piccola regia video per Windows: una **finestra di regia** sul monitor principal
 
 **Regia** (monitor principale)
 - In alto la barra dei menu:
-  - **File**: colore di sfondo dell'uscita.
+  - **File**: importa ed esporta la configurazione (file `.igor`), colore di sfondo dell'uscita.
   - **Visualizza**: modalità light, modalità studio, mostra/nascondi le istruzioni, ripristina la disposizione delle finestre, mini manuale.
 - In basso la barra dei comandi:
   - a sinistra, in blu: **Ripristina finestre tab** (tutte le schede dei dettagli tornano al loro posto iniziale) e **Separa Finestra Dettagli** (i dettagli input in una finestra a parte; lo stesso pulsante li riunisce);
