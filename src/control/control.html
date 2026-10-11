@@ -103,7 +103,7 @@
     <div class="splitter split-h" id="split-h" data-i18n-title="Trascina per cambiare l'altezza dell'anteprima" title="Trascina per cambiare l'altezza dell'anteprima"></div>
 
     <section id="zone-details">
-      <div id="panel"><div id="cards"></div></div>
+      <div id="panel"><div id="cards"></div><div id="card-drop" hidden></div></div>
       <div id="panel-footer" hidden>
         <button id="btn-reset" data-i18n-title="Riporta posizione, misure e impostazioni ai valori iniziali (sorgente e testo restano)" title="Riporta posizione, misure e impostazioni ai valori iniziali (sorgente e testo restano)">↺ <span data-i18n="Ripristina misure">Ripristina misure</span></button>
         <button id="btn-remove" class="remove" data-i18n-title="Elimina l'input selezionato e chiude la sua sorgente" title="Elimina l'input selezionato e chiude la sua sorgente">✕ Elimina input</button>
@@ -115,19 +115,9 @@
 
     <aside id="zone-inputs">
       <div class="studio-row">
+        <button id="btn-add" class="add-btn" data-i18n-title="Aggiungi un input o una scena" title="Aggiungi un input o una scena">+</button>
         <button id="btn-studio" data-i18n-title="Due schermi: anteprima della prossima scena e scena in onda, con CUT e dissolvenza" title="Due schermi: anteprima della prossima scena e scena in onda, con CUT e dissolvenza">Modalità studio</button>
       </div>
-      <h2 data-i18n="Aggiungi">Aggiungi</h2>
-      <div class="add-list">
-        <button data-add="scene" class="add-scene">+ <span data-i18n="Scena">Scena</span></button>
-        <button data-add="ndi">+ <span data-i18n="Segnale NDI">Segnale NDI</span></button>
-        <button data-add="capture">+ <span data-i18n="Periferica di acquisizione">Periferica di acquisizione</span></button>
-        <button data-add="media">+ <span data-i18n="Media (video o immagine)">Media (video o immagine)</span></button>
-        <button data-add="timer">+ <span data-i18n="Timer">Timer</span></button>
-        <button data-add="ticker">+ <span data-i18n="Banner di Testo">Banner di Testo</span></button>
-        <button data-add="prompter">+ <span data-i18n="TelePrompt">TelePrompt</span></button>
-      </div>
-      <p class="muted small" id="add-target"></p>
 
       <div class="list-head">
         <h2 data-i18n="Elementi (dal primo piano allo sfondo)">Elementi (dal primo piano allo sfondo)</h2>
@@ -141,6 +131,7 @@
     </aside>
   </div>
 
+  <dialog id="dlg-add" class="dialog"></dialog>
   <dialog id="dlg-midi" class="dialog"></dialog>
   <dialog id="dlg-http" class="dialog"></dialog>
 

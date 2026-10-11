@@ -190,64 +190,208 @@ function refreshBindings() {
 }
 
 // --- Schede del pannello -------------------------------------------------------
-// Ogni scheda ha un titolo cliccabile che la riduce a barra, l'altezza
-// regolabile dall'angolo in basso a destra e il bordo destro che cambia la
-// larghezza delle colonne. Le scelte restano memorizzate.
+// Le schede dei dettagli occupano 4 colonne a tutta altezza; con più di 4
+// schede si passa a 2 righe di uguale altezza (4 schede per riga). Se lo
+// spazio in verticale è poco compare la barra di scorrimento.
+// - Tenendo premuto il titolo e trascinando si sposta la scheda.
+// - Un clic sul titolo (rilascio senza trascinare) o sulla linguetta ▾ la
+//   riduce a barra.
+// - Dai bordi destro e inferiore (o dall'angolo) si cambiano larghezza e
+//   altezza; vicino alle misure di base si agganciano come una calamita.
+// Ordine, schede ridotte e misure restano memorizzati per ogni tipo di input.
 
-const collapsedCards = new Set(prefs.get('collapsedCards', []));
-const cardHeights = prefs.get('cardHeights', {});
+const CARD_GAP = 12;
+const CARD_MIN_H = 200; // sotto questa altezza compare la barra di scorrimento
+const collapsedCards = new Set(prefs.get('collapsedCards2', []));
+const cardSizes = prefs.get('cardSizes', {}); // chiave -> { w, h } in pixel
+let panelType = ''; // tipo dell'input mostrato, per memorizzare le scelte
 
 function card(title, ...children) {
-  const key = title;
-  const el = h('section', { class: `card ${collapsedCards.has(key) ? 'collapsed' : ''}`, 'data-card': key });
-  const head = h('h3', { title: t('Clic per ridurre o aprire la scheda') }, t(title));
-  head.addEventListener('click', () => {
-    el.classList.toggle('collapsed');
-    if (el.classList.contains('collapsed')) collapsedCards.add(key);
-    else collapsedCards.delete(key);
-    prefs.set('collapsedCards', [...collapsedCards]);
+  const key = `${panelType}:${title}`;
+  const el = h('section', { class: `card ${collapsedCards.has(key) ? 'collapsed' : ''}`, 'data-card': title, 'data-key': key });
+  const tab = h('button', { class: 'card-tab', title: t('Riduci o apri la scheda') }, '');
+  const head = h('h3', { class: 'card-head', title: t('Clic per ridurre o aprire la scheda, tieni premuto e trascina per spostarla') },
+    h('span', { class: 'card-title' }, t(title)), tab);
+  tab.addEventListener('pointerdown', (e) => e.stopPropagation());
+  tab.addEventListener('click', (e) => {
+    e.stopPropagation();
+    toggleCard(el);
   });
-  const edge = h('div', { class: 'card-edge', title: t('Trascina per cambiare la larghezza delle schede') });
-  edge.addEventListener('pointerdown', startCardWidthDrag);
-  el.append(head, ...children.flat().filter((c) => c != null), edge);
-  if (cardHeights[key]) el.style.height = `${cardHeights[key]}px`;
-  cardResize.observe(el);
+  head.addEventListener('pointerdown', (e) => startCardDrag(e, el));
+  const body = h('div', { class: 'card-body' }, children.flat().filter((c) => c != null));
+  el.append(head, body);
+  for (const edge of ['r', 'b', 'rb']) {
+    const handle = h('div', { class: `card-edge edge-${edge}`, title: t('Trascina per cambiare le misure della scheda (doppio clic: misura di base)') });
+    handle.addEventListener('pointerdown', (e) => startCardResize(e, el, edge));
+    handle.addEventListener('dblclick', () => {
+      delete cardSizes[key];
+      prefs.set('cardSizes', cardSizes);
+      layoutCards();
+    });
+    el.append(handle);
+  }
   return el;
 }
 
-// L'altezza cambiata con l'angolo della scheda viene ricordata.
-const cardResize = new ResizeObserver((entries) => {
-  for (const entry of entries) {
-    const el = entry.target;
-    if (!el.style.height || el.classList.contains('collapsed')) continue;
-    const hgt = Math.round(parseFloat(el.style.height));
-    if (cardHeights[el.dataset.card] !== hgt) {
-      cardHeights[el.dataset.card] = hgt;
-      prefs.set('cardHeights', cardHeights);
-    }
-  }
-});
-
-function applyCardWidth() {
-  $('cards').style.setProperty('--card-w', `${prefs.get('cardWidth', 280)}px`);
+function toggleCard(el) {
+  el.classList.toggle('collapsed');
+  if (el.classList.contains('collapsed')) collapsedCards.add(el.dataset.key);
+  else collapsedCards.delete(el.dataset.key);
+  prefs.set('collapsedCards2', [...collapsedCards]);
+  layoutCards();
 }
 
-function startCardWidthDrag(e) {
+// Misure di base: un quarto della larghezza; tutta l'altezza con al massimo
+// 4 schede, metà altezza con di più.
+function cardBase() {
+  const panel = $('panel');
+  const cards = $('cards').querySelectorAll('.card');
+  const W = panel.clientWidth - 2; // spazio per non far comparire la barra orizzontale
+  const H = panel.clientHeight - 2;
+  const rows = cards.length > 4 ? 2 : 1;
+  return {
+    w: Math.max(160, Math.floor((W - CARD_GAP * 3) / 4)),
+    h: Math.max(CARD_MIN_H, Math.floor((H - CARD_GAP * (rows - 1)) / rows)),
+    W,
+    H
+  };
+}
+
+function layoutCards() {
+  const cards = [...$('cards').querySelectorAll('.card')];
+  if (!cards.length) return;
+  const base = cardBase();
+  for (const el of cards) {
+    const size = cardSizes[el.dataset.key] || {};
+    el.style.width = `${Math.min(base.W, size.w || base.w)}px`;
+    el.style.height = el.classList.contains('collapsed') ? '' : `${size.h || base.h}px`;
+  }
+}
+new ResizeObserver(() => requestAnimationFrame(layoutCards)).observe($('panel'));
+
+// Ordine memorizzato delle schede di questo tipo di input.
+function applyCardOrder() {
+  const order = prefs.get(`cardOrder.${panelType}`, null);
+  if (!order) return;
+  const box = $('cards');
+  const cards = [...box.querySelectorAll('.card')];
+  const rank = (el) => {
+    const i = order.indexOf(el.dataset.key);
+    return i === -1 ? order.length + cards.indexOf(el) : i;
+  };
+  cards.sort((a, b) => rank(a) - rank(b)).forEach((el) => box.append(el));
+}
+
+// Trascinamento dal titolo: sotto i 5 pixel di movimento è un clic, che
+// riduce o apre la scheda; oltre, la scheda si sposta dove indica la linea.
+function startCardDrag(e, el) {
+  if (e.button !== 0) return;
   e.preventDefault();
-  e.stopPropagation();
-  const cardEl = e.currentTarget.parentElement;
   const startX = e.clientX;
-  const startW = cardEl.getBoundingClientRect().width;
-  document.body.classList.add('resizing', 'cols');
+  const startY = e.clientY;
+  let dragging = false;
+  let ghost = null;
+  let target = null;
+  const line = $('card-drop');
   const move = (ev) => {
-    const w = clamp(Math.round(startW + ev.clientX - startX), 200, 900);
-    // Calamita: le colonne si agganciano alla misura predefinita.
-    $('cards').style.setProperty('--card-w', `${Math.abs(w - 280) < 14 ? 280 : w}px`);
+    if (!dragging) {
+      if (Math.hypot(ev.clientX - startX, ev.clientY - startY) < 5) return;
+      dragging = true;
+      const r = el.getBoundingClientRect();
+      ghost = h('div', { class: 'card-ghost' }, el.querySelector('.card-title').textContent);
+      ghost.style.width = `${Math.min(r.width, 260)}px`;
+      document.body.append(ghost);
+      el.classList.add('dragging');
+      document.body.classList.add('card-dragging');
+    }
+    ghost.style.left = `${ev.clientX + 12}px`;
+    ghost.style.top = `${ev.clientY + 8}px`;
+    target = cardDropTarget(ev.clientX, ev.clientY, el);
+    showCardDrop(line, target);
   };
   const up = () => {
     window.removeEventListener('pointermove', move);
-    document.body.classList.remove('resizing', 'cols');
-    prefs.set('cardWidth', parseInt($('cards').style.getPropertyValue('--card-w'), 10) || 280);
+    if (!dragging) {
+      toggleCard(el);
+      return;
+    }
+    ghost.remove();
+    line.hidden = true;
+    el.classList.remove('dragging');
+    document.body.classList.remove('card-dragging');
+    if (!target) return;
+    if (target.ref) target.ref.before(el);
+    else $('cards').append(el);
+    prefs.set(`cardOrder.${panelType}`, [...$('cards').querySelectorAll('.card')].map((c) => c.dataset.key));
+    layoutCards();
+  };
+  window.addEventListener('pointermove', move);
+  window.addEventListener('pointerup', up, { once: true });
+}
+
+// La scheda va prima di quella sotto il puntatore (o dopo, nella metà destra).
+function cardDropTarget(x, y, dragged) {
+  const cards = [...$('cards').querySelectorAll('.card')];
+  for (const c of cards) {
+    const r = c.getBoundingClientRect();
+    if (x < r.left || x > r.right || y < r.top || y > r.bottom) continue;
+    if (c === dragged) return null;
+    const after = x > r.left + r.width / 2;
+    const ref = after ? c.nextElementSibling : c;
+    if (ref === dragged || (after && c.nextElementSibling === dragged)) return null;
+    return { ref: ref && ref.classList.contains('card') ? ref : null, rect: r, after };
+  }
+  // Oltre l'ultima scheda: in fondo.
+  const last = cards[cards.length - 1];
+  if (last && last !== dragged) {
+    const r = last.getBoundingClientRect();
+    if (y > r.bottom || (y >= r.top && x > r.right)) return { ref: null, rect: r, after: true };
+  }
+  return null;
+}
+
+function showCardDrop(line, target) {
+  if (!target) {
+    line.hidden = true;
+    return;
+  }
+  const p = $('panel').getBoundingClientRect();
+  const r = target.rect;
+  line.hidden = false;
+  line.style.left = `${(target.after ? r.right + CARD_GAP / 2 : r.left - CARD_GAP / 2) - p.left + $('panel').scrollLeft - 2}px`;
+  line.style.top = `${r.top - p.top + $('panel').scrollTop}px`;
+  line.style.height = `${r.height}px`;
+}
+
+// Bordi della scheda: destro = larghezza, inferiore = altezza, angolo = entrambe.
+function startCardResize(e, el, edge) {
+  e.preventDefault();
+  e.stopPropagation();
+  const r = el.getBoundingClientRect();
+  const startX = e.clientX;
+  const startY = e.clientY;
+  const base = cardBase();
+  const key = el.dataset.key;
+  const size = { ...(cardSizes[key] || {}) };
+  const snapW = [base.w, base.w * 2 + CARD_GAP, base.w * 3 + CARD_GAP * 2, base.W];
+  const snapH = [base.h, base.H, Math.floor((base.H - CARD_GAP) / 2)];
+  if (el.classList.contains('collapsed')) toggleCard(el);
+  document.body.classList.add('resizing', edge === 'b' ? 'rows' : edge === 'r' ? 'cols' : 'both');
+  const move = (ev) => {
+    if (edge !== 'b') {
+      size.w = snapTo(clamp(Math.round(r.width + ev.clientX - startX), 160, base.W), snapW);
+      el.style.width = `${size.w}px`;
+    }
+    if (edge !== 'r') {
+      size.h = snapTo(Math.max(80, Math.round(r.height + ev.clientY - startY)), snapH);
+      el.style.height = `${size.h}px`;
+    }
+  };
+  const up = () => {
+    window.removeEventListener('pointermove', move);
+    document.body.classList.remove('resizing', 'rows', 'cols', 'both');
+    cardSizes[key] = size;
+    prefs.set('cardSizes', cardSizes);
   };
   window.addEventListener('pointermove', move);
   window.addEventListener('pointerup', up, { once: true });
@@ -271,6 +415,7 @@ function buildPanel() {
   panelTick = null;
   panel.innerHTML = '';
   panelKey = panelKeyOf(layer);
+  panelType = layer ? layer.type : '';
 
   if (!layer) {
     panel.append(h('p', { class: 'empty' }, t('Seleziona un elemento dall\'elenco o dall\'anteprima, oppure aggiungine uno nuovo.')));
@@ -279,6 +424,8 @@ function buildPanel() {
 
   if (layer.type === 'scene') {
     panel.append(...sceneSection(layer));
+    applyCardOrder();
+    layoutCards();
     refreshBindings();
     return;
   }
@@ -293,8 +440,8 @@ function buildPanel() {
       checkbox(scene ? 'Visibile nella scena' : 'In onda (visibile in uscita)', 'visible')),
     h('div', { class: 'row' },
       h('button', { onclick: () => send({ type: 'solo', id: layer.id }), title: t('Mostra solo questo elemento (tra quelli dello stesso elenco)') }, t('Solo questo')),
-      h('button', { onclick: () => send({ type: 'move-layer', id: layer.id, dir: 1 }) }, `↑ ${t('Avanti')}`),
-      h('button', { onclick: () => send({ type: 'move-layer', id: layer.id, dir: -1 }) }, `↓ ${t('Indietro')}`))
+      h('button', { onclick: () => send({ type: 'move-layer', id: layer.id, dir: 1 }), title: t('Porta sopra agli altri elementi (più in primo piano)') }, t('Sopra')),
+      h('button', { onclick: () => send({ type: 'move-layer', id: layer.id, dir: -1 }), title: t('Porta sotto agli altri elementi (più verso lo sfondo)') }, t('Sotto')))
   ));
 
   if (layer.type === 'timer') panel.append(...timerSection(layer));
@@ -305,6 +452,8 @@ function buildPanel() {
   if (layer.type === 'media') panel.append(...mediaSection());
 
   panel.append(...geometrySection(layer));
+  applyCardOrder();
+  layoutCards();
   refreshBindings();
 }
 
@@ -455,7 +604,7 @@ function setDuration(min, sec) {
 
 function tickerSection() {
   return [
-    card('Banner di Testo',
+    card('Testo del banner',
       field('Testo', bound(h('textarea', { rows: 3 }), (l) => l.text, (v) => updateLayer({ text: v.replace(/\n/g, ' ') }))),
       help(t('Se il testo è più lungo dello spazio disponibile, scorre da destra a sinistra.')),
       rangeField('Velocità di scorrimento (px/s)', 'speed', 20, 600, 10, 5, 2000),
@@ -1036,7 +1185,7 @@ function sceneSection(scene) {
       h('p', { class: 'muted small' }, t('Scena numero {n} (per MIDI e Companion). Contiene {count} input.', { n: number, count: scene.children.length })),
       help(t('In onda va una scena alla volta, insieme agli input che non sono in nessuna scena (per esempio un logo sempre presente).'))),
     card('Come si usa',
-      help(t('Con la scena selezionata, i pulsanti "Aggiungi" mettono i nuovi input dentro la scena.')),
+      help(t('Con la scena selezionata, il pulsante + propone di mettere i nuovi input dentro la scena.')),
       help(t('Trascina un input sulla scena per spostarlo dentro. Tieni premuto Ctrl mentre rilasci per usare lo stesso input anche in questa scena: la sorgente (videocamera, NDI, video) resta una sola e la CPU non lavora il doppio.')),
       help(t('Modalità studio (menu Visualizza o pulsante in alto a destra): sopra l\'anteprima della prossima scena e quella in onda, con CUT e FADE in mezzo.')))
   ];
@@ -1130,8 +1279,6 @@ function renderStudio() {
     }
     stopProgramMonitor();
   }
-  const target = addTargetScene();
-  $('add-target').textContent = target ? t('I nuovi input vanno nella scena "{name}".', { name: target.name }) : '';
   fitScreens();
 }
 
@@ -1243,13 +1390,12 @@ window.addEventListener('resize', () => applyLayout());
 function resetLayout() {
   prefs.set('layout.normal', null);
   prefs.set('layout.studio', null);
-  prefs.set('cardWidth', 280);
-  prefs.set('cardHeights', {});
-  for (const k of Object.keys(cardHeights)) delete cardHeights[k];
-  prefs.set('collapsedCards', []);
+  prefs.set('cardSizes', {});
+  for (const k of Object.keys(cardSizes)) delete cardSizes[k];
+  prefs.set('collapsedCards2', []);
   collapsedCards.clear();
+  for (const type of Object.keys(TYPE_LABELS)) prefs.set(`cardOrder.${type}`, null);
   applyLayout();
-  applyCardWidth();
   buildPanel();
 }
 
@@ -1520,19 +1666,141 @@ function render(next) {
   if (typeof Remote !== 'undefined') Remote.onState(state);
 }
 
-for (const b of document.querySelectorAll('[data-add]')) {
-  b.addEventListener('click', () => {
-    const before = new Set(allLayers(state.layers).map((l) => l.id));
-    const target = addTargetScene();
-    const sceneId = target ? target.id : null;
-    // Per i media prima si sceglie il file, poi arriva il nuovo elemento.
-    if (b.dataset.add === 'media') send({ type: 'add-media', sceneId });
-    else send({ type: 'add-layer', layerType: b.dataset.add, sceneId });
-    // Seleziona il nuovo elemento appena arriva lo stato aggiornato.
-    pendingSelect = before;
-  });
-}
 let pendingSelect = null;
+
+// --- Finestra "Aggiungi" ---------------------------------------------------------
+// Il pulsante + apre una finestra: si sceglie il tipo di input, poi (se serve)
+// la sorgente NDI, la periferica o il file, e la scena in cui metterlo.
+
+const ADD_TYPES = [
+  { type: 'scene', ico: '🎬', label: 'Scena', hint: 'Raccoglie più input' },
+  { type: 'ndi', ico: '📡', label: 'Segnale NDI', hint: 'Sorgente video in rete' },
+  { type: 'capture', ico: '🎥', label: 'Periferica di acquisizione', hint: 'Scheda, webcam, HDMI/SDI → USB' },
+  { type: 'media', ico: '🖼', label: 'Media (video o immagine)', hint: 'File dal disco' },
+  { type: 'timer', ico: '⏱', label: 'Timer', hint: 'Countdown, cronometro, orologio' },
+  { type: 'ticker', ico: '💬', label: 'Banner di Testo', hint: 'Testo in sovraimpressione' },
+  { type: 'prompter', ico: '📜', label: 'TelePrompt', hint: 'Testo che scorre in verticale' }
+];
+const addDlg = { type: null, source: null, sceneId: null, items: [], loading: false };
+
+function openAddDialog() {
+  const target = addTargetScene();
+  Object.assign(addDlg, { type: null, source: null, items: [], loading: false, sceneId: target ? target.id : null });
+  renderAddDialog();
+  $('dlg-add').showModal();
+}
+
+async function chooseAddType(type) {
+  Object.assign(addDlg, { type, source: null, items: [], loading: type === 'ndi' || type === 'capture' });
+  if (type === 'scene') addDlg.sceneId = null;
+  renderAddDialog();
+  if (type === 'ndi') {
+    addDlg.items = (await api.ndiSources()).map((s) => ({ value: s, label: s.name }));
+  } else if (type === 'capture') {
+    let devices = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === 'videoinput');
+    if (devices.some((d) => !d.label)) {
+      try {
+        const st = await navigator.mediaDevices.getUserMedia({ video: true });
+        st.getTracks().forEach((tr) => tr.stop());
+        devices = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === 'videoinput');
+      } catch { /* nessuna periferica o permesso negato */ }
+    }
+    addDlg.items = devices.map((d, i) => ({ value: d, label: d.label || `${t('Periferica')} ${i + 1}` }));
+  }
+  if (addDlg.type !== type) return;
+  addDlg.loading = false;
+  if (addDlg.items.length === 1) addDlg.source = addDlg.items[0];
+  renderAddDialog();
+}
+
+function confirmAdd() {
+  const { type, source, sceneId } = addDlg;
+  if (!type) return;
+  pendingSelect = new Set(allLayers(state.layers).map((l) => l.id));
+  if (type === 'media') {
+    // La finestra di Windows per scegliere il file si apre subito dopo.
+    send({ type: 'add-media', sceneId });
+  } else {
+    let extra;
+    if (type === 'ndi' && source) extra = { source: { name: source.value.name, urlAddress: source.value.urlAddress }, name: shortNdiName(source.value.name) };
+    if (type === 'capture' && source) extra = { deviceId: source.value.deviceId, deviceLabel: source.label, name: source.label };
+    send({ type: 'add-layer', layerType: type, sceneId, extra });
+  }
+  $('dlg-add').close();
+}
+
+function renderAddDialog() {
+  const d = addDlg;
+  const types = h('div', { class: 'add-types' }, ADD_TYPES.map((a) => h('button', {
+    class: d.type === a.type ? 'on' : '',
+    'data-type': a.type,
+    onclick: () => chooseAddType(a.type)
+  }, h('span', { class: 'ico' }, a.ico), h('strong', {}, t(a.label)), h('span', { class: 'muted small' }, t(a.hint)))));
+
+  let sourcePart = null;
+  if (d.type === 'ndi' || d.type === 'capture') {
+    const title = d.type === 'ndi' ? t('Sorgente NDI') : t('Periferica');
+    let list;
+    if (d.loading) list = h('p', { class: 'muted small' }, d.type === 'ndi' ? t('Ricerca delle sorgenti in rete…') : t('Ricerca delle periferiche…'));
+    else if (!d.items.length) list = h('p', { class: 'muted small' }, d.type === 'ndi' ? t('Nessuna sorgente NDI trovata (la ricerca continua)') : t('Nessuna periferica video trovata'));
+    else list = h('div', { class: 'add-sources' }, d.items.map((it, i) => h('button', {
+      class: d.source === it ? 'on' : '',
+      'data-index': i,
+      onclick: () => { d.source = it; renderAddDialog(); }
+    }, it.label)));
+    sourcePart = h('div', {},
+      h('h2', {}, title),
+      list,
+      h('div', { class: 'row' },
+        h('button', { class: 'small-btn', onclick: () => chooseAddType(d.type) }, t('Aggiorna elenco')),
+        h('span', { class: 'muted small' }, t('Puoi anche sceglierla dopo, nei dettagli dell\'input.'))));
+  } else if (d.type === 'media') {
+    sourcePart = help(t('Premendo "Aggiungi" si apre la finestra per scegliere il video o l\'immagine dal disco.'));
+  }
+
+  let scenePart = null;
+  if (d.type && d.type !== 'scene') {
+    const scenes = scenesInOrder();
+    const sel = h('select', {},
+      h('option', { value: '' }, t('Fuori dalle scene (sempre in onda)')),
+      scenes.map((s, i) => h('option', { value: s.id }, `${t('Scena')} ${i + 1}: ${s.name}`)));
+    sel.value = d.sceneId || '';
+    sel.addEventListener('change', () => { d.sceneId = sel.value || null; });
+    if (scenes.length) scenePart = field('Dove', sel);
+  }
+
+  const canAdd = !!d.type && !d.loading;
+  $('dlg-add').replaceChildren(...[
+    h('h2', {}, t('Aggiungi')),
+    help(t('Scegli il tipo di input (doppio clic per aggiungerlo subito).')),
+    types,
+    sourcePart,
+    scenePart,
+    h('div', { class: 'row end' },
+      h('button', { onclick: () => $('dlg-add').close() }, t('Annulla')),
+      h('button', { class: 'primary', disabled: !canAdd, onclick: confirmAdd },
+        d.type === 'media' ? t('Scegli file e aggiungi…') : t('Aggiungi')))
+  ].filter(Boolean));
+}
+
+// Doppio clic: aggiunge subito (sul tipo, se non serve scegliere la sorgente,
+// oppure sulla sorgente). Il primo clic ridisegna la finestra, per questo il
+// doppio clic si ascolta sulla finestra intera.
+$('dlg-add').addEventListener('dblclick', (e) => {
+  const typeBtn = e.target.closest('.add-types button');
+  if (typeBtn && !['ndi', 'capture'].includes(typeBtn.dataset.type)) {
+    addDlg.type = typeBtn.dataset.type;
+    if (addDlg.type === 'scene') addDlg.sceneId = null;
+    confirmAdd();
+    return;
+  }
+  const srcBtn = e.target.closest('.add-sources button');
+  if (srcBtn && addDlg.items[srcBtn.dataset.index]) {
+    addDlg.source = addDlg.items[srcBtn.dataset.index];
+    confirmAdd();
+  }
+});
+$('btn-add').onclick = () => openAddDialog();
 
 $('btn-show-all').onclick = () => send({ type: 'show-all' });
 $('btn-remove').onclick = () => removeSelected();
@@ -1577,7 +1845,6 @@ api.getState().then((s) => {
   if (!selectedId && s.layers.length) selectedId = s.layers[s.layers.length - 1].id;
   render(s);
   applyLayout();
-  applyCardWidth();
 });
 
 function round(v) {

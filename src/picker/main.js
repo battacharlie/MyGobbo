@@ -5,6 +5,7 @@
 const { BrowserWindow, desktopCapturer, screen, dialog, ipcMain } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const displayNumbers = require('../displaynumbers');
 
 let active = null;
 
@@ -18,11 +19,14 @@ async function captureScreens(t) {
   } catch (err) {
     console.error('Impossibile fotografare lo schermo:', err);
   }
+  // Stessi numeri dei monitor di Windows.
+  const numbers = displayNumbers.numbers(displays);
   return sources
     .filter((s) => !s.thumbnail.isEmpty())
     .map((s, i) => {
-      const di = displays.findIndex((d) => String(d.id) === s.display_id);
-      return { label: `${t('Monitor')} ${di >= 0 ? di + 1 : i + 1}`, order: di >= 0 ? di : 100 + i, displayId: s.display_id, url: s.thumbnail.toDataURL() };
+      const d = displays.find((x) => String(x.id) === s.display_id);
+      const n = d ? numbers.get(d.id) : 100 + i;
+      return { label: `${t('Monitor')} ${d ? n : i + 1}`, order: n, displayId: s.display_id, url: s.thumbnail.toDataURL() };
     })
     .sort((a, b) => a.order - b.order);
 }
