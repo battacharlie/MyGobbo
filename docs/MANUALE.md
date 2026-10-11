@@ -11,7 +11,7 @@ IGOR è una piccola regia video per Windows. La **regia** sta sul monitor princi
 
 ### La regia in breve
 - **Menu in alto**
-  - *File*: colore di sfondo dell'uscita.
+  - *File*: importa ed esporta la configurazione, colore di sfondo dell'uscita.
   - *Visualizza*: modalità light, modalità studio, istruzioni sì/no, ripristina la disposizione, questo manuale.
 - **Barra in basso**
   - A sinistra (blu): **Ripristina finestre tab** riporta tutte le schede dei dettagli al loro posto iniziale; **Separa Finestra Dettagli** apre i dettagli input in una finestra a parte (lo stesso pulsante, *Riunisci Finestra Dettagli*, li riporta nella regia).
@@ -48,7 +48,7 @@ Una scena raccoglie più input; in onda va una scena alla volta. Gli input fuori
 
 ### Controllo remoto
 - **MIDI**: scegli un comando, premi *Impara* e tocca un tasto del controller.
-- **Companion**: attiva *Accetta comandi via HTTP* e usa indirizzi come `http://127.0.0.1:8765/api/cut` (modulo *Generic HTTP*).
+- **Companion**: attiva *Accetta comandi via HTTP* e usa indirizzi come `http://127.0.0.1:8765/api/cut` (modulo *Generic HTTP*). Guida completa: [COMPANION.md](COMPANION.md).
 
 ### Consigli
 - *Visualizza → Ripristina la disposizione delle finestre* rimette schede e zone come all'inizio.
@@ -63,7 +63,7 @@ IGOR is a small video mixer for Windows. The **control window** sits on the main
 
 ### The control window at a glance
 - **Top menu**
-  - *File*: output background colour.
+  - *File*: import and export the configuration, output background colour.
   - *View*: light mode, studio mode, instructions on/off, reset the layout, this guide.
 - **Bottom bar**
   - On the left (blue): **Reset panel windows** puts all detail panels back in their original place; **Separate Details Window** opens the input details in a window of their own (the same button, *Rejoin Details Window*, brings them back).
@@ -100,7 +100,7 @@ A scene groups several inputs; one scene at a time is on air. Inputs outside sce
 
 ### Remote control
 - **MIDI**: choose a command, press *Learn* and touch a key on the controller.
-- **Companion**: turn on *Accept commands over HTTP* and use addresses like `http://127.0.0.1:8765/api/cut` (*Generic HTTP* module).
+- **Companion**: turn on *Accept commands over HTTP* and use addresses like `http://127.0.0.1:8765/api/cut` (*Generic HTTP* module). Full guide: [COMPANION.md](COMPANION.md).
 
 ### Tips
 - *View → Reset the window layout* puts panels and zones back as they were at the start.

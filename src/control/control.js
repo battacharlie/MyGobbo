@@ -266,24 +266,44 @@ function cardArea() {
 }
 
 // Posizioni iniziali: 4 colonne a tutta altezza, 2 righe con più di 4 schede.
-function defaultCardRects(n) {
+// Schede che all'inizio occupano tutta l'altezza della colonna (prima e
+// seconda riga): il testo del TelePrompt.
+const TALL_CARDS = new Set(['prompter:Testo']);
+
+// Posizioni iniziali: 4 colonne; con più di 4 schede, 2 righe di uguale
+// altezza. Una scheda alta occupa la sua colonna in entrambe le righe.
+function defaultCardRects(cards) {
   const { W, H } = cardArea();
+  const tall = cards.map((el) => TALL_CARDS.has(el.dataset.key));
+  const slots = cards.length + tall.filter(Boolean).length;
+  const rows = slots > 4 ? 2 : 1;
   const w = Math.max(CARD_MIN_W, Math.floor((W - CARD_GAP * 3) / 4));
-  const rows = n > 4 ? 2 : 1;
   const hh = Math.max(CARD_MIN_H * 1.5, Math.floor((H - CARD_GAP * (rows - 1)) / rows));
-  return Array.from({ length: n }, (_, i) => ({
-    x: (i % 4) * (w + CARD_GAP),
-    y: Math.floor(i / 4) * (hh + CARD_GAP),
-    w,
-    h: hh
-  }));
+  const used = new Set();
+  let next = 0;
+  return cards.map((_, i) => {
+    while (used.has(next)) next++;
+    const slot = next;
+    used.add(slot);
+    const col = slot % 4;
+    const row = Math.floor(slot / 4);
+    // Alta solo se parte dalla prima riga di un gruppo di due righe libere.
+    const spans = tall[i] && rows === 2 && row % 2 === 0 && !used.has(slot + 4);
+    if (spans) used.add(slot + 4);
+    return {
+      x: col * (w + CARD_GAP),
+      y: row * (hh + CARD_GAP),
+      w,
+      h: spans ? hh * 2 + CARD_GAP : hh
+    };
+  });
 }
 
 // Mette ogni scheda al suo posto: quello memorizzato o, per le schede mai
 // spostate, quello iniziale (sotto le altre se qualcuna è già stata spostata).
 function layoutCards() {
   const cards = boardCards();
-  const defaults = defaultCardRects(cards.length);
+  const defaults = defaultCardRects(cards);
   const anySaved = cards.some((el) => cardPos[el.dataset.key]);
   let bottom = 0;
   for (const el of cards) {
@@ -971,7 +991,7 @@ function prompterSection(layer) {
     fmt('removeFormat', t('Togli stile'), 'Toglie lo stile dal testo selezionato'));
 
   return [
-    card('TelePrompt',
+    card('Comandi',
       progress,
       h('div', { class: 'row' }, startBtn,
         h('button', { onclick: () => sendPrompter('top'), title: t('Torna all\'inizio (Home)') }, `⏮ ${t('Inizio')}`),
@@ -1737,6 +1757,8 @@ document.addEventListener('keydown', (e) => {
 
 function menuCommand(cmd) {
   switch (cmd) {
+    case 'open-config': send({ type: 'open-config' }); break;
+    case 'save-config': send({ type: 'save-config' }); break;
     case 'studio': if (!state.light) send({ type: 'set-studio', on: !state.studio }); break;
     case 'light': send({ type: 'set-light', on: !state.light }); break;
     case 'help': send({ type: 'set-help', on: !state.showHelp }); break;
