@@ -1,6 +1,6 @@
 {
   "name": "igor-abits",
-  "version": "0.4.9",
+  "version": "0.4.10",
   "description": "IGOR - ABit/s: regia video per Windows con uscita a tutto schermo sul secondo monitor, NDI, periferiche di acquisizione, timer, banner in sovraimpressione, TelePrompt e scene.",
   "main": "src/main.js",
   "author": "ABit/s",
@@ -8,6 +8,7 @@
   "scripts": {
     "start": "electron .",
     "dist": "electron-builder --win portable nsis",
+    "dist:mac": "electron-builder --mac",
     "dist:portable": "electron-builder --win portable"
   },
   "devDependencies": {
@@ -29,6 +30,24 @@
       ],
       "icon": "build/icon.ico"
     },
+    "mac": {
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "icon": "build/icon.png",
+      "category": "public.app-category.video",
+      "identity": null,
+      "hardenedRuntime": false,
+      "artifactName": "IGOR-ABits-${version}-mac-${arch}.${ext}",
+      "extendInfo": {
+        "NSCameraUsageDescription": "IGOR usa le telecamere e le schede di acquisizione come ingressi video. / IGOR uses cameras and capture cards as video inputs.",
+        "NSMicrophoneUsageDescription": "IGOR può usare l'audio delle schede di acquisizione. / IGOR can use the audio of capture cards."
+      }
+    },
+    "dmg": {
+      "title": "IGOR - ABits ${version}"
+    },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
@@ -48,7 +67,8 @@
     "npmRebuild": false,
     "portable": {
       "artifactName": "IGOR-ABits-${version}-portable.${ext}"
-    }
+    },
+    "afterPack": "build/adhoc-sign.js"
   },
   "optionalDependencies": {
     "@stagetimerio/grandiose": "^0.2.0"

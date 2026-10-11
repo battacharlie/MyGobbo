@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, screen, session, dialog, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, screen, session, dialog, shell, systemPreferences } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { pathToFileURL } = require('url');
@@ -255,7 +255,7 @@ function placeDisplayWindow() {
   if (!displayWin || displayWin.isDestroyed()) return;
   const target = targetDisplay();
   const isPrimary = target.id === screen.getPrimaryDisplay().id;
-  if (displayWin.isFullScreen()) displayWin.setFullScreen(false);
+  setOutputFullScreen(false);
 
   if (isPrimary) {
     // Un solo monitor: anteprima in finestra, così il controllo resta usabile.
@@ -264,7 +264,18 @@ function placeDisplayWindow() {
     displayWin.setBounds({ x: x + width - w - 20, y: y + 20, width: w, height: Math.round(w * 9 / 16) });
   } else {
     displayWin.setBounds(target.bounds);
-    displayWin.setFullScreen(true);
+    setOutputFullScreen(true);
+  }
+}
+
+// Sul Mac lo schermo intero normale apre uno "spazio" nuovo con
+// un'animazione: per l'uscita si usa quello semplice, immediato e fermo
+// sul monitor scelto.
+function setOutputFullScreen(on) {
+  if (process.platform === 'darwin') {
+    if (displayWin.isSimpleFullScreen() !== on) displayWin.setSimpleFullScreen(on);
+  } else if (on || displayWin.isFullScreen()) {
+    displayWin.setFullScreen(on);
   }
 }
 
@@ -803,6 +814,10 @@ app.whenReady().then(() => {
   const allowed = ['media', 'midi', 'midiSysex'];
   session.defaultSession.setPermissionRequestHandler((_wc, permission, cb) => cb(allowed.includes(permission)));
   session.defaultSession.setPermissionCheckHandler((_wc, permission) => allowed.includes(permission));
+
+  // Sul Mac il sistema chiede una volta il permesso di usare le telecamere
+  // e le schede di acquisizione.
+  if (process.platform === 'darwin') systemPreferences.askForMediaAccess('camera').catch(() => {});
 
   i18n.setLang(state.lang);
   ndi.startDiscovery();
