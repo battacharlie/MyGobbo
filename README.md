@@ -6,7 +6,7 @@
 
 <p align="center">Regia video di ABit/s</p>
 
-Piccola regia video per Windows: una **finestra di regia** sul monitor principale e un'**uscita a tutto schermo** sul secondo monitor, dove si compongono segnali NDI, periferiche di acquisizione, video e immagini, un timer, un banner di testo in sovraimpressione e un teleprompter, organizzati in scene. L'interfaccia è in italiano o in inglese.
+Piccola regia video per Windows e Mac: una **finestra di regia** sul monitor principale e un'**uscita a tutto schermo** sul secondo monitor, dove si compongono segnali NDI, periferiche di acquisizione, video e immagini, un timer, un banner di testo in sovraimpressione e un teleprompter, organizzati in scene. L'interfaccia è in italiano o in inglese.
 
 📖 **[Mini manuale (italiano e inglese)](docs/MANUALE.md)**
 
@@ -94,13 +94,22 @@ La scena (elementi, posizioni, testi, colori) viene salvata e ritrovata al riavv
 
 ## Scarica
 
-L'ultima versione per Windows (installer e portable) è sempre qui: **[Releases → ultima versione](https://github.com/battacharlie/MyGobbo/releases/latest)**.
+L'ultima versione per Windows (installer e portable) e per Mac è sempre qui: **[Releases → ultima versione](https://github.com/battacharlie/MyGobbo/releases/latest)**.
+
+### Mac
+
+- `IGOR-ABits-x.y.z-mac-arm64.dmg`: Mac con processore Apple (M1, M2, M3…).
+- `IGOR-ABits-x.y.z-mac-x64.dmg`: Mac con processore Intel.
+
+Apri il `.dmg` e trascina IGOR nella cartella Applicazioni. L'app non è firmata con un certificato Apple, quindi al primo avvio il Mac la blocca: apri **Impostazioni di Sistema → Privacy e sicurezza**, scorri in basso e premi **Apri comunque** (sulle versioni più vecchie di macOS basta clic destro sull'app → **Apri**). Se il Mac dice che l'app "è danneggiata", apri il Terminale e scrivi `xattr -cr "/Applications/IGOR - ABits.app"`.
+
+Il Mac chiede anche alcuni permessi: **Fotocamera** per le periferiche di acquisizione e **Registrazione schermo** per il contagocce dei colori (dopo averlo concesso va riavviata l'app). Sul Mac l'uscita a tutto schermo resta ferma sul monitor scelto, senza aprire una nuova scrivania.
 
 ## NDI
 
 NDI usa il modulo nativo [`@stagetimerio/grandiose`](https://github.com/stagetimerio/grandiose) (NDI SDK 6). È una dipendenza *facoltativa*: durante `npm install` scarica l'NDI SDK e compila il modulo. Se non ci riesce, l'app funziona lo stesso e nel pannello NDI compare un avviso.
 
-Per compilarlo su Windows servono gli strumenti di compilazione C++ ([Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) con "Sviluppo di applicazioni desktop con C++") e Python. La GitHub Action li ha già, quindi l'`.exe` creato lì include NDI.
+Per compilarlo su Mac servono gli strumenti da riga di comando di Xcode (`xcode-select --install`). Per compilarlo su Windows servono gli strumenti di compilazione C++ ([Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) con "Sviluppo di applicazioni desktop con C++") e Python. La GitHub Action li ha già, quindi l'`.exe` e i `.dmg` creati lì includono NDI.
 
 ## Avvio in sviluppo
 
@@ -127,9 +136,11 @@ Nella cartella `dist/` trovi:
 
 Nei nomi dei file e dei collegamenti l'app si chiama "IGOR - ABits" perché Windows non ammette il carattere `/`.
 
-In alternativa, ogni push su `main` fa partire la GitHub Action **Build Windows**, che crea gli stessi `.exe`: li scarichi da *Actions → Build Windows → Artifacts* (serve un account con accesso al progetto).
+Su un Mac: `npm install` e poi `npm run dist:mac`; nella cartella `dist/` trovi il `.dmg` e lo `.zip`.
 
-Per pubblicare una nuova versione per tutti basta aumentare `version` in `package.json` e unire in `main`: la Action crea la Release (es. `v0.3.0`) con i due `.exe` allegati. Se esiste `release-notes/vX.Y.Z.md`, il suo testo diventa la descrizione della Release.
+In alternativa, ogni push su `main` fa partire la GitHub Action **Build**, che crea gli stessi `.exe` e i `.dmg`/`.zip` per Mac (processori Apple e Intel): li scarichi da *Actions → Build → Artifacts* (serve un account con accesso al progetto).
+
+Per pubblicare una nuova versione per tutti basta aumentare `version` in `package.json` e unire in `main`: la Action crea la Release (es. `v0.3.0`) con i file per Windows e Mac allegati. Se esiste `release-notes/vX.Y.Z.md`, il suo testo diventa la descrizione della Release.
 
 ## Ringraziamenti
 
