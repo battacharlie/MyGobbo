@@ -11,11 +11,11 @@ IGOR è una piccola regia video per Windows. La **regia** sta sul monitor princi
 
 ### La regia in breve
 - **Menu in alto**
-  - *File*: importa ed esporta la configurazione (file `.igor`); *File → Uscita*: monitor dell'uscita, fotogrammi al secondo, colore di sfondo, mostra/nascondi uscita.
-  - *Visualizza*: modalità studio, istruzioni sì/no, ripristina la disposizione, dettagli input in una finestra separata, lingua, questo manuale.
+  - *File*: importa ed esporta la configurazione (file `.igor`); *File → Uscita*: monitor dell'uscita, fotogrammi al secondo, colore di sfondo, mostra/nascondi uscita, **invia l'uscita in NDI** (in rete compare come sorgente "IGOR - ABit/s", con il numero di ricevitori collegati).
+  - *Visualizza*: modalità light, modalità studio, istruzioni sì/no, ripristina la disposizione, dettagli input in una finestra separata, lingua, questo manuale.
   - *Controllo remoto*: controller MIDI e Companion / Stream Deck.
 - **Anteprima** (in alto): trascina un elemento per spostarlo, un angolo per ridimensionarlo (Maiusc mantiene le proporzioni). Su video e immagini le maniglie arancioni ritagliano.
-- **Colonna degli input** (a destra): il pulsante blu **+** aggiunge un elemento (scena, NDI, periferica, media, timer, Banner di Testo, TelePrompt). L'elenco va dal primo piano allo sfondo; si trascina per cambiare l'ordine o per mettere un input in una scena (Ctrl al rilascio = anche in quella scena).
+- **Colonna degli input** (a destra): il pulsante **Modalità light** passa dalla modalità full a quella light e viceversa (vedi sotto); il pulsante blu **+** aggiunge un elemento (scena, NDI, periferica, media, timer, Banner di Testo, TelePrompt). L'elenco va dal primo piano allo sfondo; si trascina per cambiare l'ordine o per mettere un input in una scena (Ctrl al rilascio = anche in quella scena).
 - **Dettagli input** (in basso): le impostazioni dell'input selezionato, divise in schede.
   - Ogni scheda si sposta trascinando il titolo e si allarga o si alza dai bordi destro e inferiore, in modo indipendente dalle altre.
   - Un clic sul titolo (o sulla linguetta ▾) la riduce a barra.
@@ -29,6 +29,11 @@ IGOR è una piccola regia video per Windows. La **regia** sta sul monitor princi
 
 ### Scene e modalità studio
 Una scena raccoglie più input; in onda va una scena alla volta. Gli input fuori dalle scene restano sempre visibili. Con la **modalità studio** compaiono due schermi: a sinistra l'**anteprima** (verde), a destra quello che è **in onda** (rosso); al centro **CUT** (cambio secco) e **FADE** (dissolvenza).
+
+### Modalità light e full
+- **Full**: tutte le funzioni, con scene e modalità studio.
+- **Light**: per computer meno potenti. Le scene e la modalità studio si spengono; gli input della scena in onda diventano un elenco semplice, nelle stesse posizioni, e l'uscita non si interrompe. Le altre scene vengono messe da parte e le loro sorgenti (videocamere, NDI, video) si chiudono.
+- Tornando a full, le scene ritornano e la scena di prima torna in onda con le modifiche fatte nel frattempo. Gli input aggiunti in light restano fuori dalle scene.
 
 ### Gli elementi
 - **Timer**: conto alla rovescia o cronometro, tre colori (partenza, scadenza vicina, tempo superato), cornice lampeggiante a tempo scaduto, orologio quando è fermo. Barra spaziatrice = avvia/pausa.
@@ -53,11 +58,11 @@ IGOR is a small video mixer for Windows. The **control window** sits on the main
 
 ### The control window at a glance
 - **Top menu**
-  - *File*: import and export the configuration (`.igor` file); *File → Output*: output monitor, frames per second, background colour, show/hide output.
-  - *View*: studio mode, instructions on/off, reset the layout, input details in a separate window, language, this guide.
+  - *File*: import and export the configuration (`.igor` file); *File → Output*: output monitor, frames per second, background colour, show/hide output, **send the output over NDI** (it appears on the network as the "IGOR - ABit/s" source, with the number of connected receivers).
+  - *View*: light mode, studio mode, instructions on/off, reset the layout, input details in a separate window, language, this guide.
   - *Remote control*: MIDI controller and Companion / Stream Deck.
 - **Preview** (top): drag an element to move it, a corner to resize it (Shift keeps the proportions). On videos and images the orange handles crop.
-- **Inputs column** (right): the blue **+** button adds an element (scene, NDI, capture device, media, timer, Text Banner, TelePrompt). The list goes from foreground to background; drag to change the order or to put an input in a scene (Ctrl on release = also in that scene).
+- **Inputs column** (right): the **Light mode** button switches between full and light mode (see below); the blue **+** button adds an element (scene, NDI, capture device, media, timer, Text Banner, TelePrompt). The list goes from foreground to background; drag to change the order or to put an input in a scene (Ctrl on release = also in that scene).
 - **Input details** (bottom): the settings of the selected input, split into panels.
   - Each panel moves by dragging its title and gets wider or taller from its right and bottom edges, independently of the others.
   - Clicking the title (or the ▾ tab) collapses it to a bar.
@@ -71,6 +76,11 @@ IGOR is a small video mixer for Windows. The **control window** sits on the main
 
 ### Scenes and studio mode
 A scene groups several inputs; one scene at a time is on air. Inputs outside scenes are always visible. **Studio mode** shows two screens: the **preview** on the left (green) and what is **on air** on the right (red); in the middle **CUT** (hard switch) and **FADE** (dissolve).
+
+### Light and full mode
+- **Full**: all features, with scenes and studio mode.
+- **Light**: for less powerful computers. Scenes and studio mode are switched off; the inputs of the scene on air become a simple list, in the same positions, and the output is not interrupted. The other scenes are set aside and their sources (cameras, NDI, videos) are closed.
+- Back in full mode, the scenes return and the previous scene goes back on air with the changes made in the meantime. Inputs added in light mode stay outside the scenes.
 
 ### Elements
 - **Timer**: countdown or stopwatch, three colours (start, close to the end, time up), blinking frame when time is up, clock when stopped. Space bar = start/pause.

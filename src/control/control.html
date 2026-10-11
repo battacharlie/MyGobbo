@@ -32,6 +32,9 @@
                 <span class="color-pick"><input type="color" id="col-background"><button id="btn-pick-background" class="pick" data-i18n-title="Preleva il colore dallo schermo o da un'immagine" title="Preleva il colore dallo schermo o da un'immagine">💧</button></span>
               </div>
               <button data-cmd="toggle-display" id="menu-toggle-display" data-i18n="Mostra/nascondi uscita">Mostra/nascondi uscita</button>
+              <div class="menu-sep"></div>
+              <button data-cmd="ndi-out" id="menu-ndi-out" class="check" data-i18n="Invia l'uscita in NDI">Invia l'uscita in NDI</button>
+              <div class="menu-note" id="menu-ndi-status"></div>
             </div>
           </div>
         </div>
@@ -39,6 +42,7 @@
       <div class="menu" data-menu="view">
         <button class="menu-title" data-i18n="Visualizza">Visualizza</button>
         <div class="menu-list">
+          <button data-cmd="light" id="menu-light" class="check" data-i18n="Modalità light (meno risorse)">Modalità light (meno risorse)</button>
           <button data-cmd="studio" id="menu-studio" class="check" data-i18n="Modalità studio">Modalità studio</button>
           <button data-cmd="help" id="menu-help" class="check" data-i18n="Mostra le istruzioni">Mostra le istruzioni</button>
           <button data-cmd="reset-layout" data-i18n="Ripristina la disposizione delle finestre">Ripristina la disposizione delle finestre</button>
@@ -121,7 +125,7 @@
     <aside id="zone-inputs">
       <div class="studio-row">
         <button id="btn-add" class="add-btn" data-i18n-title="Aggiungi un input o una scena" title="Aggiungi un input o una scena">+</button>
-        <button id="btn-studio" data-i18n-title="Due schermi: anteprima della prossima scena e scena in onda, con CUT e dissolvenza" title="Due schermi: anteprima della prossima scena e scena in onda, con CUT e dissolvenza">Modalità studio</button>
+        <button id="btn-light" data-i18n-title="Light: niente scene né modalità studio, per consumare meno risorse. Full: tutte le funzioni." title="Light: niente scene né modalità studio, per consumare meno risorse. Full: tutte le funzioni.">Modalità light</button>
       </div>
 
       <div class="list-head">

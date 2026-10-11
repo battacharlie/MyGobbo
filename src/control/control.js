@@ -1371,7 +1371,7 @@ function sceneSection(scene) {
     !state.showHelp ? null : card('Come si usa',
       help(t('Con la scena selezionata, il pulsante + propone di mettere i nuovi input dentro la scena.')),
       help(t('Trascina un input sulla scena per spostarlo dentro. Tieni premuto Ctrl mentre rilasci per usare lo stesso input anche in questa scena: la sorgente (videocamera, NDI, video) resta una sola e la CPU non lavora il doppio.')),
-      help(t('Modalità studio (menu Visualizza o pulsante in alto a destra): sopra l\'anteprima della prossima scena e quella in onda, con CUT e FADE in mezzo.')))
+      help(t('Modalità studio (menu Visualizza, solo in modalità full): sopra l\'anteprima della prossima scena e quella in onda, con CUT e FADE in mezzo.')))
   ];
 }
 
@@ -1437,8 +1437,8 @@ function renderStudio() {
   const changed = document.body.classList.contains('studio') !== studio;
   document.body.classList.toggle('studio', studio);
   if (changed) applyLayout();
-  $('btn-studio').classList.toggle('on', studio);
-  $('btn-studio').textContent = studio ? t('Modalità studio: attiva') : t('Modalità studio');
+  $('btn-light').classList.toggle('on', !!state.light);
+  $('btn-light').textContent = state.light ? t('Modalità light: attiva') : t('Modalità light');
   $('switcher').hidden = !studio;
   $('mon-program').hidden = !studio;
   if (document.activeElement !== $('sel-fade')) $('sel-fade').value = String(state.fadeMs);
@@ -1638,7 +1638,9 @@ function menuCommand(cmd, data) {
     case 'toggle-display': send({ type: 'toggle-display' }); break;
     case 'display': send({ type: 'set-display', displayId: Number(data.id) }); break;
     case 'fps': send({ type: 'set-fps', fps: Number(data.fps) }); break;
-    case 'studio': send({ type: 'set-studio', on: !state.studio }); break;
+    case 'studio': if (!state.light) send({ type: 'set-studio', on: !state.studio }); break;
+    case 'light': send({ type: 'set-light', on: !state.light }); break;
+    case 'ndi-out': send({ type: 'set-ndi-out', on: !state.ndiOut }); break;
     case 'help': send({ type: 'set-help', on: !state.showHelp }); break;
     case 'reset-layout': resetLayout(); break;
     case 'popout-details': popOutDetails(); break;
@@ -1647,6 +1649,15 @@ function menuCommand(cmd, data) {
     case 'midi': openMidiDialog(); break;
     case 'http': openHttpDialog(); break;
   }
+}
+
+// Stato dell'uscita NDI, per il menu e la barra in alto.
+function ndiOutText() {
+  const s = state.ndiOutStatus || {};
+  if (!state.ndiOut) return state.ndiAvailable ? '' : t('NDI non disponibile su questo computer.');
+  if (s.error && !s.on) return t('NDI non avviato: {err}', { err: s.error });
+  if (!s.on) return t('Avvio di NDI…');
+  return t('In rete come "{name}" · {w}×{h} · ricevitori collegati: {n}', { name: s.name, w: s.width, h: s.height, n: s.connections });
 }
 
 function renderMenus() {
@@ -1664,6 +1675,10 @@ function renderMenus() {
     'data-cmd': 'fps', 'data-fps': f, class: `check ${state.fps === f ? 'checked' : ''}`
   }, `${f} fps`)));
   $('menu-studio').classList.toggle('checked', !!state.studio);
+  $('menu-studio').disabled = !!state.light;
+  $('menu-light').classList.toggle('checked', !!state.light);
+  $('menu-ndi-out').classList.toggle('checked', !!state.ndiOut);
+  $('menu-ndi-status').textContent = ndiOutText();
   $('menu-help').classList.toggle('checked', !!state.showHelp);
   $('menu-lang-it').classList.toggle('checked', I18n.getLang() === 'it');
   $('menu-lang-en').classList.toggle('checked', I18n.getLang() === 'en');
@@ -1842,6 +1857,9 @@ function render(next) {
   $('output-info').textContent = state.output.fullscreen
     ? t('Uscita a tutto schermo {w}×{h} · {fps} fps', { w: state.output.width, h: state.output.height, fps: state.fps })
     : t('Un solo monitor: uscita in finestra di anteprima · {fps} fps', { fps: state.fps });
+  if (state.ndiOut) $('output-info').textContent += ` · NDI${state.ndiOutStatus && state.ndiOutStatus.on ? '' : ' (!)'}`;
+  if (state.light) $('output-info').textContent += ` · ${t('light')}`;
+  document.body.classList.toggle('light', !!state.light);
   if (document.activeElement !== $('col-background')) $('col-background').value = state.background;
 
   renderMenus();
@@ -1923,7 +1941,7 @@ function confirmAdd() {
 
 function renderAddDialog() {
   const d = addDlg;
-  const types = h('div', { class: 'add-types' }, ADD_TYPES.map((a) => h('button', {
+  const types = h('div', { class: 'add-types' }, ADD_TYPES.filter((a) => !(state.light && a.type === 'scene')).map((a) => h('button', {
     class: d.type === a.type ? 'on' : '',
     'data-type': a.type,
     onclick: () => chooseAddType(a.type)
@@ -1998,7 +2016,7 @@ $('btn-show-all').onclick = () => send({ type: 'show-all' });
 $('btn-remove').onclick = () => removeSelected();
 $('btn-popout-details').onclick = () => (detailsWin && !detailsWin.closed ? detailsWin.close() : popOutDetails());
 $('btn-reset').onclick = () => resetSelected();
-$('btn-studio').onclick = () => send({ type: 'set-studio', on: !state.studio });
+$('btn-light').onclick = () => send({ type: 'set-light', on: !state.light });
 $('btn-cut').onclick = () => send({ type: 'take', kind: 'cut' });
 $('btn-fade').onclick = () => send({ type: 'take', kind: 'fade' });
 $('sel-fade').onchange = (e) => send({ type: 'set-fade', ms: Number(e.target.value) });

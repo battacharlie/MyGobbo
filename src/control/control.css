@@ -44,6 +44,11 @@ body {
 .menu-list button.checked::before { content: '✓'; position: absolute; left: 10px; }
 .menu-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: #8b93a5; padding: 6px 10px 2px; }
 .menu-sep { height: 1px; background: #2c3039; margin: 4px 0; }
+.menu-note { font-size: 11px; color: #8b93a5; padding: 0 10px 4px 28px; max-width: 300px; white-space: normal; }
+.menu-note:empty { display: none; }
+.menu-list button:disabled { opacity: 0.4; cursor: default; }
+/* Modalità light: niente scene, quindi niente istruzioni sulle scene. */
+body.light #zone-inputs > .help { display: none; }
 .menu-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 4px 10px 4px 28px; }
 
 /* Tre zone ridimensionabili: anteprima, dettagli dell'input, colonna input.
