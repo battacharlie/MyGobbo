@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, screen, session, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, screen, session, dialog, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { pathToFileURL } = require('url');
@@ -7,6 +7,9 @@ const ndi = require('./ndi');
 const { readTextFile, TEXT_EXT } = require('./textimport');
 const { pickColor } = require('./picker/main');
 const displayNumbers = require('./displaynumbers');
+
+// Mini manuale (italiano e inglese) sul sito del progetto.
+const MANUAL_URL = 'https://github.com/battacharlie/MyGobbo/blob/main/docs/MANUALE.md';
 const i18n = require('./shared/i18n');
 const remote = require('./remote');
 const t = i18n.t;
@@ -266,6 +269,18 @@ function createWindows() {
     webPreferences: { preload: path.join(__dirname, 'control', 'preload.js'), spellcheck: false }
   });
   controlWin.loadFile(path.join(__dirname, 'control', 'control.html'));
+  // Schede dei dettagli aperte in una finestra a parte (pagina vuota che la
+  // regia riempie da sé). Ogni altro indirizzo si apre nel browser.
+  controlWin.webContents.setWindowOpenHandler(({ url }) => {
+    if (url === 'about:blank') {
+      return {
+        action: 'allow',
+        overrideBrowserWindowOptions: { icon: ICON, backgroundColor: '#15171c', autoHideMenuBar: true, minWidth: 260, minHeight: 160 }
+      };
+    }
+    if (/^https:\/\//.test(url)) shell.openExternal(url);
+    return { action: 'deny' };
+  });
   controlWin.on('closed', () => {
     controlWin = null;
     app.quit();
@@ -638,6 +653,9 @@ ipcMain.on('command', (_evt, cmd) => {
       state.lang = cmd.lang === 'en' ? 'en' : 'it';
       i18n.setLang(state.lang);
       break;
+    case 'open-manual':
+      shell.openExternal(MANUAL_URL);
+      return;
     case 'set-help':
       state.showHelp = !!cmd.on;
       break;

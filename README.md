@@ -8,19 +8,21 @@
 
 Piccola regia video per Windows: una **finestra di regia** sul monitor principale e un'**uscita a tutto schermo** sul secondo monitor, dove si compongono segnali NDI, periferiche di acquisizione, video e immagini, un timer, un banner di testo in sovraimpressione e un teleprompter, organizzati in scene. L'interfaccia è in italiano o in inglese.
 
+📖 **[Mini manuale (italiano e inglese)](docs/MANUALE.md)**
+
 ## Le due finestre
 
 **Regia** (monitor principale)
 - In alto la barra dei menu:
-  - **File**: importa ed esporta la configurazione (file `.igor` con tutti gli elementi e le loro impostazioni).
-  - **Uscita**: monitor della seconda finestra (con risoluzione e frequenza), fotogrammi al secondo dell'uscita (10, 15, 20, 24 o 25), colore di sfondo, mostra/nascondi uscita.
-  - **Visualizza**: modalità studio, mostra/nascondi le istruzioni, ripristina la disposizione delle finestre, lingua (italiano o inglese).
+  - **File**: importa ed esporta la configurazione (file `.igor` con tutti gli elementi e le loro impostazioni) e il sottomenu **Uscita**: monitor della seconda finestra (con risoluzione e frequenza), fotogrammi al secondo dell'uscita (10, 15, 20, 24 o 25), colore di sfondo, mostra/nascondi uscita.
+  - **Visualizza**: modalità studio, mostra/nascondi le istruzioni, ripristina la disposizione delle finestre, dettagli input in una finestra separata, lingua (italiano o inglese), mini manuale.
   - **Controllo remoto**: controller MIDI e Companion / Stream Deck.
 - Sotto, tre zone: l'**anteprima** (o i due schermi della modalità studio), i **dettagli** dell'input selezionato e la **colonna degli input**. I bordi tra le zone si trascinano e si agganciano come una calamita alle misure naturali. In modalità studio anteprima e programma occupano tutta la larghezza e la colonna degli input scende accanto ai dettagli. La disposizione resta memorizzata, separata per le due modalità.
-- I dettagli sono divisi in schede su 4 colonne a tutta altezza; con più di 4 schede si passa a 2 righe di uguale altezza, e se lo spazio in verticale è poco compare la barra di scorrimento. Tenendo premuto il titolo e trascinando si sposta una scheda (una linea verde mostra dove andrà); un clic sul titolo senza trascinare, o sulla linguetta ▾, la riduce a barra. Dal bordo destro, da quello inferiore o dall'angolo si cambiano larghezza e altezza, con aggancio alle misure di base (doppio clic sul bordo per tornare alla misura di base). Ordine e misure restano memorizzati per ogni tipo di input.
-- Nella colonna destra il pulsante verde **+**, il pulsante **Modalità studio** e l'elenco degli elementi dal primo piano allo sfondo, con *Visibile / Nascosto*. Le scene sono numerate dall'alto (Scena 1, Scena 2…): il numero serve per MIDI e Companion.
+- I dettagli sono divisi in schede libere: all'inizio sono su 4 colonne (2 righe se sono più di 4), poi ognuna si sposta tenendo premuto il titolo e si allarga o si alza dal bordo destro, da quello inferiore o dall'angolo, in modo indipendente dalle altre (con una misura minima); se lo spazio in verticale è poco compare la barra di scorrimento. Un clic sul titolo senza trascinare, o sulla linguetta ▾, riduce la scheda a barra. Il pulsante ⧉ apre la scheda in una finestra separata da mettere dove si vuole (anche su un altro monitor); il ⧉ in basso a destra porta in una finestra tutti i dettagli input. Posizioni e misure restano memorizzate per ogni tipo di input.
+- Nella colonna destra il pulsante blu **+**, il pulsante **Modalità studio** e l'elenco degli elementi dal primo piano allo sfondo, con *Visibile / Nascosto*. Le scene sono numerate dall'alto (Scena 1, Scena 2…): il numero serve per MIDI e Companion.
 - Il pulsante **+** apre una finestra in cui si sceglie il tipo di input (**scena**, **segnale NDI**, **periferica di acquisizione**, **media**, **timer**, **Banner di Testo**, **TelePrompt**), poi la sorgente NDI o la periferica dall'elenco (oppure il file, per i media) e la scena in cui metterlo. Un doppio clic aggiunge subito.
 - I monitor hanno lo stesso numero che usa Windows.
+- Colori: rosso per ciò che è in onda e per il tasto *Elimina*, verde per l'anteprima, blu e grigio del logo IGOR per i comandi (CUT blu, FADE grigio).
 - Gli elementi dell'elenco si trascinano con il mouse per cambiare l'ordine: una linea verde mostra dove finiranno e lo spostamento avviene solo al rilascio. Rilasciando un input sopra una scena, l'input entra nella scena; tenendo premuto **Ctrl** al rilascio lo stesso input viene messo anche in quella scena (copia collegata, con una sola sorgente).
 - Nell'anteprima si trascina un elemento per spostarlo e uno dei quattro angoli per ridimensionarlo (Maiusc mantiene le proporzioni); gli elementi si agganciano a bordi e centro.
 - Per ogni elemento: misura e posizione in pixel sull'uscita, aggiornate in tempo reale; posizione e misure in % dello schermo oppure in pixel (selettore *% / px*), *Schermo intero*, *Centra*, *Proporzioni 16:9*; *Solo questo* (mostra in uscita solo quell'input), *Sopra / Sotto* per l'ordine; in basso a sinistra, sempre visibili, *Ripristina misure* (riporta posizione, misure e impostazioni ai valori iniziali, tenendo sorgente e testo) e il tasto rosso *Elimina input*, che toglie l'input selezionato e chiude la sua sorgente.
