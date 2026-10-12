@@ -7,7 +7,7 @@
 ## Italiano
 
 ### Cos'è
-IGOR è una piccola regia video per Windows e Mac. La **regia** sta sul monitor principale, l'**uscita** va a tutto schermo sul secondo monitor (con un solo monitor appare come finestra). In uscita si compongono segnali NDI, videocamere e schede di acquisizione, video e immagini, un timer, un banner di testo e un teleprompter. L'uscita non supera mai i 25 fotogrammi al secondo.
+IGOR è una piccola regia video per Windows e Mac. La **regia** sta sul monitor principale, l'**uscita** va a tutto schermo sul secondo monitor (con un solo monitor appare come finestra). In uscita si compongono segnali NDI, videocamere e schede di acquisizione, video e immagini, un timer, un banner di testo e un teleprompter. L'uscita va ai fotogrammi al secondo del suo monitor (Auto); dalla barra in basso si possono ridurre per usare meno risorse.
 
 ### La regia in breve
 - **Menu in alto**
@@ -59,7 +59,7 @@ Una scena raccoglie più input; in onda va una scena alla volta. Gli input fuori
 ## English
 
 ### What it is
-IGOR is a small video mixer for Windows and Mac. The **control window** sits on the main monitor, the **output** goes full screen on the second monitor (with only one monitor it appears as a window). The output combines NDI sources, cameras and capture cards, videos and images, a timer, a text banner and a teleprompter. The output never goes above 25 frames per second.
+IGOR is a small video mixer for Windows and Mac. The **control window** sits on the main monitor, the **output** goes full screen on the second monitor (with only one monitor it appears as a window). The output combines NDI sources, cameras and capture cards, videos and images, a timer, a text banner and a teleprompter. The output runs at its monitor's frame rate (Auto); you can lower it from the bottom bar to use fewer resources.
 
 ### The control window at a glance
 - **Top menu**
