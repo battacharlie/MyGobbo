@@ -153,8 +153,8 @@ body.studio #program { border: 2px solid #dc2626; }
 .add-types { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; margin: 10px 0; }
 .add-types button { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding: 10px 12px; text-align: left; min-height: 64px; }
 .add-types button.on { background: var(--igor-blue-hi); border-color: var(--igor-blue-hi); color: #fff; }
-.add-types .add-ico { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; border-radius: 8px; background: var(--igor-grey); color: var(--igor-blue); }
-.add-types .add-ico .ico, .add-types .add-ico svg { display: block; width: 22px; height: 22px; }
+.add-types .add-ico { display: inline-flex; }
+.add-types .add-ico .ico, .add-types .add-ico svg { display: block; width: 32px; height: 32px; }
 .add-sources { display: flex; flex-direction: column; gap: 4px; max-height: 40vh; overflow: auto; margin: 8px 0; }
 .add-sources button { text-align: left; }
 .add-sources button.on { background: var(--igor-blue-hi); border-color: var(--igor-blue-hi); color: #fff; }

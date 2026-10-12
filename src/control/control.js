@@ -1874,14 +1874,16 @@ const ICONS = {
   trash: '<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"/>',
   mirrorX: '<path d="M12 3v18" stroke-dasharray="2 2.5"/><path d="M9 7l-6 5 6 5zM15 7l6 5-6 5z"/>',
   mirrorY: '<path d="M3 12h18" stroke-dasharray="2 2.5"/><path d="M7 9l5-6 5 6zM7 15l5 6 5-6z"/>',
-  // Icone della finestra "Aggiungi": linee semplici, blu IGOR su grigio.
-  'add-scene': '<path d="M12 3l9 5-9 5-9-5z"/><path d="M3 12.5l9 5 9-5"/><path d="M3 16.5l9 5 9-5"/>',
-  'add-ndi': '<circle cx="12" cy="12" r="2"/><path d="M8.5 8.5a5 5 0 0 0 0 7M15.5 8.5a5 5 0 0 1 0 7M5.6 5.6a9 9 0 0 0 0 12.8M18.4 5.6a9 9 0 0 1 0 12.8"/>',
-  'add-capture': '<rect x="2.5" y="7" width="13" height="10" rx="1.5"/><path d="M15.5 11l6-3.5v9l-6-3.5z"/>',
-  'add-media': '<rect x="3" y="5" width="18" height="14" rx="1.5"/><circle cx="8.5" cy="10" r="1.5"/><path d="M21 16l-5-5-8 8"/>',
-  'add-timer': '<circle cx="12" cy="13.5" r="7.5"/><path d="M12 9.5v4l2.5 2.5M9.5 2.5h5M12 2.5V6"/>',
-  'add-ticker': '<rect x="2" y="8.5" width="20" height="7" rx="1"/><path d="M5.5 12h8M16.5 12h2"/><path d="M20 5l-2-2M4 19l2 2" stroke-opacity=".45"/>',
-  'add-prompter': '<rect x="4" y="3" width="16" height="18" rx="1.5"/><path d="M7.5 8h9M7.5 12h9M7.5 16h6"/>',
+  // Icone della finestra "Aggiungi": due colori come il logo IGOR (grigio
+  // e blu), con il simbolo dell'input: cartella, rete, camera, play,
+  // orologio, fumetto, documento.
+  'add-scene': '<path d="M2.5 6.5a1.5 1.5 0 0 1 1.5-1.5h5l2 2.5h9a1.5 1.5 0 0 1 1.5 1.5v9.5a1.5 1.5 0 0 1-1.5 1.5H4a1.5 1.5 0 0 1-1.5-1.5z" fill="#c1c1c1" stroke="#16508a"/><path d="M2.5 10h19" stroke="#16508a"/>',
+  'add-ndi': '<path d="M12 6.5L5.5 17.5M12 6.5l6.5 11M5.5 17.5h13" stroke="#16508a"/><circle cx="12" cy="5.5" r="3" fill="#c1c1c1" stroke="#16508a"/><circle cx="5" cy="18" r="3" fill="#c1c1c1" stroke="#16508a"/><circle cx="19" cy="18" r="3" fill="#c1c1c1" stroke="#16508a"/>',
+  'add-capture': '<rect x="2" y="6.5" width="14" height="11" rx="2" fill="#c1c1c1" stroke="#16508a"/><path d="M16 10.5l6-3.5v10l-6-3.5z" fill="#16508a" stroke="#16508a"/><circle cx="9" cy="12" r="2.5" fill="#16508a" stroke="none"/>',
+  'add-media': '<circle cx="12" cy="12" r="9.5" fill="#c1c1c1" stroke="#16508a"/><path d="M10 8l6 4-6 4z" fill="#16508a" stroke="#16508a"/>',
+  'add-timer': '<circle cx="12" cy="12" r="9.5" fill="#c1c1c1" stroke="#16508a"/><path d="M12 6.5V12l3.5 2.5" stroke="#16508a" stroke-width="2.2"/>',
+  'add-ticker': '<path d="M4 3.5h16a1.5 1.5 0 0 1 1.5 1.5v10a1.5 1.5 0 0 1-1.5 1.5H10l-5 4.5v-4.5H4A1.5 1.5 0 0 1 2.5 15V5A1.5 1.5 0 0 1 4 3.5z" fill="#c1c1c1" stroke="#16508a"/><path d="M6.5 8h11M6.5 12h7" stroke="#16508a" stroke-width="2"/>',
+  'add-prompter': '<path d="M5 2.5h10l4.5 4.5v13a1.5 1.5 0 0 1-1.5 1.5H5a1.5 1.5 0 0 1-1.5-1.5V4A1.5 1.5 0 0 1 5 2.5z" fill="#c1c1c1" stroke="#16508a"/><path d="M15 2.5V7h4.5" stroke="#16508a"/><path d="M7 11h10M7 14.5h10M7 18h6" stroke="#16508a" stroke-width="2"/>',
   guide: '<path d="M3 12h18"/><path d="M3 8l3 4-3 4"/><path d="M8 6h13M8 18h13" stroke-opacity=".45"/>'
 };
 
