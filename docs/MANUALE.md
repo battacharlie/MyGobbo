@@ -43,8 +43,8 @@ Una scena raccoglie più input; in onda va una scena alla volta. Gli input fuori
 ### Gli elementi
 - **Timer**: conto alla rovescia o cronometro, tre colori (partenza, scadenza vicina, tempo superato), cornice lampeggiante a tempo scaduto, orologio quando è fermo. Barra spaziatrice = avvia/pausa.
 - **Banner di Testo**: fascia di testo che scorre se è più lunga dello schermo.
-- **TelePrompt**: testo che sale alla velocità scelta; si scrive, si incolla o si importa (.docx, .rtf, .txt, .html); specchio e linea di lettura.
-- **NDI**, **Periferica di acquisizione**, **Media** (video e immagini): adatta / riempi / deforma, ritaglio, modi di riproduzione e audio per i video.
+- **TelePrompt**: testo che sale alla velocità scelta; si scrive, si incolla o si importa (.docx, .rtf, .txt, .html); carattere in punti; pulsanti con icona per specchio e linea di lettura; pausa e play automatici quando esce o entra in onda.
+- **NDI**, **Periferica di acquisizione**, **Media** (video e immagini): adatta / riempi / deforma, ritaglio in % o in pixel; per i video: ripeti, riproduci quando in onda, pausa e riavvolgi quando non in onda, audio Follow.
 
 ### Controllo remoto
 - **MIDI**: scegli un comando, premi *Impara* e tocca un tasto del controller.
@@ -95,8 +95,8 @@ A scene groups several inputs; one scene at a time is on air. Inputs outside sce
 ### Elements
 - **Timer**: countdown or stopwatch, three colours (start, close to the end, time up), blinking frame when time is up, clock when stopped. Space bar = start/pause.
 - **Text Banner**: a strip of text that scrolls when it is longer than the screen.
-- **TelePrompt**: text that rises at the chosen speed; type, paste or import it (.docx, .rtf, .txt, .html); mirror and reading line.
-- **NDI**, **Capture device**, **Media** (videos and images): fit / fill / stretch, crop, play and audio modes for videos.
+- **TelePrompt**: text that rises at the chosen speed; type, paste or import it (.docx, .rtf, .txt, .html); font size in points; icon buttons for mirror and reading line; automatic pause and play when it leaves or goes on air.
+- **NDI**, **Capture device**, **Media** (videos and images): fit / fill / stretch, crop in % or pixels; for videos: loop, play when on air, pause and rewind when not on air, Follow audio.
 
 ### Remote control
 - **MIDI**: choose a command, press *Learn* and touch a key on the controller.

@@ -58,6 +58,21 @@ function h(tag, attrs = {}, ...children) {
 }
 
 // Spiegazione che si può nascondere dal menu Visualizza.
+// Ogni pulsante mostra un suggerimento quando ci si ferma sopra con il
+// mouse: quello scritto apposta oppure, se manca, la sua scritta.
+function autoTitles(doc) {
+  doc.addEventListener('pointerover', (e) => {
+    const b = e.target.closest && e.target.closest('button, select');
+    if (!b || b.closest('#menubar') || (b.title && !b.dataset.autoTitle)) return;
+    const text = (b.getAttribute('aria-label') || (b.tagName === 'SELECT' ? '' : b.textContent) || '').replace(/\s+/g, ' ').trim();
+    if (text && b.title !== text) {
+      b.title = text;
+      b.dataset.autoTitle = '1';
+    }
+  }, true);
+}
+autoTitles(document);
+
 function help(text) {
   return h('p', { class: 'muted small help' }, text);
 }
@@ -178,6 +193,10 @@ function refreshBindings() {
   const layer = selectedLayer();
   if (!layer) return;
   for (const b of bindings) {
+    if (b.toggle) {
+      b.el.classList.toggle('on', !!b.get(layer));
+      continue;
+    }
     if (b.html) {
       // L'editor del TelePrompt si aggiorna solo quando non ci si sta scrivendo.
       if (b.el.ownerDocument.activeElement !== b.el && b.el.dataset.html !== b.get(layer)) {
@@ -214,7 +233,7 @@ const CARD_MIN_W = 200;
 const CARD_MIN_H = 120;
 const CARD_SNAP = 10;
 const collapsedCards = new Set(prefs.get('collapsedCards2', []));
-const cardPos = prefs.get('cardPos', {}); // chiave -> { x, y, w, h } in pixel
+const cardPos = prefs.get('cardPos3', {}); // chiave -> { x, y, w, h } in pixel (cardPos3: disposizione della 0.4.11)
 const poppedCards = new Map(); // chiave -> finestra separata
 let panelType = ''; // tipo dell'input mostrato, per memorizzare le scelte
 let cardZ = 10;
@@ -265,38 +284,60 @@ function cardArea() {
   return { W: Math.max(CARD_MIN_W, panel.clientWidth - 2), H: Math.max(CARD_MIN_H, panel.clientHeight - 2) };
 }
 
-// Posizioni iniziali: 4 colonne a tutta altezza, 2 righe con più di 4 schede.
-// Schede che all'inizio occupano tutta l'altezza della colonna (prima e
-// seconda riga): il testo del TelePrompt.
-const TALL_CARDS = new Set(['prompter:Testo']);
+// Posizioni iniziali, colonna per colonna su 4 colonne:
+// - la scheda del nome è bassa e sta in cima alla prima colonna, con sotto
+//   la scheda che la segue, alta fino in fondo;
+// - le schede "alte" occupano da sole una colonna intera;
+// - le altre stanno due per colonna se le schede sono più di 4, altrimenti
+//   una per colonna.
+// Schede alte: testo e aspetto del TelePrompt.
+const TALL_CARDS = new Set(['prompter:Testo', 'prompter:Aspetto']);
+const SHORT_CARD_H = 128;
 
-// Posizioni iniziali: 4 colonne; con più di 4 schede, 2 righe di uguale
-// altezza. Una scheda alta occupa la sua colonna in entrambe le righe.
 function defaultCardRects(cards) {
   const { W, H } = cardArea();
-  const tall = cards.map((el) => TALL_CARDS.has(el.dataset.key));
-  const slots = cards.length + tall.filter(Boolean).length;
-  const rows = slots > 4 ? 2 : 1;
+  const kind = cards.map((el) => (el.dataset.size === 'short' ? 'short' : TALL_CARDS.has(el.dataset.key) ? 'tall' : 'normal'));
+  const rows = kind.filter((k) => k !== 'short').length > 4 ? 2 : 1;
   const w = Math.max(CARD_MIN_W, Math.floor((W - CARD_GAP * 3) / 4));
-  const hh = Math.max(CARD_MIN_H * 1.5, Math.floor((H - CARD_GAP * (rows - 1)) / rows));
-  const used = new Set();
-  let next = 0;
-  return cards.map((_, i) => {
-    while (used.has(next)) next++;
-    const slot = next;
-    used.add(slot);
-    const col = slot % 4;
-    const row = Math.floor(slot / 4);
-    // Alta solo se parte dalla prima riga di un gruppo di due righe libere.
-    const spans = tall[i] && rows === 2 && row % 2 === 0 && !used.has(slot + 4);
-    if (spans) used.add(slot + 4);
-    return {
-      x: col * (w + CARD_GAP),
-      y: row * (hh + CARD_GAP),
-      w,
-      h: spans ? hh * 2 + CARD_GAP : hh
-    };
+  const colH = Math.max(CARD_MIN_H * (rows + 1), H);
+  const half = Math.floor((colH - CARD_GAP * (rows - 1)) / rows);
+  const rects = [];
+  let col = 0;
+  let y = 0; // dove continua la colonna attuale
+  let used = 0; // posti occupati nella colonna attuale
+  let fillRest = false; // la prossima scheda arriva fino in fondo alla colonna
+  const nextCol = () => {
+    col++;
+    y = 0;
+    used = 0;
+    fillRest = false;
+  };
+  cards.forEach((_, i) => {
+    const k = kind[i];
+    if (k === 'short') {
+      if (used || y) nextCol();
+      rects.push({ col, y: 0, h: SHORT_CARD_H });
+      y = SHORT_CARD_H + CARD_GAP;
+      fillRest = true;
+      return;
+    }
+    if (k === 'tall' && (used || y)) nextCol();
+    if (k !== 'tall' && !fillRest && used >= rows) nextCol();
+    let hh;
+    if (fillRest || k === 'tall') hh = colH - y;
+    else hh = half;
+    rects.push({ col, y, h: hh });
+    y += hh + CARD_GAP;
+    used += fillRest || k === 'tall' ? rows : 1;
+    fillRest = false;
   });
+  // Oltre la quarta colonna si ricomincia sotto.
+  return rects.map((r) => ({
+    x: (r.col % 4) * (w + CARD_GAP),
+    y: r.y + Math.floor(r.col / 4) * (colH + CARD_GAP),
+    w,
+    h: Math.max(CARD_MIN_H / 2, r.h)
+  }));
 }
 
 // Mette ogni scheda al suo posto: quello memorizzato o, per le schede mai
@@ -356,7 +397,7 @@ function saveCardRect(el) {
       cardPos[other.dataset.key] = o;
     }
   }
-  prefs.set('cardPos', cardPos);
+  prefs.set('cardPos3', cardPos);
 }
 
 // Calamita: aggancia un valore ai bordi delle altre schede.
@@ -508,6 +549,7 @@ function openSideWindow(name, title, width, height) {
   doc.body.className = `side-window ${document.body.classList.contains('hide-help') ? 'hide-help' : ''}`;
   // Gli stessi tasti della regia (spazio, TelePrompt) funzionano anche qui.
   doc.addEventListener('keydown', onControlKey);
+  autoTitles(doc);
   return win;
 }
 
@@ -638,19 +680,11 @@ function buildPanel() {
     return;
   }
 
-  const scene = sceneOf(layer.id);
-  const copies = linkCount(layer);
-  panel.append(card(TYPE_LABELS[layer.type],
-    field('Nome', textInput('name')),
-    scene ? h('p', { class: 'muted small' }, t('Nella scena "{name}".', { name: scene.name })) : null,
-    copies > 1 ? h('p', { class: 'muted small' }, t('🔗 Input presente in {n} punti: sorgente e impostazioni sono condivise, posizione e misure no.', { n: copies })) : null,
-    h('div', { class: 'row' },
-      checkbox(scene ? 'Visibile nella scena' : 'In onda (visibile in uscita)', 'visible')),
-    h('div', { class: 'row' },
-      h('button', { onclick: () => send({ type: 'solo', id: layer.id }), title: t('Mostra solo questo elemento (tra quelli dello stesso elenco)') }, t('Solo questo')),
-      h('button', { onclick: () => send({ type: 'move-layer', id: layer.id, dir: 1 }), title: t('Porta sopra agli altri elementi (più in primo piano)') }, t('Sopra')),
-      h('button', { onclick: () => send({ type: 'move-layer', id: layer.id, dir: -1 }), title: t('Porta sotto agli altri elementi (più verso lo sfondo)') }, t('Sotto')))
-  ));
+  // Prima scheda: solo il nome. Visibilità, ordine e scena si cambiano
+  // dall'elenco degli input (occhio, trascinamento, tasto destro).
+  const nameCard = card(TYPE_LABELS[layer.type], field('Nome', textInput('name')));
+  nameCard.dataset.size = 'short';
+  panel.append(nameCard);
 
   if (layer.type === 'timer') panel.append(...timerSection(layer));
   if (layer.type === 'ticker') panel.append(...tickerSection());
@@ -708,19 +742,51 @@ function geometrySection(layer) {
     h('div', { class: 'row' },
       h('button', { onclick: () => updateLayer({ x: 0, y: 0, w: 100, h: 100 }) }, t('Schermo intero')),
       h('button', { onclick: () => center() }, t('Centra')),
-      h('button', { onclick: () => fitToSource() }, t('Proporzioni 16:9')))
+      h('button', { onclick: () => fitToSource() }, t('Proporzioni 16:9'))),
+    isVisual(layer.type) ? [
+      h('div', { class: 'muted small' }, t('Ritaglio')),
+      h('div', { class: 'grid2' },
+        field(`${t('Sinistra')}, ${suffix}`, cropInput('left', unit)),
+        field(`${t('Destra')}, ${suffix}`, cropInput('right', unit)),
+        field(`${t('Alto')}, ${suffix}`, cropInput('top', unit)),
+        field(`${t('Basso')}, ${suffix}`, cropInput('bottom', unit))),
+      h('div', { class: 'row' },
+        h('button', { onclick: () => updateLayer({ crop: { top: 0, right: 0, bottom: 0, left: 0 } }) }, t('Togli ritaglio')))
+    ] : null
   )];
   if (isVisual(layer.type)) {
-    nodes.push(card('Adattamento e ritaglio',
+    nodes.push(card('Adattamento',
       field('Adattamento', select(
         [['contain', 'Adatta (mantiene le proporzioni)'], ['cover', 'Riempi (mantiene le proporzioni, taglia)'], ['stretch', 'Deforma (riempie tutto)']],
         (l) => l.fit, (v) => updateLayer({ fit: v }))),
-      help(t('Per ritagliare trascina nell\'anteprima le maniglie arancioni a metà dei lati.')),
-      h('div', { class: 'row' },
-        h('button', { onclick: () => updateLayer({ crop: { top: 0, right: 0, bottom: 0, left: 0 } }) }, t('Togli ritaglio')))
+      help(t('Per ritagliare trascina nell\'anteprima le maniglie arancioni a metà dei lati, oppure scrivi le misure in "Posizione e misure".'))
     ));
   }
   return nodes;
+}
+
+// Ritaglio di un lato in % della sorgente, oppure in pixel dell'uscita
+// (quanto della sorgente, alla misura in cui appare, viene tolto). Come con
+// le maniglie, il riquadro si stringe insieme al ritaglio.
+function cropInput(side, unit) {
+  const horizontal = side === 'left' || side === 'right';
+  const geo = (l) => {
+    const vis = horizontal ? 100 - l.crop.left - l.crop.right : 100 - l.crop.top - l.crop.bottom;
+    const size = horizontal ? l.w : l.h;
+    const total = horizontal ? state.output.width : state.output.height;
+    return { vis, size, pxPerPct: (size / vis) * total / 100 };
+  };
+  return numberInput(
+    (l) => (unit === 'px' ? Math.round(l.crop[side] * geo(l).pxPerPct) : round(l.crop[side])),
+    (v) => {
+      const l = selectedLayer();
+      const { vis, size, pxPerPct } = geo(l);
+      const pct = Math.max(0, unit === 'px' ? v / pxPerPct : v);
+      const inward = ((pct - l.crop[side]) / vis) * size;
+      const d = { left: [inward, 0], right: [-inward, 0], top: [0, inward], bottom: [0, -inward] }[side];
+      updateLayer(cropPatch({ x: l.x, y: l.y, w: l.w, h: l.h, crop: { ...l.crop } }, side, d[0], d[1]));
+    },
+    unit === 'px' ? { min: 0, step: 1 } : { min: 0, max: 95, step: 0.5 });
 }
 
 function timerSection(layer) {
@@ -840,16 +906,15 @@ function mediaSection() {
     h('div', { class: 'row' }, playBtn,
       h('button', { onclick: () => updateLayer({ playing: true, restartAt: Date.now() }) }, `⏮ ${t('Da capo')}`)),
     checkbox('Ripeti all\'infinito', 'loop'),
-    field('Riproduzione', select([
-      ['always', 'Continua anche quando non è in onda'],
-      ['onair', 'Riproduci solo quando è in onda'],
-      ['restart', 'Riproduci in onda e riavvolgi quando esce']
-    ], (l) => l.playMode, (v) => updateLayer({ playMode: v }))),
+    checkbox('Riproduci quando in onda', 'playOnAir'),
+    checkbox('Metti in pausa quando non in onda', 'pauseOffAir'),
+    checkbox('Riavvolgi quando non in onda', 'rewindOffAir'),
     field('Audio (sull\'uscita)', select([
       ['off', 'Disattivato'],
       ['on', 'Attivo'],
-      ['follow', 'Segue l\'onda (attivo solo quando è in onda)']
+      ['follow', 'Follow']
     ], (l) => l.audioMode, (v) => updateLayer({ audioMode: v }))),
+    help(t('Follow: l\'audio è attivo solo quando il video è in onda.')),
     help(t('"In onda" vuol dire visibile sul secondo schermo: nella scena in onda oppure fuori dalle scene.'))
   ];
   return [
@@ -1001,12 +1066,36 @@ function prompterSection(layer) {
         h('button', { onclick: () => sendPrompter('nudge', { dy: -60 }), title: t('Indietro di poco (freccia su)') }, `▲ ${t('Indietro')}`),
         h('button', { onclick: () => sendPrompter('nudge', { dy: 60 }), title: t('Avanti di poco (freccia giù)') }, `▼ ${t('Avanti')}`)),
       field('Velocità (pixel al secondo su 1080)', h('div', { class: 'row' },
-        h('button', { class: 'small-btn', onclick: () => updateLayer({ speed: Math.max(0, selectedLayer().speed - 5) }) }, '−'),
-        bound(h('input', { type: 'range', min: 0, max: 300, step: 1 }), (l) => l.speed, (v) => updateLayer({ speed: v })),
-        h('button', { class: 'small-btn', onclick: () => updateLayer({ speed: selectedLayer().speed + 5 }) }, '+'),
+        h('button', { class: 'small-btn', title: t('Più lento'), onclick: () => updateLayer({ speed: Math.max(0, selectedLayer().speed - 5) }) }, '−'),
+        h('button', { class: 'small-btn', title: t('Più veloce'), onclick: () => updateLayer({ speed: selectedLayer().speed + 5 }) }, '+'),
         numberInput((l) => l.speed, (v) => updateLayer({ speed: clamp(v, 0, 2000) }), { min: 0, step: 1, style: 'width:70px' }))),
+      bound(h('input', { type: 'range', min: 0, max: 300, step: 1, class: 'wide-range' }), (l) => l.speed, (v) => updateLayer({ speed: v })),
+      checkbox('Metti in pausa quando non in onda', 'pauseOffAir'),
+      checkbox('Metti in play quando in onda', 'playOnAir'),
+      h('div', { class: 'row icon-row' },
+        iconToggle('mirrorX', 'Specchia in orizzontale (vetro del teleprompter)', 'mirrorX'),
+        iconToggle('mirrorY', 'Capovolgi in verticale', 'mirrorY'),
+        iconToggle('guide', 'Mostra la linea di lettura', 'guide')),
       help(t('Tasti: spazio avvia/pausa, Pagina su/giù cambia paragrafo, frecce su/giù spostano il testo, Home torna all\'inizio.'))),
-    card('Paragrafi (clic per saltare)', paraList),
+    card('Aspetto',
+      field('Carattere', fontSelect()),
+      h('div', { class: 'row tight' },
+        field('Dimensione (pt)', numberInput((l) => Math.round(l.fontSize * PT_PER_PERCENT),
+          (v) => updateLayer({ fontSize: round2(clamp(v / PT_PER_PERCENT, 0.5, 100)) }), { min: 4, max: 800, step: 1, style: 'width:64px' })),
+        h('span', { class: 'check-cell' }, checkbox('Grassetto', 'bold')),
+        field('Testo', colorInput('color')),
+        field('Sfondo', colorInput('background'))),
+      checkbox('Sfondo trasparente', 'transparent'),
+      rangeField('Interlinea', 'lineHeight', 0.8, 3, 0.05, 0.5, 5),
+      rangeField('Spaziatura tra le lettere (px)', 'letterSpacing', -5, 40, 0.5, -20, 200),
+      rangeField('Margini a destra e sinistra (%)', 'margin', 0, 40, 1, 0, 45),
+      field('Allineamento', select([['left', 'A sinistra'], ['center', 'Al centro'], ['right', 'A destra'], ['justify', 'Giustificato']],
+        (l) => l.align, (v) => updateLayer({ align: v }))),
+      h('div', { class: 'row tight' },
+        field('Posizione della linea (% dall\'alto)', h('div', { class: 'row' },
+          bound(h('input', { type: 'range', min: 5, max: 90, step: 1 }), (l) => l.guideY, (v) => updateLayer({ guideY: v })),
+          numberInput((l) => l.guideY, (v) => updateLayer({ guideY: clamp(v, 5, 90) }), { min: 5, max: 90, step: 1, style: 'width:56px' }))),
+        field('Colore della linea', colorInput('guideColor')))),
     card('Testo',
       h('div', { class: 'row' },
         h('button', { onclick: async () => {
@@ -1021,26 +1110,21 @@ function prompterSection(layer) {
       toolbar,
       editor,
       help(t('Puoi anche copiare e incollare da Word, Blocco note, Pages o TextEdit: grassetto, corsivo, colori e grandezze restano.'))),
-    card('Aspetto',
-      field('Carattere', fontSelect()),
-      rangeField('Misura carattere (% altezza schermo)', 'fontSize', 1, 25, 0.5, 0.5, 100),
-      checkbox('Grassetto', 'bold'),
-      h('div', { class: 'grid2' },
-        field('Colore testo', colorInput('color')),
-        field('Colore sfondo', colorInput('background'))),
-      checkbox('Sfondo trasparente', 'transparent'),
-      rangeField('Interlinea', 'lineHeight', 0.8, 3, 0.05, 0.5, 5),
-      rangeField('Spaziatura tra le lettere (px)', 'letterSpacing', -5, 40, 0.5, -20, 200),
-      rangeField('Margini a destra e sinistra (%)', 'margin', 0, 40, 1, 0, 45),
-      field('Allineamento', select([['left', 'A sinistra'], ['center', 'Al centro'], ['right', 'A destra'], ['justify', 'Giustificato']],
-        (l) => l.align, (v) => updateLayer({ align: v })))),
-    card('Specchio e linea di lettura',
-      checkbox('Specchia in orizzontale (vetro del teleprompter)', 'mirrorX'),
-      checkbox('Capovolgi in verticale', 'mirrorY'),
-      checkbox('Mostra la linea di lettura', 'guide'),
-      field('Posizione della linea (% dall\'alto)', bound(h('input', { type: 'range', min: 5, max: 90, step: 1 }), (l) => l.guideY, (v) => updateLayer({ guideY: v }))),
-      field('Colore della linea', colorInput('guideColor')))
+    card('Paragrafi (clic per saltare)', paraList)
   ];
+}
+
+// Punti tipografici del TelePrompt: come negli editor di testo, su
+// un'uscita Full HD (1080 righe; 1 punto = 4/3 di pixel). Dentro resta in %
+// dell'altezza dello schermo.
+const PT_PER_PERCENT = 1080 / 100 * 0.75;
+
+// Pulsante con icona che accende e spegne un'opzione dell'elemento.
+function iconToggle(name, label, prop) {
+  const btn = h('button', { class: 'icon-toggle', title: t(label), 'aria-label': t(label),
+    onclick: () => updateLayer({ [prop]: !selectedLayer()[prop] }) }, icon(name));
+  bindings.push({ el: btn, get: (l) => l[prop], toggle: true });
+  return btn;
 }
 
 function fontSelect() {
@@ -1688,7 +1772,7 @@ window.addEventListener('resize', () => applyLayout());
 function resetCards() {
   for (const win of poppedCards.values()) if (!win.closed) win.close();
   poppedCards.clear();
-  prefs.set('cardPos', {});
+  prefs.set('cardPos3', {});
   for (const k of Object.keys(cardPos)) delete cardPos[k];
   prefs.set('collapsedCards2', []);
   collapsedCards.clear();
@@ -1698,7 +1782,7 @@ function resetCards() {
 function resetLayout() {
   prefs.set('layout.normal', null);
   prefs.set('layout.studio', null);
-  prefs.set('cardPos', {});
+  prefs.set('cardPos3', {});
   for (const k of Object.keys(cardPos)) delete cardPos[k];
   prefs.set('collapsedCards2', []);
   collapsedCards.clear();
@@ -1787,7 +1871,10 @@ const ICONS = {
   reset: '<path d="M4 12a8 8 0 1 0 2.4-5.7"/><path d="M4 4v4h4"/>',
   eye: '<path d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
   eyeOff: '<path d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6S2 12 2 12z"/><path d="M4 4l16 16"/>',
-  trash: '<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"/>'
+  trash: '<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"/>',
+  mirrorX: '<path d="M12 3v18" stroke-dasharray="2 2.5"/><path d="M9 7l-6 5 6 5zM15 7l6 5-6 5z"/>',
+  mirrorY: '<path d="M3 12h18" stroke-dasharray="2 2.5"/><path d="M7 9l5-6 5 6zM7 15l5 6 5-6z"/>',
+  guide: '<path d="M3 12h18"/><path d="M3 8l3 4-3 4"/><path d="M8 6h13M8 18h13" stroke-opacity=".45"/>'
 };
 
 function icon(name) {
@@ -2226,6 +2313,9 @@ api.getState().then((s) => {
   applyLayout();
 });
 
+function round2(v) {
+  return Math.round(v * 100) / 100;
+}
 function round(v) {
   return Math.round(v * 10) / 10;
 }
