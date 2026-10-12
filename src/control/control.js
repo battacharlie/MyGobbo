@@ -923,7 +923,7 @@ function mediaSection() {
       h('div', { class: 'row' },
         h('button', { onclick: () => send({ type: 'pick-media', id: selectedId }) }, t('Scegli file…'))),
       isVideo() ? videoControls : help(t('Immagine fissa.')),
-      help(t('I video vanno in uscita con i fotogrammi al secondo scelti nel menu Uscita (al massimo 25), come gli altri input.')))
+      help(t('I video vanno in uscita con i fotogrammi al secondo dell\'uscita (Auto = come il monitor), come gli altri input.')))
   ];
 }
 
@@ -1893,7 +1893,7 @@ function quickSelect(id, title, options, value, onchange) {
 
 function renderQuickbar() {
   const bar = $('quickbar');
-  const sig = JSON.stringify([state.displays, state.activeDisplayId, state.fps, state.displayVisible, state.ndiOut, state.ndiOutStatus, state.ndiAvailable, I18n.getLang()]);
+  const sig = JSON.stringify([state.displays, state.activeDisplayId, state.fps, state.fpsChoice, state.monitorHz, state.displayVisible, state.ndiOut, state.ndiOutStatus, state.ndiAvailable, I18n.getLang()]);
   if (bar.dataset.sig === sig) return;
   // Non ricostruire mentre una tendina è aperta.
   if (bar.contains(document.activeElement) && document.activeElement.tagName === 'SELECT') return;
@@ -1917,7 +1917,8 @@ function renderQuickbar() {
       state.displays.map((d) => [d.id, `${t('Monitor')} ${d.index}${d.primary ? ' ★' : ''}`]),
       state.activeDisplayId, (v) => send({ type: 'set-display', displayId: Number(v) })),
     quickSelect('q-fps', t('Fotogrammi al secondo dell\'uscita'),
-      FPS_CHOICES.map((f) => [f, `${f} fps`]), state.fps, (v) => send({ type: 'set-fps', fps: Number(v) })),
+      [[0, state.monitorHz ? `Auto (${state.monitorHz} fps)` : 'Auto'], ...FPS_CHOICES.map((f) => [f, `${f} fps`])],
+      state.fpsChoice || 0, (v) => send({ type: 'set-fps', fps: Number(v) })),
     h('span', { class: 'quick-sep' }),
     h('button', { id: 'q-import', class: 'quick', title: t('Importa configurazione…'), onclick: () => send({ type: 'open-config' }) }, icon('import')),
     h('button', { id: 'q-export', class: 'quick', title: t('Esporta configurazione…'), onclick: () => send({ type: 'save-config' }) }, icon('export')),

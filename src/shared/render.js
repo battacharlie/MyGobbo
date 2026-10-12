@@ -8,14 +8,14 @@
 //   CSS, li compone la scheda video senza lavoro in JavaScript;
 // - il timer si aggiorna solo quando cambia il secondo mostrato;
 // - la frase scorre con un'animazione CSS gestita dal compositore, a scatti
-//   dei fotogrammi al secondo scelti (al massimo 25, come i video);
+//   dei fotogrammi al secondo scelti (quelli del monitor o meno, come i video);
 // - le misure si rileggono solo quando cambiano scena o dimensioni.
 (function (root) {
   const { fps, formatTime, timerValueMs, timerElapsedMs, timerColor, timerOvertime, timerShowsClock, formatClock, isVisual, videoRects, hexToRgba, prompterY, TYPE_LABELS } = root.Layers;
 
   // Lampeggio dei numeri a tempo superato e cornice che corre lungo i bordi.
   // Le animazioni vanno a scatti (steps) per non superare i fotogrammi al
-  // secondo scelti (fps(), al massimo 25).
+  // secondo scelti (fps()).
   const FRAME_LOOP_MS = 480; // un giro del tratteggio a velocità normale
   if (!document.getElementById('igor-anim')) {
     const style = document.createElement('style');

@@ -120,7 +120,7 @@
     "Nessun file scelto": "No file chosen",
     "Scegli file…": "Choose file…",
     "Immagine fissa.": "Still image.",
-    "I video vanno in uscita con i fotogrammi al secondo scelti nel menu Uscita (al massimo 25), come gli altri input.": "Videos go out at the frame rate chosen in the Output menu (25 at most), like the other inputs.",
+    "I video vanno in uscita con i fotogrammi al secondo dell'uscita (Auto = come il monitor), come gli altri input.": "Videos go out at the output frame rate (Auto = same as the monitor), like the other inputs.",
     "Vai a questo paragrafo": "Go to this paragraph",
     "Nessun paragrafo": "No paragraphs",
     "Colore del testo selezionato": "Colour of the selected text",

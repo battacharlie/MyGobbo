@@ -3,10 +3,10 @@
 //
 // I fotogrammi arrivano dalla finestra di uscita solo quando qualcosa cambia;
 // l'ultimo viene inviato di continuo ai fotogrammi al secondo dell'uscita
-// (al massimo 25), così chi riceve vede un flusso regolare anche con
+// (quelli del monitor o meno, se scelti), così chi riceve vede un flusso regolare anche con
 // un'immagine ferma.
 const ndi = require('./ndi');
-const { MAX_FPS } = require('./shared/layers');
+const { MAX_FPS, DEFAULT_FPS } = require('./shared/layers');
 
 const NDI_NAME = 'IGOR - ABit/s';
 
@@ -80,7 +80,7 @@ async function start(displayWin, getFps, changed) {
   let lastConnections = 0;
   let lastCheck = 0;
   const schedule = () => {
-    const fps = Math.max(1, Math.min(MAX_FPS, Number(getFps()) || MAX_FPS));
+    const fps = Math.max(1, Math.min(MAX_FPS, Number(getFps()) || DEFAULT_FPS));
     if (fps === currentFps) return;
     currentFps = fps;
     clearInterval(tick);
