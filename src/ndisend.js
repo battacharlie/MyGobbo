@@ -13,21 +13,30 @@ const NDI_NAME = 'IGOR - ABit/s';
 let sender = null;
 let win = null;
 let tick = null;
-let frame = null; // { data, width, height }
+let frame = null; // { data, width, height }: l'ultimo fotogramma inviato
+let pending = null; // ultima immagine arrivata dalla finestra, non ancora copiata
 let busy = false;
 let starting = false;
 let wanted = false; // l'utente vuole l'invio attivo (può cambiare durante l'avvio)
 let error = null;
 let onChange = () => {};
 
+// La finestra può ridisegnarsi più spesso dei fotogrammi inviati (es. 60 volte
+// al secondo con un monitor a 60 Hz): qui si tiene solo l'ultima immagine e
+// la si copia in memoria al momento dell'invio, una volta sola. Così le
+// immagini che non verrebbero mai inviate non vengono copiate.
 function onFrame(image) {
-  const { width, height } = image.getSize();
-  if (!width || !height) return;
-  frame = { data: image.toBitmap(), width, height };
+  pending = image;
 }
 
 function sendFrame(fps) {
-  if (!sender || !frame || busy) return;
+  if (!sender || busy) return;
+  if (pending) {
+    const { width, height } = pending.getSize();
+    if (width && height) frame = { data: pending.toBitmap(), width, height };
+    pending = null;
+  }
+  if (!frame) return;
   const g = ndi.grandiose;
   busy = true;
   sender.video({
@@ -114,6 +123,7 @@ function stop(changed) {
   }
   win = null;
   frame = null;
+  pending = null;
   const s = sender;
   sender = null;
   if (s) s.destroy().catch(() => {});
