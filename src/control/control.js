@@ -292,11 +292,13 @@ function cardArea() {
 //   una per colonna.
 // Schede alte: testo e aspetto del TelePrompt.
 const TALL_CARDS = new Set(['prompter:Testo', 'prompter:Aspetto']);
+// Schede larghe due colonne e alte quanto la colonna: comandi dei video.
+const WIDE_CARDS = new Set(['media:Comandi']);
 const SHORT_CARD_H = 128;
 
 function defaultCardRects(cards) {
   const { W, H } = cardArea();
-  const kind = cards.map((el) => (el.dataset.size === 'short' ? 'short' : TALL_CARDS.has(el.dataset.key) ? 'tall' : 'normal'));
+  const kind = cards.map((el) => (el.dataset.size === 'short' ? 'short' : WIDE_CARDS.has(el.dataset.key) ? 'wide' : TALL_CARDS.has(el.dataset.key) ? 'tall' : 'normal'));
   const rows = kind.filter((k) => k !== 'short').length > 4 ? 2 : 1;
   const w = Math.max(CARD_MIN_W, Math.floor((W - CARD_GAP * 3) / 4));
   const colH = Math.max(CARD_MIN_H * (rows + 1), H);
@@ -321,6 +323,16 @@ function defaultCardRects(cards) {
       fillRest = true;
       return;
     }
+    if (k === 'wide') {
+      // Due colonne intere: se non c'è posto nella riga di colonne attuale
+      // si passa alla successiva.
+      if (used || y) nextCol();
+      if (col % 4 === 3) nextCol();
+      rects.push({ col, y: 0, h: colH, span: 2 });
+      col++;
+      nextCol();
+      return;
+    }
     if (k === 'tall' && (used || y)) nextCol();
     if (k !== 'tall' && !fillRest && used >= rows) nextCol();
     let hh;
@@ -335,7 +347,7 @@ function defaultCardRects(cards) {
   return rects.map((r) => ({
     x: (r.col % 4) * (w + CARD_GAP),
     y: r.y + Math.floor(r.col / 4) * (colH + CARD_GAP),
-    w,
+    w: r.span ? w * r.span + CARD_GAP * (r.span - 1) : w,
     h: Math.max(CARD_MIN_H / 2, r.h)
   }));
 }
@@ -667,6 +679,7 @@ function buildPanel() {
   panel.innerHTML = '';
   panelKey = panelKeyOf(layer);
   panelType = layer ? layer.type : '';
+  onVideoTime = null;
 
   if (!layer) {
     panel.append(h('p', { class: 'empty' }, t('Seleziona un elemento dall\'elenco o dall\'anteprima, oppure aggiungine uno nuovo.')));
@@ -694,6 +707,8 @@ function buildPanel() {
   if (layer.type === 'media') panel.append(...mediaSection());
 
   panel.append(...geometrySection(layer));
+  // Video: la scheda Comandi viene dopo Posizione e misure (terza e quarta colonna).
+  if (layer.type === 'media' && layer.mediaKind !== 'image') panel.append(...mediaCommands());
   placeCards();
   refreshBindings();
 }
@@ -754,11 +769,10 @@ function geometrySection(layer) {
         h('button', { onclick: () => updateLayer({ crop: { top: 0, right: 0, bottom: 0, left: 0 } }) }, t('Togli ritaglio')))
     ] : null
   )];
-  if (isVisual(layer.type)) {
+  // Per i media l'adattamento sta nella scheda File.
+  if (isVisual(layer.type) && layer.type !== 'media') {
     nodes.push(card('Adattamento',
-      field('Adattamento', select(
-        [['contain', 'Adatta (mantiene le proporzioni)'], ['cover', 'Riempi (mantiene le proporzioni, taglia)'], ['stretch', 'Deforma (riempie tutto)']],
-        (l) => l.fit, (v) => updateLayer({ fit: v }))),
+      fitSelect(),
       help(t('Per ritagliare trascina nell\'anteprima le maniglie arancioni a metà dei lati, oppure scrivi le misure in "Posizione e misure".'))
     ));
   }
@@ -822,7 +836,8 @@ function timerSection(layer) {
       h('div', { class: 'row' }, startBtn,
         h('button', { onclick: () => send({ type: 'timer', id: selectedId, action: 'reset' }) }, `↺ ${t('Azzera')}`)),
       h('div', { class: 'row' }, adj(-60, '−1 min'), adj(-10, '−10 s'), adj(10, '+10 s'), adj(60, '+1 min')),
-      help(t('Barra spaziatrice: avvia/pausa del timer selezionato.'))),
+      help(t('Barra spaziatrice: avvia/pausa del timer selezionato.')),
+      beepControls()),
     card('Conteggio',
       field('Direzione', select([['down', 'All\'indietro (countdown)'], ['up', 'In avanti (cronometro)']],
         (l) => l.direction, (v) => updateLayer({ direction: v }))),
@@ -868,6 +883,122 @@ function timerSection(layer) {
   ];
 }
 
+// Segnale acustico del countdown: casella, suono (campanella o file),
+// uscita audio, ripetizione.
+function beepControls() {
+  const devSel = h('select', { title: t('Uscita audio del segnale acustico') });
+  devSel.addEventListener('change', () => updateLayer({ beepDevice: devSel.value }));
+  const fillDevices = async () => {
+    const outs = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === 'audiooutput' && d.deviceId !== 'default' && d.deviceId !== 'communications');
+    devSel.replaceChildren(h('option', { value: '' }, t('Uscita audio del sistema')),
+      ...outs.map((d, i) => h('option', { value: d.deviceId }, d.label || `${t('Uscita audio')} ${i + 1}`)));
+    const l = selectedLayer();
+    if (l) devSel.value = l.beepDevice || '';
+    if (devSel.value !== ((l && l.beepDevice) || '')) devSel.value = '';
+  };
+  fillDevices();
+  bindings.push({ el: devSel, get: (l) => l.beepDevice || '', isCheck: false });
+  return h('div', { class: 'beep-box' },
+    checkbox('Segnale acustico allo scadere', 'beep'),
+    h('div', { class: 'row' },
+      liveText((l) => (l.beepFile ? l.beepFile.split(/[\\/]/).pop() : t('Campanella (interna)')), { class: 'muted small beep-name' })),
+    h('div', { class: 'row' },
+      h('button', { class: 'small-btn', title: t('Scegli un file audio al posto della campanella'), onclick: () => send({ type: 'pick-beep', id: selectedId }) }, t('Carica audio…')),
+      h('button', { class: 'small-btn', title: t('Torna alla campanella interna'), onclick: () => updateLayer({ beepFile: '', beepSrc: '' }) }, t('Campanella')),
+      h('button', { class: 'small-btn', title: t('Ascolta il segnale acustico'), onclick: () => playBeep(selectedLayer()) }, `▶ ${t('Prova')}`)),
+    field('Uscita audio', devSel),
+    checkbox('Ripeti', 'beepRepeat'),
+    h('div', { class: 'grid2' },
+      field('Ogni (secondi)', numberInput((l) => l.beepEvery, (v) => updateLayer({ beepEvery: Math.max(0, v) }), { min: 0, step: 1 })),
+      field('Volte (0 = sempre)', numberInput((l) => l.beepTimes, (v) => updateLayer({ beepTimes: Math.max(0, Math.floor(v)) }), { min: 0, step: 1 }))),
+    help(t('Suona quando il countdown arriva a zero. Con "Ripeti" suona di nuovo ogni tot secondi (0 = appena finito il suono), per il numero di volte scelto (0 = finché il timer non viene fermato o azzerato).')));
+}
+
+// Campanella da conferenza generata al primo uso: un "ding" metallico con
+// armoniche che si spengono piano.
+let bellUrl = null;
+async function bellSound() {
+  if (bellUrl) return bellUrl;
+  const rate = 44100;
+  const len = Math.round(rate * 2.2);
+  const ctx = new OfflineAudioContext(1, len, rate);
+  const f0 = 1318.5;
+  const partials = [[1, 1, 1.9], [2.76, 0.45, 0.9], [5.4, 0.22, 0.45], [8.93, 0.1, 0.25]];
+  for (const [mult, amp, decay] of partials) {
+    const osc = ctx.createOscillator();
+    osc.frequency.value = f0 * mult;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0, 0);
+    g.gain.linearRampToValueAtTime(amp * 0.35, 0.004);
+    g.gain.exponentialRampToValueAtTime(0.0001, decay * 2.2);
+    osc.connect(g).connect(ctx.destination);
+    osc.start(0);
+    osc.stop(len / rate);
+  }
+  const buf = await ctx.startRendering();
+  bellUrl = URL.createObjectURL(new Blob([wavBytes(buf.getChannelData(0), rate)], { type: 'audio/wav' }));
+  return bellUrl;
+}
+
+function wavBytes(samples, rate) {
+  const out = new DataView(new ArrayBuffer(44 + samples.length * 2));
+  const str = (o, s) => [...s].forEach((c, i) => out.setUint8(o + i, c.charCodeAt(0)));
+  str(0, 'RIFF'); out.setUint32(4, 36 + samples.length * 2, true); str(8, 'WAVE');
+  str(12, 'fmt '); out.setUint32(16, 16, true); out.setUint16(20, 1, true); out.setUint16(22, 1, true);
+  out.setUint32(24, rate, true); out.setUint32(28, rate * 2, true); out.setUint16(32, 2, true); out.setUint16(34, 16, true);
+  str(36, 'data'); out.setUint32(40, samples.length * 2, true);
+  samples.forEach((v, i) => out.setInt16(44 + i * 2, Math.max(-1, Math.min(1, v)) * 0x7fff, true));
+  return out.buffer;
+}
+
+// Suona una volta; la promessa finisce quando il suono è finito.
+async function playBeep(layer) {
+  if (!layer) return;
+  const audio = new Audio(layer.beepSrc || await bellSound());
+  if (layer.beepDevice && audio.setSinkId) await audio.setSinkId(layer.beepDevice).catch(() => {});
+  await new Promise((resolve) => {
+    audio.addEventListener('ended', resolve, { once: true });
+    audio.addEventListener('error', resolve, { once: true });
+    audio.play().catch(resolve);
+  });
+}
+
+// Controlla i timer: quando un countdown con segnale acustico arriva a zero
+// suona, poi ripete se richiesto. Si ferma se il timer viene fermato o azzerato.
+const beepState = new Map(); // id del timer -> { prev, active, played, next, busy }
+setInterval(() => {
+  if (!state) return;
+  const seen = new Set();
+  for (const l of allLayers(state.layers)) {
+    if (l.type !== 'timer') continue;
+    seen.add(l.id);
+    const st = beepState.get(l.id) || { prev: null, active: false, played: 0, next: 0, busy: false };
+    beepState.set(l.id, st);
+    const value = l.direction === 'down' ? timerValueMs(l) : null;
+    const counting = l.beep && l.direction === 'down' && l.run.running;
+    if (!counting) {
+      st.active = false;
+    } else if (st.prev != null && st.prev > 0 && value <= 0) {
+      Object.assign(st, { active: true, played: 0, next: 0 });
+    }
+    st.prev = l.run.running ? value : null;
+    if (!st.active || st.busy || Date.now() < st.next) continue;
+    const limit = l.beepRepeat ? (l.beepTimes > 0 ? l.beepTimes + 1 : Infinity) : 1;
+    if (st.played >= limit) {
+      st.active = false;
+      continue;
+    }
+    st.played++;
+    st.busy = true;
+    const started = Date.now();
+    playBeep(l).finally(() => {
+      st.busy = false;
+      st.next = l.beepEvery > 0 ? started + l.beepEvery * 1000 : 0;
+    });
+  }
+  for (const id of beepState.keys()) if (!seen.has(id)) beepState.delete(id);
+}, 100);
+
 function setDuration(min, sec) {
   const l = selectedLayer();
   const m = min != null ? Math.max(0, Math.floor(min)) : Math.floor(l.durationSec / 60);
@@ -895,16 +1026,144 @@ function tickerSection() {
   ];
 }
 
+// Scelta di adattamento (contiene / riempi / deforma), per NDI, periferiche e media.
+function fitSelect() {
+  return field('Adattamento', select(
+    [['contain', 'Adatta (mantiene le proporzioni)'], ['cover', 'Riempi (mantiene le proporzioni, taglia)'], ['stretch', 'Deforma (riempie tutto)']],
+    (l) => l.fit, (v) => updateLayer({ fit: v })));
+}
+
 function mediaSection() {
+  return [
+    card('File',
+      liveText((l) => l.file || t('Nessun file scelto'), { class: 'px-info' }),
+      h('div', { class: 'row' },
+        h('button', { title: t('Scegli il video o l\'immagine dal disco'), onclick: () => send({ type: 'pick-media', id: selectedId }) }, t('Scegli file…'))),
+      fitSelect(),
+      selectedLayer().mediaKind === 'image' ? help(t('Immagine fissa.')) : null)
+  ];
+}
+
+// Posizione dei video nell'uscita, per la timeline: chiave del video -> { t, d, paused }.
+const videoTimes = new Map();
+let onVideoTime = null;
+if (api.onVideoTimes) {
+  api.onVideoTimes((list) => {
+    videoTimes.clear();
+    for (const v of list) videoTimes.set(v.key, v);
+    if (onVideoTime) onVideoTime();
+  });
+}
+
+function videoKeyOf(layer) {
+  return `${layer.link || layer.id}|${layer.src}`;
+}
+
+function clock(sec) {
+  if (!Number.isFinite(sec) || sec < 0) sec = 0;
+  const m = Math.floor(sec / 60);
+  const s = sec - m * 60;
+  return `${String(m).padStart(2, '0')}:${s.toFixed(1).padStart(4, '0')}`;
+}
+
+// Comandi del video: timeline con inizio e fine, tempi, riproduzione e opzioni.
+function mediaCommands() {
   const playBtn = h('button', { onclick: () => {
     const l = selectedLayer();
     updateLayer({ playing: !l.playing });
   } }, '');
-  const isVideo = () => selectedLayer().mediaKind !== 'image';
   bindings.push({ el: playBtn, get: (l) => (l.playing ? `❚❚ ${t('Pausa')}` : `▶ ${t('Riproduci')}`), text: true });
-  const videoControls = [
+
+  const range = h('div', { class: 'tl-range' });
+  const head = h('div', { class: 'tl-head', title: t('Trascina per spostarti nel video') });
+  const track = h('div', { class: 'timeline', title: t('Clic o trascina per spostarti nel video') }, h('div', { class: 'tl-track' }), range, head);
+  const tDur = h('strong', {}, '00:00.0');
+  const tPos = h('strong', {}, '00:00.0');
+  const tLeft = h('strong', {}, '00:00.0');
+  let dragging = null;
+
+  const info = () => {
+    const l = selectedLayer();
+    return l && l.type === 'media' ? videoTimes.get(videoKeyOf(l)) : null;
+  };
+  const outOf = (l, d) => (l.outPoint > l.inPoint && l.outPoint > 0 ? Math.min(l.outPoint, d) : d);
+  const update = () => {
+    const l = selectedLayer();
+    const v = info();
+    if (!l || l.type !== 'media') return;
+    const d = v && v.d ? v.d : 0;
+    const pos = dragging != null ? dragging : v ? v.t : 0;
+    const pct = (x) => `${d ? Math.max(0, Math.min(100, (x / d) * 100)) : 0}%`;
+    head.style.left = pct(pos);
+    range.style.left = pct(l.inPoint || 0);
+    range.style.width = `calc(${pct(outOf(l, d))} - ${pct(l.inPoint || 0)})`;
+    tDur.textContent = clock(d);
+    tPos.textContent = clock(pos);
+    tLeft.textContent = `−${clock(Math.max(0, outOf(l, d) - pos))}`;
+  };
+  onVideoTime = update;
+
+  const timeAt = (e) => {
+    const r = track.getBoundingClientRect();
+    const v = info();
+    const d = v && v.d ? v.d : 0;
+    return Math.max(0, Math.min(d, ((e.clientX - r.left) / r.width) * d));
+  };
+  let lastSeek = 0;
+  const seek = (time, force) => {
+    if (!force && Date.now() - lastSeek < 120) return;
+    lastSeek = Date.now();
+    updateLayer({ seekTo: { t: time, at: Date.now() } });
+  };
+  track.addEventListener('pointerdown', (e) => {
+    if (!(info() && info().d)) return;
+    track.setPointerCapture(e.pointerId);
+    dragging = timeAt(e);
+    update();
+    seek(dragging, true);
+  });
+  track.addEventListener('pointermove', (e) => {
+    if (dragging == null) return;
+    dragging = timeAt(e);
+    update();
+    seek(dragging);
+  });
+  const end = (e) => {
+    if (dragging == null) return;
+    const time = timeAt(e);
+    dragging = null;
+    seek(time, true);
+  };
+  track.addEventListener('pointerup', end);
+  track.addEventListener('pointercancel', end);
+
+  const now = () => (info() ? info().t : 0);
+  const markIn = () => {
+    const l = selectedLayer();
+    const time = now();
+    updateLayer({ inPoint: time, outPoint: l.outPoint && l.outPoint <= time ? 0 : l.outPoint });
+    update();
+  };
+  const markOut = () => {
+    const l = selectedLayer();
+    const time = now();
+    updateLayer({ outPoint: time, inPoint: l.inPoint >= time ? 0 : l.inPoint });
+    update();
+  };
+  setTimeout(update);
+
+  return [card('Comandi',
+    track,
+    h('div', { class: 'tl-times' },
+      h('span', {}, t('Durata'), ' ', tDur),
+      h('span', {}, t('Posizione'), ' ', tPos),
+      h('span', {}, t('Alla fine'), ' ', tLeft)),
+    h('div', { class: 'row' },
+      h('button', { title: t('Il video parte da qui (segna l\'inizio alla posizione attuale)'), onclick: markIn }, `⇤ ${t('Segna inizio')}`),
+      h('button', { title: t('Il video finisce qui (segna la fine alla posizione attuale)'), onclick: markOut }, `${t('Segna fine')} ⇥`),
+      h('button', { class: 'small-btn', title: t('Togli inizio e fine: il video torna intero'), onclick: () => { updateLayer({ inPoint: 0, outPoint: 0 }); update(); } }, t('Video intero'))),
     h('div', { class: 'row' }, playBtn,
-      h('button', { onclick: () => updateLayer({ playing: true, restartAt: Date.now() }) }, `⏮ ${t('Da capo')}`)),
+      h('button', { title: t('Ricomincia dall\'inizio (o dall\'inizio segnato)'), onclick: () => updateLayer({ playing: true, restartAt: Date.now() }) }, `⏮ ${t('Da capo')}`)),
     checkbox('Ripeti all\'infinito', 'loop'),
     checkbox('Riproduci quando in onda', 'playOnAir'),
     checkbox('Metti in pausa quando non in onda', 'pauseOffAir'),
@@ -915,16 +1174,8 @@ function mediaSection() {
       ['follow', 'Follow']
     ], (l) => l.audioMode, (v) => updateLayer({ audioMode: v }))),
     help(t('Follow: l\'audio è attivo solo quando il video è in onda.')),
-    help(t('"In onda" vuol dire visibile sul secondo schermo: nella scena in onda oppure fuori dalle scene.'))
-  ];
-  return [
-    card('File',
-      liveText((l) => l.file || t('Nessun file scelto'), { class: 'px-info' }),
-      h('div', { class: 'row' },
-        h('button', { onclick: () => send({ type: 'pick-media', id: selectedId }) }, t('Scegli file…'))),
-      isVideo() ? videoControls : help(t('Immagine fissa.')),
-      help(t('I video vanno in uscita con i fotogrammi al secondo dell\'uscita (Auto = come il monitor), come gli altri input.')))
-  ];
+    help(t('"In onda" vuol dire visibile sul secondo schermo: nella scena in onda oppure fuori dalle scene.')),
+    help(t('I video vanno in uscita con i fotogrammi al secondo dell\'uscita (Auto = come il monitor), come gli altri input.')))];
 }
 
 // --- TelePrompt ------------------------------------------------------------
@@ -1307,6 +1558,18 @@ function selectFromList(id, e) {
 }
 
 // Menu del clic destro sulle righe dell'elenco: agisce su tutta la selezione.
+// Tasto destro nello spazio vuoto dell'elenco: incolla in primo piano.
+$('layer-list').addEventListener('contextmenu', (e) => {
+  if (e.target.closest('li[data-id]') || !clip.length) return;
+  e.preventDefault();
+  const menu = $('ctx-menu');
+  menu.replaceChildren(h('button', { title: t('Incolla gli input copiati in primo piano'), onclick: () => { closeListMenu(); send({ type: 'paste-layers', layers: clip }); } },
+    icon('paste'), clip.length > 1 ? `${t('Incolla')} (${clip.length})` : t('Incolla')));
+  menu.hidden = false;
+  menu.style.left = `${Math.min(e.clientX, window.innerWidth - menu.offsetWidth - 4)}px`;
+  menu.style.top = `${Math.min(e.clientY, window.innerHeight - menu.offsetHeight - 4)}px`;
+});
+
 function openListMenu(e, layer) {
   e.preventDefault();
   if (!multi.has(layer.id)) selectFromList(layer.id);
@@ -1314,14 +1577,48 @@ function openListMenu(e, layer) {
   const resettable = ids.map(layerById).filter((l) => l && l.type !== 'scene').length;
   const menu = $('ctx-menu');
   const n = ids.length > 1 ? ` (${ids.length})` : '';
+  const one = ids.length === 1 ? layerById(ids[0]) : null;
+  const sameType = attrClip && ids.every((id) => (layerById(id) || {}).type === attrClip.type);
+  const item = (ico, label, title, onclick, disabled, cls) =>
+    h('button', { class: cls || '', title: t(title), disabled: !!disabled, onclick: () => { closeListMenu(); onclick(); } }, icon(ico), label);
   menu.replaceChildren(
-    h('button', { class: 'danger', onclick: () => { closeListMenu(); removeLayers(ids); } }, icon('trash'), `${t('Elimina')}${n}`),
-    h('button', { disabled: !resettable, onclick: () => { closeListMenu(); resetLayers(ids); } }, icon('reset'), `${t('Ripristina input')}${resettable > 1 ? ` (${resettable})` : ''}`));
+    item('copy', `${t('Copia')}${n}`, 'Copia gli input selezionati per incollarli altrove', () => copyLayers(ids)),
+    item('cut', `${t('Taglia')}${n}`, 'Toglie gli input selezionati per incollarli altrove', () => cutLayers(ids)),
+    item('paste', clip.length > 1 ? `${t('Incolla')} (${clip.length})` : t('Incolla'),
+      'Incolla gli input copiati davanti a questo (dentro la scena, se è una scena)', () => send({ type: 'paste-layers', layers: clip, refId: layer.id }), !clip.length),
+    h('div', { class: 'ctx-sep' }),
+    item('brush', t('Copia attributi'), 'Copia come è personalizzato questo input (colori, caratteri, opzioni), senza il contenuto',
+      () => { attrClip = { type: one.type, values: structuredClone(one) }; }, !one || one.type === 'scene'),
+    item('brushPaste', `${t('Incolla attributi')}${n}`, attrClip ? t('Applica gli attributi copiati da un input dello stesso tipo ({type})', { type: t(TYPE_LABELS[attrClip.type]) }) : 'Prima copia gli attributi da un input',
+      () => send({ type: 'paste-attributes', ids, attrs: attrClip }), !sameType),
+    h('div', { class: 'ctx-sep' }),
+    item('trash', `${t('Elimina')}${n}`, 'Elimina gli input selezionati', () => removeLayers(ids), false, 'danger'),
+    item('reset', `${t('Ripristina input')}${resettable > 1 ? ` (${resettable})` : ''}`, 'Riporta gli input ai valori iniziali, tenendo il contenuto', () => resetLayers(ids), !resettable));
   menu.hidden = false;
   const w = menu.offsetWidth;
   const hgt = menu.offsetHeight;
   menu.style.left = `${Math.min(e.clientX, window.innerWidth - w - 4)}px`;
   menu.style.top = `${Math.min(e.clientY, window.innerHeight - hgt - 4)}px`;
+}
+
+// Appunti interni della regia: input copiati o tagliati, attributi copiati.
+let clip = [];
+let attrClip = null;
+
+function copyLayers(ids) {
+  // Una scena copiata porta con sé i suoi input: non serve copiarli a parte.
+  const layers = ids.map(layerById).filter(Boolean);
+  const inScene = new Set(layers.filter((l) => l.type === 'scene').flatMap((l) => l.children.map((c) => c.id)));
+  // In ordine dall'elenco (dal fondo al primo piano), così incollati restano nello stesso ordine.
+  const order = allLayers(state.layers).map((l) => l.id);
+  clip = layers.filter((l) => !inScene.has(l.id)).sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id)).map((l) => structuredClone(l));
+}
+
+function cutLayers(ids) {
+  copyLayers(ids);
+  for (const id of ids) send({ type: 'remove-layer', id });
+  multi.clear();
+  selectedId = null;
 }
 
 function closeListMenu() {
@@ -1884,6 +2181,11 @@ const ICONS = {
   'add-timer': '<circle cx="12" cy="12" r="9.5" fill="#c1c1c1" stroke="#16508a"/><path d="M12 6.5V12l3.5 2.5" stroke="#16508a" stroke-width="2.2"/>',
   'add-ticker': '<path d="M4 3.5h16a1.5 1.5 0 0 1 1.5 1.5v10a1.5 1.5 0 0 1-1.5 1.5H10l-5 4.5v-4.5H4A1.5 1.5 0 0 1 2.5 15V5A1.5 1.5 0 0 1 4 3.5z" fill="#c1c1c1" stroke="#16508a"/><path d="M6.5 8h11M6.5 12h7" stroke="#16508a" stroke-width="2"/>',
   'add-prompter': '<path d="M5 2.5h10l4.5 4.5v13a1.5 1.5 0 0 1-1.5 1.5H5a1.5 1.5 0 0 1-1.5-1.5V4A1.5 1.5 0 0 1 5 2.5z" fill="#c1c1c1" stroke="#16508a"/><path d="M15 2.5V7h4.5" stroke="#16508a"/><path d="M7 11h10M7 14.5h10M7 18h6" stroke="#16508a" stroke-width="2"/>',
+  copy: '<rect x="8" y="8" width="12" height="12" rx="1.5"/><path d="M16 8V5.5A1.5 1.5 0 0 0 14.5 4h-9A1.5 1.5 0 0 0 4 5.5v9A1.5 1.5 0 0 0 5.5 16H8"/>',
+  cut: '<circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="M8 16.5L18 4M16 16.5L6 4"/>',
+  paste: '<rect x="5" y="4.5" width="14" height="16.5" rx="1.5"/><path d="M9 4.5V3h6v1.5M9 10h6M9 14h6"/>',
+  brush: '<path d="M14 4l6 6-8 8-6-6z"/><path d="M6 12l-2.5 6.5L10 16"/>',
+  brushPaste: '<path d="M14 4l6 6-8 8-6-6z"/><path d="M6 12l-2.5 6.5L10 16"/><path d="M17 17l3 3M20 17l-3 3" stroke-opacity=".6"/>',
   guide: '<path d="M3 12h18"/><path d="M3 8l3 4-3 4"/><path d="M8 6h13M8 18h13" stroke-opacity=".45"/>'
 };
 
@@ -2341,3 +2643,20 @@ function panelKeyOf(layer) {
   const extra = layer.type === 'scene' ? `${state.studio}:${state.program}:${layer.children.length}:${scenesInOrder().indexOf(layer)}:${state.showHelp}` : linkCount(layer);
   return `${layer.id}:${layer.type}:${layer.mediaKind || ''}:${extra}`;
 }
+
+// La barra in basso sta sempre su una riga: la finestra della regia non si
+// stringe oltre il punto in cui i suoi pulsanti si toccano.
+let sentMinWidth = 0;
+function updateMinWidth() {
+  const footer = $('panel-footer');
+  if (!footer || !api.setMinWidth) return;
+  const parts = [...footer.children].filter((el) => el.offsetParent !== null);
+  const gap = parseFloat(getComputedStyle(footer).columnGap) || 0;
+  const needed = parts.reduce((sum, el) => sum + el.scrollWidth, 0) + gap * Math.max(0, parts.length - 1);
+  const w = Math.ceil(window.innerWidth - footer.clientWidth + needed + 2);
+  if (Math.abs(w - sentMinWidth) < 2) return;
+  sentMinWidth = w;
+  api.setMinWidth(w);
+}
+new ResizeObserver(() => requestAnimationFrame(updateMinWidth)).observe($('panel-footer'));
+new MutationObserver(() => requestAnimationFrame(updateMinWidth)).observe($('panel-footer'), { childList: true, subtree: true });

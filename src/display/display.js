@@ -98,6 +98,8 @@ function openVideo(layer) {
     });
     video.addEventListener('seeked', () => drawFrame(entry));
     video.addEventListener('play', () => startDrawing(entry));
+    video.addEventListener('timeupdate', () => checkEnd(entry));
+    video.addEventListener('ended', () => checkEnd(entry));
     video.src = layer.src;
     sourcesBox.appendChild(video);
     videos.set(key, entry);
@@ -114,25 +116,71 @@ function sizeCanvas(entry, canvas) {
 
 // Impostazioni di riproduzione: le copie collegate le condividono.
 // onAir: almeno una comparsa del video è in onda (visibile in uscita).
+// Inizio e fine segnati dall'utente (in secondi; fine 0 = fino in fondo).
+function inPoint(layer) {
+  return Math.max(0, Number(layer.inPoint) || 0);
+}
+function outPoint(layer, video) {
+  const out = Number(layer.outPoint) || 0;
+  const d = video.duration || Infinity;
+  return out > inPoint(layer) ? Math.min(out, d) : d;
+}
+
+function goTo(entry, t) {
+  entry.atEnd = false;
+  entry.video.currentTime = t;
+}
+
 function controlVideo(entry, layer, onAir) {
   const video = entry.video;
-  video.loop = !!layer.loop;
+  entry.layer = layer;
+  // La ripetizione la gestisce IGOR, così riparte dall'inizio segnato.
+  video.loop = false;
   // Audio: sempre, mai, oppure solo quando il video è in onda.
   video.muted = !(layer.audioMode === 'on' || (layer.audioMode === 'follow' && onAir));
   if (entry.restartAt !== layer.restartAt) {
     entry.restartAt = layer.restartAt;
-    video.currentTime = 0;
+    goTo(entry, inPoint(layer));
   }
+  // Spostamento dalla timeline della regia.
+  const seek = layer.seekTo;
+  if (seek && entry.seekAt !== seek.at) {
+    entry.seekAt = seek.at;
+    goTo(entry, Math.max(0, Number(seek.t) || 0));
+  }
+  if (entry.seekAt === undefined) entry.seekAt = seek ? seek.at : 0;
+  // Prima dell'inizio segnato si parte dall'inizio.
+  if (video.currentTime < inPoint(layer) - 0.05) goTo(entry, inPoint(layer));
   // Riavvolgi quando esce dall'onda.
-  if (layer.rewindOffAir && entry.onAir && !onAir) video.currentTime = 0;
+  if (layer.rewindOffAir && entry.onAir && !onAir) goTo(entry, inPoint(layer));
   entry.onAir = onAir;
   // Fuori onda: fermo se "Metti in pausa", oppure se parte solo in onda e non
   // c'è ancora mai andato.
   if (onAir) entry.airedOnce = true;
   const held = !onAir && (layer.pauseOffAir || (layer.playOnAir && !entry.airedOnce));
   const shouldPlay = layer.playing && !held;
-  if (shouldPlay && video.paused && !(video.ended && !layer.loop)) video.play().catch(() => {});
+  // Play premuto di nuovo dopo la fine: ricomincia dall'inizio segnato.
+  if (layer.playing && entry.lastPlaying === false && entry.atEnd) goTo(entry, inPoint(layer));
+  entry.lastPlaying = layer.playing;
+  if (shouldPlay && video.paused && !entry.atEnd) video.play().catch(() => {});
   if (!shouldPlay && !video.paused) video.pause();
+}
+
+// Arrivato alla fine (quella segnata o quella del file): ricomincia
+// dall'inizio segnato se "Ripeti", altrimenti si ferma sull'ultimo fotogramma.
+function checkEnd(entry) {
+  const layer = entry.layer;
+  const v = entry.video;
+  if (!layer || !v.duration) return;
+  if (v.ended || v.currentTime >= outPoint(layer, v) - 0.02) {
+    if (layer.loop) {
+      goTo(entry, inPoint(layer));
+      if (v.paused) v.play().catch(() => {});
+    } else if (!entry.atEnd) {
+      entry.atEnd = true;
+      v.pause();
+    }
+  }
 }
 
 function drawFrame(entry) {
@@ -151,6 +199,7 @@ function startDrawing(entry) {
     const v = entry.video;
     if (!entry.alive) { entry.drawing = false; return; }
     if (v.paused || v.ended) { drawFrame(entry); entry.drawing = false; return; }
+    checkEnd(entry);
     drawFrame(entry);
     next += frameMs();
     const now = performance.now();
@@ -311,3 +360,10 @@ function render(state) {
 
 window.countdown.onState(render);
 window.countdown.getState().then(render);
+
+// Posizione dei video per la timeline della regia, quattro volte al secondo.
+setInterval(() => {
+  if (!window.countdown.videoTimes) return;
+  const list = [...videos.values()].map((e) => ({ key: e.key, t: e.video.currentTime, d: e.video.duration || 0, paused: e.video.paused }));
+  window.countdown.videoTimes(list);
+}, 250);

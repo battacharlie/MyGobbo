@@ -75,6 +75,9 @@
         // file: percorso sul disco; src: lo stesso come indirizzo file://
         Object.assign(base, {
           file: '', src: '', mediaKind: 'video', loop: true, playing: true, restartAt: 0,
+          // Inizio e fine segnati sulla timeline (secondi; fine 0 = fino in
+          // fondo) e ultimo spostamento chiesto dalla regia { t, at }.
+          inPoint: 0, outPoint: 0, seekTo: null,
           // Riproduzione legata all'onda: parte quando va in onda, si ferma
           // e/o si riavvolge quando esce. Tutto spento = va sempre.
           playOnAir: false,
@@ -112,6 +115,18 @@
           clockMinutes: true,
           clockSeconds: true,
           clockMs: false,
+          // Segnale acustico allo scadere del countdown: campanella interna
+          // o file scelto (beepFile/beepSrc), sull'uscita audio beepDevice
+          // ('' = quella di sistema). Ripeti ogni beepEvery secondi (0 = appena
+          // finito il suono) per beepTimes volte (0 = finché il timer non si
+          // ferma o si azzera).
+          beep: false,
+          beepFile: '',
+          beepSrc: '',
+          beepDevice: '',
+          beepRepeat: false,
+          beepEvery: 0,
+          beepTimes: 0,
           run: { running: false, baseMs: 0, startedAt: 0 }
         });
         break;

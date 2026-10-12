@@ -354,6 +354,9 @@ function createWindows() {
     autoHideMenuBar: true,
     webPreferences: { preload: path.join(__dirname, 'control', 'preload.js'), spellcheck: false }
   });
+  // La regia parte a tutto schermo; ridotta non scende sotto la larghezza
+  // che serve alla barra in basso per stare su una riga (la calcola la regia).
+  controlWin.maximize();
   controlWin.loadFile(path.join(__dirname, 'control', 'control.html'));
   // Schede dei dettagli aperte in una finestra a parte (pagina vuota che la
   // regia riempie da sé). Ogni altro indirizzo si apre nel browser.
@@ -502,6 +505,48 @@ function removeLayer(id) {
   if (state.program === id) state.program = null;
   if (state.preview === id) state.preview = null;
   if (transition && (transition.from === id || transition.to === id)) endTransition();
+}
+
+// Incolla copie indipendenti degli input copiati o tagliati in regia: davanti
+// all'elemento cliccato (dentro la scena, se è una scena), altrimenti in
+// primo piano. Le scene restano nel livello principale.
+function pasteLayers(layers, refId) {
+  if (!Array.isArray(layers)) return;
+  const ref = refId && findNode(state.layers, refId);
+  const fresh = (l) => {
+    const copy = { ...upgradeLayer({ ...createLayer(l.type), ...structuredClone(l) }), id: newId() };
+    delete copy.link;
+    if (copy.type === 'timer' && copy.run.running) copy.run = { running: false, baseMs: timerElapsedMs(copy), startedAt: 0 };
+    if (copy.type === 'prompter' && copy.run.running) copy.run = { running: false, y: prompterY(copy), startedAt: 0 };
+    if (copy.type === 'scene') copy.children = (copy.children || []).filter((c) => c.type !== 'scene').map(fresh);
+    return copy;
+  };
+  for (const l of layers) {
+    if (!l || !TYPE_LABELS[l.type] || (l.type === 'scene' && state.light)) continue;
+    const copy = fresh(l);
+    let list = state.layers;
+    let index = null;
+    if (ref && ref.layer.type === 'scene' && copy.type !== 'scene') {
+      list = ref.layer.children;
+    } else if (ref && !(copy.type === 'scene' && ref.list !== state.layers)) {
+      list = ref.list;
+      index = list.indexOf(ref.layer) + 1;
+    }
+    if (index == null) insertLayer(list, copy);
+    else list.splice(index, 0, copy);
+  }
+}
+
+// "Copia attributi": come è personalizzato un input (colori, caratteri,
+// opzioni...), senza il contenuto (file, testo, sorgente), il nome, la
+// posizione e lo stato di timer, TelePrompt e video.
+const NOT_ATTRIBUTES = new Set(['id', 'type', 'name', 'visible', 'link', 'children', 'x', 'y', 'w', 'h', 'crop',
+  'source', 'deviceId', 'deviceLabel', 'file', 'src', 'mediaKind', 'text', 'html', 'run', 'playing', 'restartAt',
+  'seekTo', 'inPoint', 'outPoint', 'durationSec']);
+function attributesOf(values) {
+  const out = {};
+  for (const [k, v] of Object.entries(values || {})) if (!NOT_ATTRIBUTES.has(k)) out[k] = structuredClone(v);
+  return out;
 }
 
 // Riporta l'elemento ai valori iniziali, tenendo sorgente e contenuto.
@@ -689,6 +734,19 @@ ipcMain.handle('import-text', async () => {
   }
 });
 
+// Posizione dei video (dall'uscita) per la timeline nella regia.
+ipcMain.on('video-times', (_evt, list) => {
+  if (controlWin && !controlWin.isDestroyed()) controlWin.webContents.send('video-times', list);
+});
+
+ipcMain.on('set-min-width', (_evt, w) => {
+  if (!controlWin || controlWin.isDestroyed()) return;
+  const min = Math.max(900, Math.ceil(Number(w) || 0));
+  controlWin.setMinimumSize(min, 600);
+  const [width, height] = controlWin.getSize();
+  if (width < min && !controlWin.isMaximized()) controlWin.setSize(min, height);
+});
+
 ipcMain.on('command', (_evt, cmd) => {
   switch (cmd.type) {
     case 'add-layer':
@@ -715,7 +773,23 @@ ipcMain.on('command', (_evt, cmd) => {
       pickMediaFile().then((media) => {
         const layer = findLayer(id);
         if (!media || !layer) return;
-        updateLayer(layer, { ...media, playing: true, restartAt: Date.now() });
+        updateLayer(layer, { ...media, playing: true, restartAt: Date.now(), inPoint: 0, outPoint: 0 });
+        saveState();
+        broadcast();
+      });
+      return;
+    }
+    case 'pick-beep': {
+      const id = cmd.id;
+      dialog.showOpenDialog(controlWin, {
+        title: t('Scegli un file audio'),
+        properties: ['openFile'],
+        filters: [{ name: t('Audio'), extensions: ['mp3', 'wav', 'ogg', 'm4a', 'aac', 'flac', 'opus', 'webm'] }]
+      }).then((res) => {
+        const layer = findLayer(id);
+        if (res.canceled || !res.filePaths.length || !layer) return;
+        const file = res.filePaths[0];
+        updateLayer(layer, { beepFile: file, beepSrc: pathToFileURL(file).href });
         saveState();
         broadcast();
       });
@@ -733,6 +807,15 @@ ipcMain.on('command', (_evt, cmd) => {
     }
     case 'remove-layer':
       removeLayer(cmd.id);
+      break;
+    case 'paste-layers':
+      pasteLayers(cmd.layers, cmd.refId);
+      break;
+    case 'paste-attributes':
+      for (const id of cmd.ids || []) {
+        const layer = findLayer(id);
+        if (layer && cmd.attrs && layer.type === cmd.attrs.type) updateLayer(layer, attributesOf(cmd.attrs.values));
+      }
       break;
     case 'move-layer': {
       // dir +1 = più in primo piano, -1 = più dietro (dentro lo stesso elenco)

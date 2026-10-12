@@ -41,10 +41,11 @@ Una scena raccoglie più input; in onda va una scena alla volta. Gli input fuori
 - Con il pulsante STUDIO si torna a full: le scene ritornano e la scena di prima torna in onda con le modifiche fatte nel frattempo. Gli input aggiunti in light restano fuori dalle scene.
 
 ### Gli elementi
-- **Timer**: conto alla rovescia o cronometro, tre colori (partenza, scadenza vicina, tempo superato), cornice lampeggiante a tempo scaduto, orologio quando è fermo. Barra spaziatrice = avvia/pausa.
+- **Timer**: conto alla rovescia o cronometro, tre colori (partenza, scadenza vicina, tempo superato), cornice lampeggiante a tempo scaduto, orologio quando è fermo, segnale acustico allo scadere (campanella o file audio, uscita audio a scelta, ripetizione). Barra spaziatrice = avvia/pausa.
 - **Banner di Testo**: fascia di testo che scorre se è più lunga dello schermo.
 - **TelePrompt**: testo che sale alla velocità scelta; si scrive, si incolla o si importa (.docx, .rtf, .txt, .html); carattere in punti; pulsanti con icona per specchio e linea di lettura; pausa e play automatici quando esce o entra in onda.
-- **NDI**, **Periferica di acquisizione**, **Media** (video e immagini): adatta / riempi / deforma, ritaglio in % o in pixel; per i video: ripeti, riproduci quando in onda, pausa e riavvolgi quando non in onda, audio Follow.
+- **NDI**, **Periferica di acquisizione**, **Media** (video e immagini): adatta / riempi / deforma, ritaglio in % o in pixel; per i video: timeline trascinabile con inizio e fine segnabili, ripeti, riproduci quando in onda, pausa e riavvolgi quando non in onda, audio Follow.
+- **Tasto destro su un input**: copia, taglia, incolla, copia e incolla attributi (solo l'aspetto, tra input dello stesso tipo).
 
 ### Controllo remoto
 - **MIDI**: scegli un comando, premi *Impara* e tocca un tasto del controller.
@@ -93,10 +94,11 @@ A scene groups several inputs; one scene at a time is on air. Inputs outside sce
 - The STUDIO button goes back to full mode: the scenes return and the previous scene goes back on air with the changes made in the meantime. Inputs added in light mode stay outside the scenes.
 
 ### Elements
-- **Timer**: countdown or stopwatch, three colours (start, close to the end, time up), blinking frame when time is up, clock when stopped. Space bar = start/pause.
+- **Timer**: countdown or stopwatch, three colours (start, close to the end, time up), blinking frame when time is up, clock when stopped, sound signal when time is up (bell or audio file, choice of audio output, repeat). Space bar = start/pause.
 - **Text Banner**: a strip of text that scrolls when it is longer than the screen.
 - **TelePrompt**: text that rises at the chosen speed; type, paste or import it (.docx, .rtf, .txt, .html); font size in points; icon buttons for mirror and reading line; automatic pause and play when it leaves or goes on air.
-- **NDI**, **Capture device**, **Media** (videos and images): fit / fill / stretch, crop in % or pixels; for videos: loop, play when on air, pause and rewind when not on air, Follow audio.
+- **NDI**, **Capture device**, **Media** (videos and images): fit / fill / stretch, crop in % or pixels; for videos: draggable timeline with markable start and end, loop, play when on air, pause and rewind when not on air, Follow audio.
+- **Right-click on an input**: copy, cut, paste, copy and paste attributes (look only, between inputs of the same type).
 
 ### Remote control
 - **MIDI**: choose a command, press *Learn* and touch a key on the controller.

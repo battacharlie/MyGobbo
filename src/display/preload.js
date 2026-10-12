@@ -77,7 +77,8 @@ async function receiveLoop(entry, source, quality) {
 
 contextBridge.exposeInMainWorld('countdown', {
   getState: () => ipcRenderer.invoke('get-state'),
-  onState: (cb) => ipcRenderer.on('state', (_evt, state) => cb(state))
+  onState: (cb) => ipcRenderer.on('state', (_evt, state) => cb(state)),
+  videoTimes: (list) => ipcRenderer.send('video-times', list)
 });
 
 contextBridge.exposeInMainWorld('ndi', {
