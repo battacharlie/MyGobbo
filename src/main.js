@@ -2,7 +2,7 @@ const { app, BrowserWindow, ipcMain, screen, session, dialog, shell, systemPrefe
 const path = require('path');
 const fs = require('fs');
 const { pathToFileURL } = require('url');
-const { createLayer, timerElapsedMs, prompterY, TIMER_COLORS, TYPE_LABELS, VIDEO_EXT, IMAGE_EXT, PER_ITEM, KEEP_ON_RESET, allLayers, findNode, newId, isVisual } = require('./shared/layers');
+const { createLayer, timerElapsedMs, prompterY, TIMER_COLORS, TYPE_LABELS, VIDEO_EXT, IMAGE_EXT, PER_ITEM, KEEP_ON_RESET, allLayers, findNode, composeLayers, newId, isVisual } = require('./shared/layers');
 const ndi = require('./ndi');
 const { readTextFile, TEXT_EXT } = require('./textimport');
 const { pickColor } = require('./picker/main');
@@ -181,6 +181,13 @@ function upgradeLayer(l) {
     l.audioMode = l.audio ? 'on' : 'off';
     delete l.audio;
   }
+  // Video: dal menu "Riproduzione" a tre caselle separate.
+  if (l.type === 'media' && 'playMode' in l) {
+    l.playOnAir = l.playMode !== 'always';
+    l.pauseOffAir = l.playMode !== 'always';
+    l.rewindOffAir = l.playMode === 'restart';
+    delete l.playMode;
+  }
   if (l.type === 'timer' && l.color === '#ffffff' && l.warningColor === '#ffb020' && l.endColor === '#ff3b30') {
     Object.assign(l, TIMER_COLORS);
   }
@@ -232,7 +239,39 @@ function snapshot() {
   };
 }
 
+// TelePrompt e video che partono quando vanno in onda (il TelePrompt si
+// ferma anche quando esce; i video li ferma la finestra di uscita).
+// Si guarda il cambiamento rispetto all'ultima volta: chi lo avvia o lo
+// ferma a mano mentre è in onda (o fuori) resta libero di farlo.
+let prompterOnAir = new Map(); // id del TelePrompt (o del gruppo di copie) -> in onda
+function syncPrompterOnAir() {
+  const on = new Set(composeLayers(state.layers, state.program ? [state.program] : [])
+    .filter((l) => l.visible && (l.type === 'prompter' || l.type === 'media')).map((l) => l.link || l.id));
+  const next = new Map();
+  for (const l of allLayers(state.layers)) {
+    if (l.type !== 'prompter' && l.type !== 'media') continue;
+    const key = l.link || l.id;
+    if (next.has(key)) continue;
+    const now = on.has(key);
+    next.set(key, now);
+    const was = prompterOnAir.get(key);
+    if (was === undefined || was === now) continue;
+    if (l.type === 'media') {
+      if (now && l.playOnAir && !l.playing) for (const c of linkedLayers(l)) c.playing = true;
+      continue;
+    }
+    let action = null;
+    if (!now && l.pauseOffAir && l.run.running) action = 'pause';
+    if (now && l.playOnAir && !l.run.running) action = 'start';
+    if (!action) continue;
+    prompterAction(l, { action });
+    for (const c of linkedLayers(l)) c.run = { ...l.run };
+  }
+  prompterOnAir = next;
+}
+
 function broadcast() {
+  syncPrompterOnAir();
   const s = snapshot();
   for (const win of [controlWin, displayWin]) {
     if (win && !win.isDestroyed()) win.webContents.send('state', s);

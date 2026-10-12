@@ -27,8 +27,8 @@ Piccola regia video per Windows e Mac: una **finestra di regia** sul monitor pri
 - Colori: rosso per ciò che è in onda e per il tasto *Elimina*, verde per l'anteprima, blu e grigio del logo IGOR per i comandi (CUT blu, FADE grigio).
 - Gli elementi dell'elenco si trascinano con il mouse per cambiare l'ordine: una linea verde mostra dove finiranno e lo spostamento avviene solo al rilascio. Rilasciando un input sopra una scena, l'input entra nella scena; tenendo premuto **Ctrl** al rilascio lo stesso input viene messo anche in quella scena (copia collegata, con una sola sorgente).
 - Nell'anteprima si trascina un elemento per spostarlo e uno dei quattro angoli per ridimensionarlo (Maiusc mantiene le proporzioni); gli elementi si agganciano a bordi e centro.
-- Per ogni elemento: misura e posizione in pixel sull'uscita, aggiornate in tempo reale; posizione e misure in % dello schermo oppure in pixel (selettore *% / px*), *Schermo intero*, *Centra*, *Proporzioni 16:9*; *Solo questo* (mostra in uscita solo quell'input), *Sopra / Sotto* per l'ordine.
-- Per NDI, acquisizione e media: ritaglio (crop) trascinando le maniglie arancioni a metà dei lati e adattamento *Adatta* (mantiene le proporzioni), *Riempi* (mantiene le proporzioni e taglia), *Deforma*.
+- Per ogni elemento: misura e posizione in pixel sull'uscita, aggiornate in tempo reale; posizione e misure in % dello schermo oppure in pixel (selettore *% / px*), *Schermo intero*, *Centra*, *Proporzioni 16:9*. La prima scheda dei dettagli contiene solo il nome: visibilità, ordine e scena si cambiano dall'elenco degli input. Ogni pulsante mostra un suggerimento quando ci si ferma sopra con il mouse.
+- Per NDI, acquisizione e media: ritaglio (crop) trascinando le maniglie arancioni a metà dei lati oppure scrivendo le misure in % o in pixel, e adattamento *Adatta* (mantiene le proporzioni), *Riempi* (mantiene le proporzioni e taglia), *Deforma*.
 - Accanto a ogni colore il contagocce 💧 preleva un colore da qualsiasi punto dello schermo (anche da altre finestre o dal secondo monitor) oppure da un'immagine aperta dal disco.
 
 **Uscita** (secondo monitor)
@@ -68,21 +68,22 @@ Senza modalità studio, *Manda in onda* su una scena la manda subito in uscita. 
 **TelePrompt**
 - Testo che scorre dal basso verso l'alto, come un vero teleprompter, alla velocità scelta (si cambia anche in corsa).
 - Testo scritto a mano, incollato da Word, Blocco note, Pages o TextEdit, oppure importato da file `.docx`, `.rtf`, `.txt`, `.html`: grassetto, corsivo, sottolineato, colori, evidenziatore, grandezze e allineamenti restano.
-- Avvia / pausa, torna all'inizio, avanti e indietro di poco, salto a un paragrafo dall'elenco dei paragrafi (o con Pagina su / giù).
-- Carattere, misura, grassetto, colore del testo e dello sfondo, interlinea, spaziatura tra le lettere, margini, allineamento.
-- Specchio orizzontale (per il vetro del teleprompter) e verticale, linea di lettura con posizione e colore.
+- Avvia / pausa, torna all'inizio, avanti e indietro di poco, salto a un paragrafo dall'elenco dei paragrafi (o con Pagina su / giù). Può andare in pausa da solo quando esce dall'onda e ripartire quando ci torna.
+- Carattere, misura in punti (come negli editor di testo, su un'uscita Full HD), grassetto, colore del testo e dello sfondo, interlinea, spaziatura tra le lettere, margini, allineamento.
+- Pulsanti con icona per lo specchio orizzontale (per il vetro del teleprompter) e verticale e per la linea di lettura, con posizione e colore della linea.
 - Il testo è impaginato come sull'uscita anche nell'anteprima della regia, quindi va a capo negli stessi punti.
 
 **Periferica di acquisizione**: schede di acquisizione, webcam, convertitori HDMI/SDI → USB (tutto ciò che Windows vede come videocamera).
 
 **Segnale NDI**: elenco delle sorgenti NDI trovate in rete, qualità piena o bassa (meno banda).
 
-**Media**: video (mp4, webm, mov, mkv…) e immagini (png, jpg, gif, webp…) dal disco. Per i video: riproduci / pausa, da capo, ripetizione continua e tre modi di riproduzione:
-- *continua anche quando non è in onda*;
-- *riproduci solo quando è in onda*;
-- *riproduci in onda e riavvolgi quando esce*.
+**Media**: video (mp4, webm, mov, mkv…) e immagini (png, jpg, gif, webp…) dal disco. Per i video: riproduci / pausa, da capo e quattro caselle:
+- *Ripeti all'infinito*;
+- *Riproduci quando in onda*;
+- *Metti in pausa quando non in onda*;
+- *Riavvolgi quando non in onda*.
 
-L'audio del video è *attivo*, *disattivato* oppure *segue l'onda* (si sente solo quando il video è in onda). "In onda" vuol dire visibile sul secondo schermo.
+L'audio del video è *attivo*, *disattivato* oppure *Follow* (si sente solo quando il video è in onda). "In onda" vuol dire visibile sul secondo schermo.
 
 La scena (elementi, posizioni, testi, colori) viene salvata e ritrovata al riavvio.
 

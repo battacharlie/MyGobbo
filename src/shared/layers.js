@@ -72,9 +72,11 @@
         // file: percorso sul disco; src: lo stesso come indirizzo file://
         Object.assign(base, {
           file: '', src: '', mediaKind: 'video', loop: true, playing: true, restartAt: 0,
-          // playMode: always = continua anche fuori onda, onair = suona solo in
-          // onda, restart = suona in onda e si riavvolge quando esce.
-          playMode: 'always',
+          // Riproduzione legata all'onda: parte quando va in onda, si ferma
+          // e/o si riavvolge quando esce. Tutto spento = va sempre.
+          playOnAir: false,
+          pauseOffAir: false,
+          rewindOffAir: false,
           // audioMode: on, off, follow = attivo solo quando è in onda.
           audioMode: 'off'
         });
@@ -134,6 +136,9 @@
           guide: true, // linea di lettura
           guideY: 30, // % dall'alto
           guideColor: '#ef4444',
+          // Avvio e pausa automatici quando entra o esce dall'onda.
+          playOnAir: false,
+          pauseOffAir: false,
           // y: posizione del testo in pixel (su 1080) sotto la linea di lettura.
           run: { running: false, y: 0, startedAt: 0 }
         });

@@ -124,9 +124,13 @@ function controlVideo(entry, layer, onAir) {
     video.currentTime = 0;
   }
   // Riavvolgi quando esce dall'onda.
-  if (layer.playMode === 'restart' && entry.onAir && !onAir) video.currentTime = 0;
+  if (layer.rewindOffAir && entry.onAir && !onAir) video.currentTime = 0;
   entry.onAir = onAir;
-  const shouldPlay = layer.playing && (layer.playMode === 'always' || onAir);
+  // Fuori onda: fermo se "Metti in pausa", oppure se parte solo in onda e non
+  // c'è ancora mai andato.
+  if (onAir) entry.airedOnce = true;
+  const held = !onAir && (layer.pauseOffAir || (layer.playOnAir && !entry.airedOnce));
+  const shouldPlay = layer.playing && !held;
   if (shouldPlay && video.paused && !(video.ended && !layer.loop)) video.play().catch(() => {});
   if (!shouldPlay && !video.paused) video.pause();
 }
