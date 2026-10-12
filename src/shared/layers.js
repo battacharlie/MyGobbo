@@ -2,15 +2,18 @@
 // nelle finestre e con require() nel processo principale).
 (function (root) {
   // Fotogrammi al secondo massimi di tutto ciò che compare in uscita.
-  const MAX_FPS = 25;
-  // Fotogrammi al secondo scelti nel menu Uscita (mai più di MAX_FPS).
-  const FPS_CHOICES = [10, 15, 20, 24, 25];
-  let currentFps = MAX_FPS;
+  // Fotogrammi al secondo dell'uscita: di base quelli del monitor di uscita
+  // (Auto), oppure meno per risparmiare risorse. MAX_FPS è solo un limite
+  // di sicurezza; DEFAULT_FPS vale quando il monitor non dice la sua frequenza.
+  const MAX_FPS = 240;
+  const DEFAULT_FPS = 60;
+  const FPS_CHOICES = [10, 15, 20, 24, 25, 30, 50, 60];
+  let currentFps = DEFAULT_FPS;
   function fps() {
     return currentFps;
   }
   function setFps(n) {
-    currentFps = Math.max(1, Math.min(MAX_FPS, Number(n) || MAX_FPS));
+    currentFps = Math.max(1, Math.min(MAX_FPS, Number(n) || DEFAULT_FPS));
   }
 
   const TYPE_LABELS = {
@@ -289,7 +292,7 @@
     return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`;
   }
 
-  const api = { MAX_FPS, FPS_CHOICES, fps, setFps, timerShowsClock, formatClock, TYPE_LABELS, PER_ITEM, KEEP_ON_RESET, allLayers, findNode, composeLayers, prompterY, TIMER_COLORS, VIDEO_EXT, IMAGE_EXT, isVisual, newId, createLayer, timerElapsedMs, timerValueMs, timerOvertime, formatTime, timerColor, videoRects, hexToRgba };
+  const api = { MAX_FPS, DEFAULT_FPS, FPS_CHOICES, fps, setFps, timerShowsClock, formatClock, TYPE_LABELS, PER_ITEM, KEEP_ON_RESET, allLayers, findNode, composeLayers, prompterY, TIMER_COLORS, VIDEO_EXT, IMAGE_EXT, isVisual, newId, createLayer, timerElapsedMs, timerValueMs, timerOvertime, formatTime, timerColor, videoRects, hexToRgba };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Layers = api;
 })(typeof window !== 'undefined' ? window : globalThis);

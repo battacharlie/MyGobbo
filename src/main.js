@@ -2,7 +2,7 @@ const { app, BrowserWindow, ipcMain, screen, session, dialog, shell, systemPrefe
 const path = require('path');
 const fs = require('fs');
 const { pathToFileURL } = require('url');
-const { createLayer, timerElapsedMs, prompterY, TIMER_COLORS, TYPE_LABELS, VIDEO_EXT, IMAGE_EXT, PER_ITEM, KEEP_ON_RESET, allLayers, findNode, composeLayers, newId, isVisual } = require('./shared/layers');
+const { createLayer, timerElapsedMs, prompterY, TIMER_COLORS, TYPE_LABELS, MAX_FPS, DEFAULT_FPS, VIDEO_EXT, IMAGE_EXT, PER_ITEM, KEEP_ON_RESET, allLayers, findNode, composeLayers, newId, isVisual } = require('./shared/layers');
 const ndi = require('./ndi');
 const { readTextFile, TEXT_EXT } = require('./textimport');
 const { pickColor } = require('./picker/main');
@@ -31,7 +31,8 @@ const DEFAULT_STATE = {
   program: null,
   preview: null,
   fadeMs: 1000,
-  fps: 25, // fotogrammi al secondo dell'uscita (al massimo 25)
+  fps: 0, // fotogrammi al secondo dell'uscita: 0 = Auto (come il monitor di uscita)
+  fpsAuto: true, // presente dalla 0.4.11: prima 25 era il massimo e il valore iniziale
   // Modalità light: niente scene né modalità studio. Gli input della scena
   // che era in onda diventano un elenco semplice; le scene restano da parte
   // in parked (con le loro sorgenti chiuse) e tornano con la modalità full.
@@ -120,7 +121,11 @@ function normalizeState(raw) {
   const isScene = (id) => loaded.layers.some((l) => l.id === id && l.type === 'scene');
   if (!isScene(loaded.program)) loaded.program = null;
   if (!isScene(loaded.preview)) loaded.preview = null;
-  loaded.fps = Math.max(1, Math.min(25, Number(loaded.fps) || 25));
+  // Fino alla 0.4.10 l'uscita era bloccata a 25: chi l'aveva lasciata così
+  // passa ad Auto (frequenza del monitor).
+  if (!('fpsAuto' in raw) && Number(loaded.fps) === 25) loaded.fps = 0;
+  loaded.fpsAuto = true;
+  loaded.fps = Number(loaded.fps) > 0 ? Math.max(1, Math.min(MAX_FPS, Number(loaded.fps))) : 0;
   loaded.http = { ...DEFAULT_STATE.http, ...(raw.http || {}) };
   if (!Array.isArray(loaded.midi)) loaded.midi = [];
   return loaded;
@@ -221,11 +226,24 @@ function displayList() {
   })).sort((a, b) => a.index - b.index);
 }
 
+function monitorHz() {
+  return Math.round(targetDisplay().displayFrequency || 0);
+}
+
+function outputFps() {
+  return state.fps > 0 ? state.fps : Math.min(MAX_FPS, monitorHz() || DEFAULT_FPS);
+}
+
 function snapshot() {
   const primaryId = screen.getPrimaryDisplay().id;
   const target = targetDisplay();
   return {
     ...state,
+    // fps: quelli usati davvero; fpsChoice: la scelta (0 = Auto); monitorHz:
+    // la frequenza del monitor di uscita.
+    fps: outputFps(),
+    fpsChoice: state.fps,
+    monitorHz: monitorHz(),
     transition,
     now: Date.now(),
     ndiAvailable: ndi.available,
@@ -793,7 +811,7 @@ ipcMain.on('command', (_evt, cmd) => {
       state.background = cmd.color;
       break;
     case 'set-fps':
-      state.fps = Math.max(1, Math.min(25, Number(cmd.fps) || 25));
+      state.fps = Number(cmd.fps) > 0 ? Math.max(1, Math.min(MAX_FPS, Number(cmd.fps))) : 0;
       break;
     case 'set-lang':
       state.lang = cmd.lang === 'en' ? 'en' : 'it';
@@ -842,7 +860,7 @@ function startRemote() {
 // --- Uscita in NDI --------------------------------------------------------------
 
 function syncNdiOut() {
-  if (state.ndiOut && displayWin && !displayWin.isDestroyed()) ndiOut.start(displayWin, () => state.fps, broadcast);
+  if (state.ndiOut && displayWin && !displayWin.isDestroyed()) ndiOut.start(displayWin, outputFps, broadcast);
   else ndiOut.stop(broadcast);
 }
 
