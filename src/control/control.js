@@ -1874,6 +1874,16 @@ const ICONS = {
   trash: '<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"/>',
   mirrorX: '<path d="M12 3v18" stroke-dasharray="2 2.5"/><path d="M9 7l-6 5 6 5zM15 7l6 5-6 5z"/>',
   mirrorY: '<path d="M3 12h18" stroke-dasharray="2 2.5"/><path d="M7 9l5-6 5 6zM7 15l5 6 5-6z"/>',
+  // Icone della finestra "Aggiungi": due colori come il logo IGOR (grigio
+  // e blu), con il simbolo dell'input: cartella, rete, camera, play,
+  // orologio, fumetto, documento.
+  'add-scene': '<path d="M2.5 6.5a1.5 1.5 0 0 1 1.5-1.5h5l2 2.5h9a1.5 1.5 0 0 1 1.5 1.5v9.5a1.5 1.5 0 0 1-1.5 1.5H4a1.5 1.5 0 0 1-1.5-1.5z" fill="#c1c1c1" stroke="#16508a"/><path d="M2.5 10h19" stroke="#16508a"/>',
+  'add-ndi': '<path d="M12 6.5L5.5 17.5M12 6.5l6.5 11M5.5 17.5h13" stroke="#16508a"/><circle cx="12" cy="5.5" r="3" fill="#c1c1c1" stroke="#16508a"/><circle cx="5" cy="18" r="3" fill="#c1c1c1" stroke="#16508a"/><circle cx="19" cy="18" r="3" fill="#c1c1c1" stroke="#16508a"/>',
+  'add-capture': '<rect x="2" y="6.5" width="14" height="11" rx="2" fill="#c1c1c1" stroke="#16508a"/><path d="M16 10.5l6-3.5v10l-6-3.5z" fill="#16508a" stroke="#16508a"/><circle cx="9" cy="12" r="2.5" fill="#16508a" stroke="none"/>',
+  'add-media': '<circle cx="12" cy="12" r="9.5" fill="#c1c1c1" stroke="#16508a"/><path d="M10 8l6 4-6 4z" fill="#16508a" stroke="#16508a"/>',
+  'add-timer': '<circle cx="12" cy="12" r="9.5" fill="#c1c1c1" stroke="#16508a"/><path d="M12 6.5V12l3.5 2.5" stroke="#16508a" stroke-width="2.2"/>',
+  'add-ticker': '<path d="M4 3.5h16a1.5 1.5 0 0 1 1.5 1.5v10a1.5 1.5 0 0 1-1.5 1.5H10l-5 4.5v-4.5H4A1.5 1.5 0 0 1 2.5 15V5A1.5 1.5 0 0 1 4 3.5z" fill="#c1c1c1" stroke="#16508a"/><path d="M6.5 8h11M6.5 12h7" stroke="#16508a" stroke-width="2"/>',
+  'add-prompter': '<path d="M5 2.5h10l4.5 4.5v13a1.5 1.5 0 0 1-1.5 1.5H5a1.5 1.5 0 0 1-1.5-1.5V4A1.5 1.5 0 0 1 5 2.5z" fill="#c1c1c1" stroke="#16508a"/><path d="M15 2.5V7h4.5" stroke="#16508a"/><path d="M7 11h10M7 14.5h10M7 18h6" stroke="#16508a" stroke-width="2"/>',
   guide: '<path d="M3 12h18"/><path d="M3 8l3 4-3 4"/><path d="M8 6h13M8 18h13" stroke-opacity=".45"/>'
 };
 
@@ -2138,13 +2148,13 @@ let pendingSelect = null;
 // la sorgente NDI, la periferica o il file, e la scena in cui metterlo.
 
 const ADD_TYPES = [
-  { type: 'scene', ico: '🎬', label: 'Scena', hint: 'Raccoglie più input' },
-  { type: 'ndi', ico: '📡', label: 'Segnale NDI', hint: 'Sorgente video in rete' },
-  { type: 'capture', ico: '🎥', label: 'Periferica di acquisizione', hint: 'Scheda, webcam, HDMI/SDI → USB' },
-  { type: 'media', ico: '🖼', label: 'Media (video o immagine)', hint: 'File dal disco' },
-  { type: 'timer', ico: '⏱', label: 'Timer', hint: 'Countdown, cronometro, orologio' },
-  { type: 'ticker', ico: '💬', label: 'Banner di Testo', hint: 'Testo in sovraimpressione' },
-  { type: 'prompter', ico: '📜', label: 'TelePrompt', hint: 'Testo che scorre in verticale' }
+  { type: 'scene', ico: 'add-scene', label: 'Scena', hint: 'Raccoglie più input' },
+  { type: 'ndi', ico: 'add-ndi', label: 'Segnale NDI', hint: 'Sorgente video in rete' },
+  { type: 'capture', ico: 'add-capture', label: 'Periferica di acquisizione', hint: 'Scheda, webcam, HDMI/SDI → USB' },
+  { type: 'media', ico: 'add-media', label: 'Media (video o immagine)', hint: 'File dal disco' },
+  { type: 'timer', ico: 'add-timer', label: 'Timer', hint: 'Countdown, cronometro, orologio' },
+  { type: 'ticker', ico: 'add-ticker', label: 'Banner di Testo', hint: 'Testo in sovraimpressione' },
+  { type: 'prompter', ico: 'add-prompter', label: 'TelePrompt', hint: 'Testo che scorre in verticale' }
 ];
 const addDlg = { type: null, source: null, sceneId: null, items: [], loading: false };
 
@@ -2200,7 +2210,7 @@ function renderAddDialog() {
     class: d.type === a.type ? 'on' : '',
     'data-type': a.type,
     onclick: () => chooseAddType(a.type)
-  }, h('span', { class: 'ico' }, a.ico), h('strong', {}, t(a.label)), h('span', { class: 'muted small' }, t(a.hint)))));
+  }, h('span', { class: 'add-ico' }, icon(a.ico)), h('strong', {}, t(a.label)), h('span', { class: 'muted small' }, t(a.hint)))));
 
   let sourcePart = null;
   if (d.type === 'ndi' || d.type === 'capture') {
