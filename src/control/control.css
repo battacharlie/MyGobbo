@@ -309,7 +309,9 @@ button.pick { padding: 2px 6px; font-size: 13px; line-height: 1.2; }
 
 /* Barra in basso: a sinistra i comandi dei dettagli (blu IGOR con pulsanti
    grigi), a destra le icone veloci (grigio IGOR con pulsanti azzurri). */
-#panel-footer { flex: none; display: flex; align-items: stretch; gap: 12px; padding-top: 10px; flex-wrap: wrap; }
+#panel-footer { flex: none; display: flex; align-items: stretch; gap: 12px; padding-top: 10px; flex-wrap: nowrap; }
+#panel-footer .bar-left, #panel-footer .bar-right { flex: none; flex-wrap: nowrap; }
+#panel-footer button, #panel-footer select { white-space: nowrap; }
 .bar-left, .bar-right { display: flex; align-items: center; gap: 6px; padding: 5px 6px; border-radius: 8px; }
 .bar-left { background: var(--igor-blue); }
 .bar-left button { background: var(--igor-grey); border-color: var(--igor-grey); color: var(--igor-blue); font-weight: 600; }
@@ -384,3 +386,14 @@ button.pick { padding: 2px 6px; font-size: 13px; line-height: 1.2; }
 .field > .row > input[type=range] { flex: 1; width: auto; min-width: 60px; }
 .field > .row { flex-wrap: nowrap; margin-bottom: 0; }
 .add-types button.on .muted { color: #fff; opacity: .85; }
+
+/* 0.4.14: timeline dei video e segnale acustico del timer */
+.timeline { position: relative; height: 26px; margin: 4px 8px 6px; cursor: pointer; touch-action: none; }
+.timeline .tl-track { position: absolute; left: 0; right: 0; top: 11px; height: 4px; border-radius: 2px; background: #3a3f4b; }
+.timeline .tl-range { position: absolute; top: 11px; height: 4px; border-radius: 2px; background: var(--igor-grey); }
+.timeline .tl-head { position: absolute; top: 5px; width: 16px; height: 16px; margin-left: -8px; border-radius: 50%; background: var(--igor-blue); border: 2px solid var(--igor-grey); box-sizing: border-box; }
+.tl-times { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 0 0 10px; color: #aab0bd; font-size: 12px; }
+.tl-times strong { color: #e8eaf0; font-variant-numeric: tabular-nums; margin-left: 4px; }
+.beep-box { border-top: 1px solid #2a2f3a; margin-top: 10px; padding-top: 10px; }
+.beep-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+.ctx-menu .ctx-sep { height: 1px; background: #343946; margin: 4px 6px; }
