@@ -7,6 +7,7 @@ contextBridge.exposeInMainWorld('countdown', {
   setMinWidth: (w) => ipcRenderer.send('set-min-width', w),
   onVideoTimes: (cb) => ipcRenderer.on('video-times', (_evt, list) => cb(list)),
   ndiSources: () => ipcRenderer.invoke('ndi-sources'),
+  cameraAccess: () => ipcRenderer.invoke('camera-access'),
   pickColor: () => ipcRenderer.invoke('pick-color'),
   importText: () => ipcRenderer.invoke('import-text'),
   outputSourceId: () => ipcRenderer.invoke('output-source-id'),

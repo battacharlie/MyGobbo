@@ -1442,15 +1442,7 @@ function captureSection() {
   });
 
   const refresh = async (askPermission) => {
-    let devices = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === 'videoinput');
-    // Senza permesso i nomi sono vuoti: lo chiediamo una volta sola.
-    if (askPermission && devices.some((d) => !d.label)) {
-      try {
-        const s = await navigator.mediaDevices.getUserMedia({ video: true });
-        s.getTracks().forEach((tr) => tr.stop());
-        devices = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === 'videoinput');
-      } catch { /* nessuna periferica o permesso negato */ }
-    }
+    const devices = await videoDevices(askPermission);
     const layer = selectedLayer();
     if (!layer || layer.type !== 'capture') return;
     const opts = [h('option', { value: '' }, t('— nessuna —')),
@@ -1462,7 +1454,7 @@ function captureSection() {
     sel.value = layer.deviceId || '';
     status.textContent = devices.length ? t('{n} periferiche video trovate', { n: devices.length }) : t('Nessuna periferica video trovata');
   };
-  setTimeout(() => refresh(true));
+  setTimeout(() => refresh('auto'));
 
   return [card('Periferica di acquisizione',
     field('Periferica', sel),
@@ -2443,6 +2435,27 @@ function render(next) {
   if (typeof Remote !== 'undefined') Remote.onState(state);
 }
 
+// Elenco delle periferiche video. Senza permesso i nomi sono vuoti: per
+// averli si apre la telecamera un attimo. Sul Mac ogni apertura può far
+// comparire la richiesta della privacy, quindi in automatico ('auto') lo si
+// fa una volta sola per sessione, e mai se il permesso è stato negato.
+// Il pulsante "Aggiorna elenco" (ask = true) riprova sempre.
+let cameraLabelsAsked = false;
+async function videoDevices(ask) {
+  const list = async () => (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === 'videoinput');
+  let devices = await list();
+  if (!ask || !devices.length || devices.every((d) => d.label)) return devices;
+  if (ask === 'auto' && cameraLabelsAsked) return devices;
+  cameraLabelsAsked = true;
+  if ((await api.cameraAccess()) === 'denied') return devices;
+  try {
+    const st = await navigator.mediaDevices.getUserMedia({ video: true });
+    st.getTracks().forEach((tr) => tr.stop());
+    devices = await list();
+  } catch { /* nessuna periferica o permesso negato */ }
+  return devices;
+}
+
 let pendingSelect = null;
 
 // --- Finestra "Aggiungi" ---------------------------------------------------------
@@ -2496,14 +2509,7 @@ async function chooseAddType(type) {
   if (type === 'ndi') {
     addDlg.items = (await api.ndiSources()).map((s) => ({ value: s, label: s.name }));
   } else if (type === 'capture') {
-    let devices = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === 'videoinput');
-    if (devices.some((d) => !d.label)) {
-      try {
-        const st = await navigator.mediaDevices.getUserMedia({ video: true });
-        st.getTracks().forEach((tr) => tr.stop());
-        devices = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === 'videoinput');
-      } catch { /* nessuna periferica o permesso negato */ }
-    }
+    const devices = await videoDevices('auto');
     addDlg.items = devices.map((d, i) => ({ value: d, label: d.label || `${t('Periferica')} ${i + 1}` }));
   }
   if (addDlg.type !== type || addDlg.scene) return;
