@@ -745,6 +745,14 @@ function prompterAction(layer, cmd) {
 
 ipcMain.handle('get-state', () => snapshot());
 ipcMain.handle('ndi-sources', () => ndi.sources());
+// Permesso del sistema per le telecamere: 'granted', 'denied', 'not-determined'…
+ipcMain.handle('camera-access', () => {
+  try {
+    return systemPreferences.getMediaAccessStatus ? systemPreferences.getMediaAccessStatus('camera') : 'granted';
+  } catch {
+    return 'granted';
+  }
+});
 ipcMain.handle('output-source-id', () => (displayWin && !displayWin.isDestroyed() ? displayWin.getMediaSourceId() : null));
 ipcMain.handle('pick-color', () => pickColor(controlWin, t));
 ipcMain.handle('import-text', async () => {
