@@ -8,7 +8,7 @@
 
 Piccola regia video per Windows e Mac: una **finestra di regia** sul monitor principale e un'**uscita a tutto schermo** sul secondo monitor, dove si compongono segnali NDI, periferiche di acquisizione, video e immagini, un timer, un banner di testo in sovraimpressione e un teleprompter, organizzati in scene. L'interfaccia è in italiano, inglese, spagnolo, francese, cinese o arabo.
 
-📖 **[Mini manuale (italiano e inglese)](docs/MANUALE.md)**
+📖 **Mini manuale / Quick guide:** [Italiano](docs/MANUALE.md#italiano) · [English](docs/MANUALE.md#english) · [Español](docs/MANUALE-ES.md) · [Français](docs/MANUALE-FR.md) · [中文](docs/MANUALE-ZH.md) · [العربية](docs/MANUALE-AR.md)
 
 ## Le due finestre
 
