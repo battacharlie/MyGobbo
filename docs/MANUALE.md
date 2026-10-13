@@ -18,7 +18,7 @@ IGOR è una piccola regia video per Windows e Mac. La **regia** sta sul monitor 
   - A destra (grigio), a icone: **NDI** (verde = l'uscita è inviata in rete come sorgente "IGOR - ABit/s", rosso = spento; passando sopra si vedono nome e ricevitori collegati), **monitor** (mostra/nascondi l'uscita), scelta del **monitor** e dei **fotogrammi al secondo**, **importa** ed **esporta** la configurazione (file `.igor`), **lingua**, **controller MIDI** e **Companion / Stream Deck**.
   - I monitor sono numerati così: il principale è il numero 1, gli altri seguono da sinistra a destra.
 - **Anteprima** (in alto): trascina un elemento per spostarlo, un angolo per ridimensionarlo (Maiusc mantiene le proporzioni). Su video e immagini le maniglie arancioni ritagliano.
-- **Colonna degli input** (a destra): il pulsante blu **+** aggiunge un elemento (scena, NDI, periferica, media, timer, Banner di Testo, TelePrompt); il pulsante **LIGHT** passa alla modalità light, e diventa **STUDIO** per tornare alla modalità completa (vedi sotto).
+- **Colonna degli input** (a destra): il pulsante blu **+** aggiunge un input (NDI, periferica, media, timer, Banner di Testo, TelePrompt). Per creare una scena premi **Aggiungi scena** in basso, clicca sugli input da metterci dentro (anche più di uno, o nessuno per una scena vuota) e poi **Aggiungi**; il pulsante **LIGHT** passa alla modalità light, e diventa **STUDIO** per tornare alla modalità completa (vedi sotto).
   - L'elenco va dal primo piano allo sfondo; si trascina per cambiare l'ordine o per mettere un input in una scena (Ctrl al rilascio = anche in quella scena).
   - Su ogni riga: 👁 visibile/nascosto, ↺ ripristina misure e impostazioni dell'input, cestino rosso per eliminare.
   - Ctrl + clic o Maiusc + clic selezionano più righe; con il clic destro compaiono *Elimina* e *Ripristina input* per tutte le righe selezionate.
@@ -37,7 +37,7 @@ Una scena raccoglie più input; in onda va una scena alla volta. Gli input fuori
 
 ### Modalità light e full
 - **Full**: tutte le funzioni, con scene e modalità studio.
-- **Light** (pulsante LIGHT): per computer meno potenti. Le scene e la modalità studio si spengono; gli input della scena in onda diventano un elenco semplice, nelle stesse posizioni, e l'uscita non si interrompe. Le altre scene vengono messe da parte e le loro sorgenti (videocamere, NDI, video) si chiudono.
+- **Light** (pulsante LIGHT): per computer meno potenti. Le scene e la modalità studio si spengono; gli input della scena in onda diventano un elenco semplice, nelle stesse posizioni, e l'uscita non si interrompe. Le altre scene vengono messe da parte e le loro sorgenti (videocamere, NDI, video) si chiudono. In light si possono aggiungere solo timer, TelePrompt, immagini, una periferica di acquisizione e un segnale NDI.
 - Con il pulsante STUDIO si torna a full: le scene ritornano e la scena di prima torna in onda con le modifiche fatte nel frattempo. Gli input aggiunti in light restano fuori dalle scene.
 
 ### Gli elementi
@@ -71,7 +71,7 @@ IGOR is a small video mixer for Windows and Mac. The **control window** sits on 
   - On the right (grey), as icons: **NDI** (green = the output is sent over the network as the "IGOR - ABit/s" source, red = off; hover to see the name and connected receivers), **monitor** (show/hide the output), choice of **monitor** and **frames per second**, **import** and **export** the configuration (`.igor` file), **language**, **MIDI controller** and **Companion / Stream Deck**.
   - Monitors are numbered like this: the main one is number 1, the others follow from left to right.
 - **Preview** (top): drag an element to move it, a corner to resize it (Shift keeps the proportions). On videos and images the orange handles crop.
-- **Inputs column** (right): the blue **+** button adds an element (scene, NDI, capture device, media, timer, Text Banner, TelePrompt); the **LIGHT** button switches to light mode and becomes **STUDIO** to go back to full mode (see below).
+- **Inputs column** (right): the blue **+** button adds an input (NDI, capture device, media, timer, Text Banner, TelePrompt). To create a scene press **Add scene** at the bottom, click the inputs to put inside (more than one, or none for an empty scene) and then **Add**; the **LIGHT** button switches to light mode and becomes **STUDIO** to go back to full mode (see below).
   - The list goes from foreground to background; drag to change the order or to put an input in a scene (Ctrl on release = also in that scene).
   - On each row: 👁 visible/hidden, ↺ reset the input size and settings, red bin to delete.
   - Ctrl + click or Shift + click select several rows; right-click shows *Delete* and *Reset input* for all the selected rows.
@@ -90,7 +90,7 @@ A scene groups several inputs; one scene at a time is on air. Inputs outside sce
 
 ### Light and full mode
 - **Full**: all features, with scenes and studio mode.
-- **Light** (LIGHT button): for less powerful computers. Scenes and studio mode are switched off; the inputs of the scene on air become a simple list, in the same positions, and the output is not interrupted. The other scenes are set aside and their sources (cameras, NDI, videos) are closed.
+- **Light** (LIGHT button): for less powerful computers. Scenes and studio mode are switched off; the inputs of the scene on air become a simple list, in the same positions, and the output is not interrupted. The other scenes are set aside and their sources (cameras, NDI, videos) are closed. In light mode you can only add timers, TelePrompts, images, one capture device and one NDI signal.
 - The STUDIO button goes back to full mode: the scenes return and the previous scene goes back on air with the changes made in the meantime. Inputs added in light mode stay outside the scenes.
 
 ### Elements

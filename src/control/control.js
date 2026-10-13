@@ -2450,7 +2450,6 @@ let pendingSelect = null;
 // la sorgente NDI, la periferica o il file, e la scena in cui metterlo.
 
 const ADD_TYPES = [
-  { type: 'scene', ico: 'add-scene', label: 'Scena', hint: 'Raccoglie più input' },
   { type: 'ndi', ico: 'add-ndi', label: 'Segnale NDI', hint: 'Sorgente video in rete' },
   { type: 'capture', ico: 'add-capture', label: 'Periferica di acquisizione', hint: 'Scheda, webcam, HDMI/SDI → USB' },
   { type: 'media', ico: 'add-media', label: 'Media (video o immagine)', hint: 'File dal disco' },
@@ -2458,18 +2457,34 @@ const ADD_TYPES = [
   { type: 'ticker', ico: 'add-ticker', label: 'Banner di Testo', hint: 'Testo in sovraimpressione' },
   { type: 'prompter', ico: 'add-prompter', label: 'TelePrompt', hint: 'Testo che scorre in verticale' }
 ];
-const addDlg = { type: null, source: null, sceneId: null, items: [], loading: false };
+// Modalità light: solo questi input, e al massimo un segnale NDI e una
+// periferica di acquisizione (lo stesso controllo c'è anche in main.js).
+const LIGHT_TYPES = ['ndi', 'capture', 'media', 'timer', 'prompter'];
+const LIGHT_SINGLE = ['ndi', 'capture'];
+const addDlg = { type: null, source: null, sceneId: null, items: [], loading: false, scene: false, picked: [] };
+
+function lightBlocked(type) {
+  return state.light && LIGHT_SINGLE.includes(type) && allLayers(state.layers).some((l) => l.type === type);
+}
 
 function openAddDialog() {
   const target = addTargetScene();
-  Object.assign(addDlg, { type: null, source: null, items: [], loading: false, sceneId: target ? target.id : null });
+  Object.assign(addDlg, { type: null, source: null, items: [], loading: false, sceneId: target ? target.id : null, scene: false, picked: [] });
   renderAddDialog();
   $('dlg-add').showModal();
 }
 
 async function chooseAddType(type) {
+  if (lightBlocked(type)) return;
+  if (addDlg.scene) {
+    // Con "Aggiungi scena" premuto si scelgono gli input da mettere nella scena.
+    const i = addDlg.picked.indexOf(type);
+    if (i >= 0) addDlg.picked.splice(i, 1);
+    else addDlg.picked.push(type);
+    renderAddDialog();
+    return;
+  }
   Object.assign(addDlg, { type, source: null, items: [], loading: type === 'ndi' || type === 'capture' });
-  if (type === 'scene') addDlg.sceneId = null;
   renderAddDialog();
   if (type === 'ndi') {
     addDlg.items = (await api.ndiSources()).map((s) => ({ value: s, label: s.name }));
@@ -2484,15 +2499,27 @@ async function chooseAddType(type) {
     }
     addDlg.items = devices.map((d, i) => ({ value: d, label: d.label || `${t('Periferica')} ${i + 1}` }));
   }
-  if (addDlg.type !== type) return;
+  if (addDlg.type !== type || addDlg.scene) return;
   addDlg.loading = false;
   if (addDlg.items.length === 1) addDlg.source = addDlg.items[0];
   renderAddDialog();
 }
 
+function toggleAddScene() {
+  addDlg.scene = !addDlg.scene;
+  Object.assign(addDlg, { type: null, source: null, items: [], loading: false, picked: [] });
+  renderAddDialog();
+}
+
 function confirmAdd() {
   const { type, source, sceneId } = addDlg;
-  if (!type) return;
+  if (addDlg.scene) {
+    pendingSelect = new Set(allLayers(state.layers).map((l) => l.id));
+    send({ type: 'add-scene', types: addDlg.picked.slice() });
+    $('dlg-add').close();
+    return;
+  }
+  if (!type || lightBlocked(type)) return;
   pendingSelect = new Set(allLayers(state.layers).map((l) => l.id));
   if (type === 'media') {
     // La finestra di Windows per scegliere il file si apre subito dopo.
@@ -2508,14 +2535,27 @@ function confirmAdd() {
 
 function renderAddDialog() {
   const d = addDlg;
-  const types = h('div', { class: 'add-types' }, ADD_TYPES.filter((a) => !(state.light && a.type === 'scene')).map((a) => h('button', {
-    class: d.type === a.type ? 'on' : '',
-    'data-type': a.type,
-    onclick: () => chooseAddType(a.type)
-  }, h('span', { class: 'add-ico' }, icon(a.ico)), h('strong', {}, t(a.label)), h('span', { class: 'muted small' }, t(a.hint)))));
+  const shown = ADD_TYPES.filter((a) => !state.light || LIGHT_TYPES.includes(a.type));
+  const types = h('div', { class: 'add-types' + (d.scene ? ' picking' : '') }, shown.map((a) => {
+    const blocked = lightBlocked(a.type);
+    const on = d.scene ? d.picked.includes(a.type) : d.type === a.type;
+    const label = state.light && a.type === 'media' ? 'Immagine' : a.label;
+    const hint = blocked ? 'Già presente (1 in modalità light)' : (state.light && a.type === 'media' ? 'File immagine dal disco' : a.hint);
+    return h('button', {
+      class: on ? 'on' : '',
+      'data-type': a.type,
+      disabled: blocked,
+      title: d.scene ? t('Clicca per metterlo nella scena (puoi sceglierne più di uno)') : t(hint),
+      onclick: () => chooseAddType(a.type)
+    }, h('span', { class: 'add-ico' }, icon(a.ico)), h('strong', {}, t(label)), h('span', { class: 'muted small' }, t(hint)));
+  }));
 
   let sourcePart = null;
-  if (d.type === 'ndi' || d.type === 'capture') {
+  if (d.scene) {
+    sourcePart = help(d.picked.length
+      ? t('Premi "Aggiungi": la scena nuova conterrà gli input scelti. Sorgenti e periferiche si scelgono poi nei dettagli.')
+      : t('Clicca sugli input da mettere nella scena, anche più di uno. Se non ne scegli nessuno, la scena nasce vuota.'));
+  } else if (d.type === 'ndi' || d.type === 'capture') {
     const title = d.type === 'ndi' ? t('Sorgente NDI') : t('Periferica');
     let list;
     if (d.loading) list = h('p', { class: 'muted small' }, d.type === 'ndi' ? t('Ricerca delle sorgenti in rete…') : t('Ricerca delle periferiche…'));
@@ -2523,20 +2563,23 @@ function renderAddDialog() {
     else list = h('div', { class: 'add-sources' }, d.items.map((it, i) => h('button', {
       class: d.source === it ? 'on' : '',
       'data-index': i,
+      title: it.label,
       onclick: () => { d.source = it; renderAddDialog(); }
     }, it.label)));
     sourcePart = h('div', {},
       h('h2', {}, title),
       list,
       h('div', { class: 'row' },
-        h('button', { class: 'small-btn', onclick: () => chooseAddType(d.type) }, t('Aggiorna elenco')),
+        h('button', { class: 'small-btn', title: t('Aggiorna elenco'), onclick: () => chooseAddType(d.type) }, t('Aggiorna elenco')),
         h('span', { class: 'muted small' }, t('Puoi anche sceglierla dopo, nei dettagli dell\'input.'))));
   } else if (d.type === 'media') {
-    sourcePart = help(t('Premendo "Aggiungi" si apre la finestra per scegliere il video o l\'immagine dal disco.'));
+    sourcePart = help(state.light
+      ? t('Premendo "Aggiungi" si apre la finestra per scegliere l\'immagine dal disco.')
+      : t('Premendo "Aggiungi" si apre la finestra per scegliere il video o l\'immagine dal disco.'));
   }
 
   let scenePart = null;
-  if (d.type && d.type !== 'scene') {
+  if (d.type && !d.scene) {
     const scenes = scenesInOrder();
     const sel = h('select', {},
       h('option', { value: '' }, t('Fuori dalle scene (sempre in onda)')),
@@ -2546,17 +2589,34 @@ function renderAddDialog() {
     if (scenes.length) scenePart = field('Dove', sel);
   }
 
-  const canAdd = !!d.type && !d.loading;
+  const lightNote = state.light ? h('p', { class: 'add-light-note' },
+    t('Modalità light: puoi aggiungere timer, TelePrompt, immagini, una sola periferica di acquisizione e un solo segnale NDI. Passa a STUDIO per togliere i limiti.')) : null;
+
+  const canAdd = d.scene || (!!d.type && !d.loading);
+  const addLabel = d.scene
+    ? (d.picked.length ? t('Aggiungi') : t('Aggiungi scena vuota'))
+    : (d.type === 'media' ? (state.light ? t('Scegli immagine e aggiungi…') : t('Scegli file e aggiungi…')) : t('Aggiungi'));
   $('dlg-add').replaceChildren(...[
     h('h2', {}, t('Aggiungi')),
-    help(t('Scegli il tipo di input (doppio clic per aggiungerlo subito).')),
+    help(d.scene ? t('Scegli gli input della nuova scena.') : t('Scegli il tipo di input (doppio clic per aggiungerlo subito).')),
+    lightNote,
     types,
     sourcePart,
     scenePart,
-    h('div', { class: 'row end' },
-      h('button', { onclick: () => $('dlg-add').close() }, t('Annulla')),
-      h('button', { class: 'primary', disabled: !canAdd, onclick: confirmAdd },
-        d.type === 'media' ? t('Scegli file e aggiungi…') : t('Aggiungi')))
+    h('div', { class: 'row end add-footer' },
+      state.light ? null : h('button', {
+        class: 'add-scene-btn' + (d.scene ? ' on' : ''),
+        title: t('Crea una scena: premi, scegli gli input da metterci dentro e poi "Aggiungi"'),
+        onclick: toggleAddScene
+      }, h('span', { class: 'add-ico' }, icon('add-scene')), t('Aggiungi scena')),
+      h('span', { class: 'grow' }),
+      h('button', { title: t('Chiudi senza aggiungere'), onclick: () => $('dlg-add').close() }, t('Annulla')),
+      h('button', {
+        class: 'primary' + (d.scene ? ' pulse' : ''),
+        disabled: !canAdd,
+        title: d.scene ? t('Aggiunge la scena con gli input scelti') : t('Aggiunge l\'input scelto'),
+        onclick: confirmAdd
+      }, addLabel))
   ].filter(Boolean));
 }
 
@@ -2564,10 +2624,11 @@ function renderAddDialog() {
 // oppure sulla sorgente). Il primo clic ridisegna la finestra, per questo il
 // doppio clic si ascolta sulla finestra intera.
 $('dlg-add').addEventListener('dblclick', (e) => {
+  if (addDlg.scene) return;
   const typeBtn = e.target.closest('.add-types button');
   if (typeBtn && !['ndi', 'capture'].includes(typeBtn.dataset.type)) {
+    if (lightBlocked(typeBtn.dataset.type)) return;
     addDlg.type = typeBtn.dataset.type;
-    if (addDlg.type === 'scene') addDlg.sceneId = null;
     confirmAdd();
     return;
   }
