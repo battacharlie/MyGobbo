@@ -64,6 +64,7 @@ function captureView(layer) {
     video.playsInline = true;
     video.addEventListener('loadedmetadata', () => stage.relayout());
     video.addEventListener('resize', () => stage.relayout());
+    video.addEventListener('pause', () => { if (video.isConnected && video.srcObject) video.play().catch(() => {}); });
     view = { deviceId: layer.deviceId, video };
     captureViews.set(layer.id, view);
   }
@@ -256,7 +257,13 @@ const stage = createStage(document.getElementById('stage'), {
     if (layer.type === 'capture') {
       const view = captureViews.get(layer.id);
       const v = view && view.video;
-      if (v && v.videoWidth > 0) return { el: v, width: v.videoWidth, height: v.videoHeight };
+      if (v && v.videoWidth > 0) {
+        // Il browser mette in pausa un <video> tolto dalla pagina (scena non
+        // in onda): quando l'input torna visibile va fatto ripartire, se no
+        // resta fermo sull'ultimo fotogramma.
+        if (v.paused) v.play().catch(() => {});
+        return { el: v, width: v.videoWidth, height: v.videoHeight };
+      }
     } else if (layer.type === 'media' && layer.mediaKind === 'image') {
       const entry = images.get(layer.id);
       if (entry && entry.ready && entry.img.naturalWidth > 0) return { el: entry.img, width: entry.img.naturalWidth, height: entry.img.naturalHeight };
