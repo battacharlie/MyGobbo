@@ -150,7 +150,18 @@ body.studio #program { border: 2px solid #dc2626; }
 #overlay .box.selected .handle { display: block; }
 
 /* Finestra "Aggiungi": scelta del tipo, poi della sorgente. */
-.add-types { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; margin: 10px 0; }
+.add-types { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 10px 0; }
+.add-types button:disabled { opacity: .45; cursor: not-allowed; }
+.add-light-note { display: flex; align-items: center; gap: 10px; margin: 8px 0 0; padding: 7px 10px; border: 1px solid var(--igor-blue); border-radius: 6px; font-size: 12px; color: var(--igor-grey); }
+.add-light-note span { flex: 1; }
+.add-light-note button { flex: none; }
+.add-footer { gap: 8px; }
+.add-footer .grow { flex: 1; }
+.add-scene-btn { display: inline-flex; align-items: center; gap: 6px; }
+.add-scene-btn .add-ico svg, .add-scene-btn .add-ico .ico { display: block; width: 20px; height: 20px; }
+.add-scene-btn.on { background: var(--igor-blue-hi); border-color: var(--igor-blue-hi); color: #fff; }
+@keyframes add-pulse { 0%, 100% { background: var(--igor-grey); border-color: var(--igor-grey); color: #1b1e25; } 50% { background: var(--igor-blue); border-color: var(--igor-blue); color: #fff; } }
+.dialog button.primary.pulse { animation: add-pulse 2.4s ease-in-out infinite; }
 .add-types button { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding: 10px 12px; text-align: left; min-height: 64px; }
 .add-types button.on { background: var(--igor-blue-hi); border-color: var(--igor-blue-hi); color: #fff; }
 .add-types .add-ico { display: inline-flex; }
@@ -397,3 +408,7 @@ button.pick { padding: 2px 6px; font-size: 13px; line-height: 1.2; }
 .beep-box { border-top: 1px solid #2a2f3a; margin-top: 10px; padding-top: 10px; }
 .beep-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
 .ctx-menu .ctx-sep { height: 1px; background: #343946; margin: 4px 6px; }
+
+/* Arabo: la disposizione resta quella di sempre, ma ogni testo si legge
+   da destra a sinistra con la punteggiatura al posto giusto. */
+html[lang="ar"] :is(p, label, span, strong, h2, h3, small, button, option, .help, .muted, .card-title) { unicode-bidi: plaintext; }

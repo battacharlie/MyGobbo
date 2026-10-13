@@ -406,8 +406,13 @@ function createWindows() {
 
 // Chiede un video o un'immagine dal disco e restituisce le proprietà del
 // livello Media, oppure null se l'utente annulla.
+// In modalità light si possono scegliere solo immagini.
 async function pickMediaFile() {
-  const res = await dialog.showOpenDialog(controlWin, {
+  const res = await dialog.showOpenDialog(controlWin, state.light ? {
+    title: t('Scegli un\'immagine'),
+    properties: ['openFile'],
+    filters: [{ name: t('Immagini'), extensions: IMAGE_EXT }]
+  } : {
     title: t('Scegli un video o un\'immagine'),
     properties: ['openFile'],
     filters: [
@@ -425,6 +430,16 @@ async function pickMediaFile() {
     mediaKind: IMAGE_EXT.includes(ext) ? 'image' : 'video',
     name: path.basename(file)
   };
+}
+
+// Modalità light: niente scene, video o banner, e al massimo un segnale NDI
+// e una periferica di acquisizione. La modalità studio toglie i limiti.
+const LIGHT_TYPES = ['ndi', 'capture', 'media', 'timer', 'prompter'];
+const LIGHT_SINGLE = ['ndi', 'capture'];
+function canAddInLight(type) {
+  if (!state.light) return true;
+  if (!LIGHT_TYPES.includes(type)) return false;
+  return !LIGHT_SINGLE.includes(type) || !allLayers(state.layers).some((l) => l.type === type);
 }
 
 function findLayer(id) {
@@ -750,9 +765,26 @@ ipcMain.on('set-min-width', (_evt, w) => {
 ipcMain.on('command', (_evt, cmd) => {
   switch (cmd.type) {
     case 'add-layer':
-      if (state.light && cmd.layerType === 'scene') break;
+      if (!canAddInLight(cmd.layerType)) break;
       addLayer(createLayer(cmd.layerType, cmd.extra), cmd.sceneId);
       break;
+    case 'add-scene': {
+      // Una scena nuova, già con dentro gli input scelti (anche nessuno).
+      if (state.light) break;
+      const scene = createLayer('scene');
+      addLayer(scene);
+      const types = (cmd.types || []).filter((type) => type !== 'scene' && TYPE_LABELS[type]);
+      for (const type of types.filter((type) => type !== 'media')) addLayer(createLayer(type), scene.id);
+      if (types.includes('media')) {
+        pickMediaFile().then((media) => {
+          if (!media || !findLayer(scene.id)) return;
+          addLayer(createLayer('media', media), scene.id);
+          saveState();
+          broadcast();
+        });
+      }
+      break;
+    }
     case 'save-config':
       saveConfig();
       return;
@@ -760,6 +792,7 @@ ipcMain.on('command', (_evt, cmd) => {
       openConfig();
       return;
     case 'add-media':
+      if (!canAddInLight('media')) return;
       // La finestra di scelta del file è asincrona: il livello arriva dopo.
       pickMediaFile().then((media) => {
         if (!media) return;
@@ -897,7 +930,7 @@ ipcMain.on('command', (_evt, cmd) => {
       state.fps = Number(cmd.fps) > 0 ? Math.max(1, Math.min(MAX_FPS, Number(cmd.fps))) : 0;
       break;
     case 'set-lang':
-      state.lang = cmd.lang === 'en' ? 'en' : 'it';
+      state.lang = i18n.normLang(cmd.lang);
       i18n.setLang(state.lang);
       break;
     case 'open-manual':

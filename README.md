@@ -6,7 +6,7 @@
 
 <p align="center">Regia video di ABit/s</p>
 
-Piccola regia video per Windows e Mac: una **finestra di regia** sul monitor principale e un'**uscita a tutto schermo** sul secondo monitor, dove si compongono segnali NDI, periferiche di acquisizione, video e immagini, un timer, un banner di testo in sovraimpressione e un teleprompter, organizzati in scene. L'interfaccia è in italiano o in inglese.
+Piccola regia video per Windows e Mac: una **finestra di regia** sul monitor principale e un'**uscita a tutto schermo** sul secondo monitor, dove si compongono segnali NDI, periferiche di acquisizione, video e immagini, un timer, un banner di testo in sovraimpressione e un teleprompter, organizzati in scene. L'interfaccia è in italiano, inglese, spagnolo, francese, cinese o arabo.
 
 📖 **[Mini manuale (italiano e inglese)](docs/MANUALE.md)**
 
@@ -18,7 +18,7 @@ Piccola regia video per Windows e Mac: una **finestra di regia** sul monitor pri
   - **Visualizza**: modalità light, modalità studio, mostra/nascondi le istruzioni, ripristina la disposizione delle finestre, mini manuale.
 - In basso la barra dei comandi:
   - a sinistra, in blu: **Ripristina finestre tab** (tutte le schede dei dettagli tornano al loro posto iniziale) e **Separa Finestra Dettagli** (i dettagli input in una finestra a parte; lo stesso pulsante li riunisce);
-  - a destra, in grigio, le icone veloci: **NDI** (verde quando l'uscita è inviata in rete come sorgente "IGOR - ABit/s", rosso quando è spento), mostra/nascondi l'uscita, monitor della seconda finestra, fotogrammi al secondo dell'uscita (*Auto* = come il monitor di uscita, oppure 60, 50, 30, 25, 24, 20, 15 o 10), importa ed esporta la configurazione (file `.igor`), lingua (italiano o inglese), controller MIDI e Companion / Stream Deck.
+  - a destra, in grigio, le icone veloci: **NDI** (verde quando l'uscita è inviata in rete come sorgente "IGOR - ABit/s", rosso quando è spento), mostra/nascondi l'uscita, monitor della seconda finestra, fotogrammi al secondo dell'uscita (*Auto* = come il monitor di uscita, oppure 60, 50, 30, 25, 24, 20, 15 o 10), importa ed esporta la configurazione (file `.igor`), lingua (italiano, inglese, spagnolo, francese, cinese o arabo), controller MIDI e Companion / Stream Deck.
 - Sotto, tre zone: l'**anteprima** (o i due schermi della modalità studio), i **dettagli** dell'input selezionato e la **colonna degli input**. I bordi tra le zone si trascinano e si agganciano come una calamita alle misure naturali. In modalità studio anteprima e programma occupano tutta la larghezza e la colonna degli input scende accanto ai dettagli. La disposizione resta memorizzata, separata per le due modalità.
 - I dettagli sono divisi in schede libere: all'inizio sono su 4 colonne (2 righe se sono più di 4), poi ognuna si sposta tenendo premuto il titolo e si allarga o si alza dal bordo destro, da quello inferiore o dall'angolo, in modo indipendente dalle altre (con una misura minima); se lo spazio in verticale è poco compare la barra di scorrimento. Un clic sul titolo senza trascinare, o sulla linguetta ▾, riduce la scheda a barra. Il pulsante ⧉ apre la scheda in una finestra separata da mettere dove si vuole (anche su un altro monitor). Posizioni e misure restano memorizzate per ogni tipo di input.
 - Nella colonna destra il pulsante blu **+**, il pulsante **LIGHT** (che in modalità light diventa **STUDIO**) e l'elenco degli elementi dal primo piano allo sfondo. Su ogni riga: occhio (visibile / nascosto), ↺ (ripristina misure e impostazioni dell'input, tenendo sorgente e testo) e cestino rosso (elimina e chiude la sorgente). Ctrl + clic o Maiusc + clic selezionano più righe; il clic destro offre *Elimina* e *Ripristina input* per tutta la selezione. Le scene sono numerate dall'alto (Scena 1, Scena 2…): il numero serve per MIDI e Companion.
@@ -163,7 +163,7 @@ src/
   ndi.js               caricamento facoltativo di NDI e ricerca delle sorgenti
   shared/layers.js     tipi di elemento, calcolo del timer, crop
   shared/render.js     disegno della scena (uscita e anteprima in regia)
-  shared/i18n.js       lingua dell'interfaccia (testi inglesi in shared/i18n-en.js)
+  shared/i18n.js       lingua dell'interfaccia (traduzioni in shared/i18n-en/es/fr/zh/ar.js)
   shared/actions.js    comandi per MIDI e Companion
   remote.js            server HTTP per Companion / Stream Deck
   textimport.js        lettura dei file di testo per il TelePrompt (.docx, .rtf, .txt)
