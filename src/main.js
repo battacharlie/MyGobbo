@@ -10,7 +10,20 @@ const displayNumbers = require('./displaynumbers');
 const ndiOut = require('./ndisend');
 
 // Mini manuale (italiano e inglese) sul sito del progetto.
-const MANUAL_URL = 'https://github.com/battacharlie/MyGobbo/blob/main/docs/MANUALE.md';
+// Mini manuale online: si apre nella lingua dell'interfaccia.
+const MANUAL_BASE = 'https://github.com/battacharlie/MyGobbo/blob/main/docs/';
+const MANUAL_PAGES = {
+  it: 'MANUALE.md#italiano',
+  en: 'MANUALE.md#english',
+  es: 'MANUALE-ES.md',
+  fr: 'MANUALE-FR.md',
+  zh: 'MANUALE-ZH.md',
+  ar: 'MANUALE-AR.md'
+};
+
+function manualUrl(lang) {
+  return MANUAL_BASE + (MANUAL_PAGES[lang] || MANUAL_PAGES.en);
+}
 const i18n = require('./shared/i18n');
 const remote = require('./remote');
 const t = i18n.t;
@@ -934,7 +947,7 @@ ipcMain.on('command', (_evt, cmd) => {
       i18n.setLang(state.lang);
       break;
     case 'open-manual':
-      shell.openExternal(MANUAL_URL);
+      shell.openExternal(manualUrl(state.lang));
       return;
     case 'set-help':
       state.showHelp = !!cmd.on;
