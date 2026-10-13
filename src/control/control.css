@@ -408,3 +408,7 @@ button.pick { padding: 2px 6px; font-size: 13px; line-height: 1.2; }
 .beep-box { border-top: 1px solid #2a2f3a; margin-top: 10px; padding-top: 10px; }
 .beep-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
 .ctx-menu .ctx-sep { height: 1px; background: #343946; margin: 4px 6px; }
+
+/* Arabo: la disposizione resta quella di sempre, ma ogni testo si legge
+   da destra a sinistra con la punteggiatura al posto giusto. */
+html[lang="ar"] :is(p, label, span, strong, h2, h3, small, button, option, .help, .muted, .card-title) { unicode-bidi: plaintext; }

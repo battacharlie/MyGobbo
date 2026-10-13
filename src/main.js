@@ -930,7 +930,7 @@ ipcMain.on('command', (_evt, cmd) => {
       state.fps = Number(cmd.fps) > 0 ? Math.max(1, Math.min(MAX_FPS, Number(cmd.fps))) : 0;
       break;
     case 'set-lang':
-      state.lang = cmd.lang === 'en' ? 'en' : 'it';
+      state.lang = i18n.normLang(cmd.lang);
       i18n.setLang(state.lang);
       break;
     case 'open-manual':

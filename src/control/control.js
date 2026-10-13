@@ -1300,7 +1300,7 @@ function prompterSection(layer) {
     save();
   };
   colorBtn.addEventListener('input', () => applyColor(colorBtn.value));
-  const en = I18n.getLang() === 'en';
+  const en = I18n.getLang() !== 'it'; // B I U fuori dall'italiano
   const toolbar = h('div', { class: 'row toolbar' },
     fmt('bold', en ? 'B' : 'G', 'Grassetto'), fmt('italic', en ? 'I' : 'C', 'Corsivo'), fmt('underline', en ? 'U' : 'S', 'Sottolineato'), fmt('strikeThrough', 'ab̶', 'Barrato'),
     h('span', { class: 'color-pick' }, colorBtn, pickButton((c) => { colorBtn.value = c; applyColor(c); })),
@@ -2234,7 +2234,7 @@ function renderQuickbar() {
     h('span', { class: 'quick-sep' }),
     h('button', { id: 'q-import', class: 'quick', title: t('Importa configurazione…'), onclick: () => send({ type: 'open-config' }) }, icon('import')),
     h('button', { id: 'q-export', class: 'quick', title: t('Esporta configurazione…'), onclick: () => send({ type: 'save-config' }) }, icon('export')),
-    quickSelect('q-lang', t('Lingua'), [['it', 'IT'], ['en', 'EN']], I18n.getLang(), (v) => send({ type: 'set-lang', lang: v })),
+    quickSelect('q-lang', t('Lingua'), I18n.LANGS, I18n.getLang(), (v) => send({ type: 'set-lang', lang: v })),
     h('span', { class: 'quick-sep' }),
     h('button', { id: 'q-midi', class: 'quick', title: t('Controller MIDI…'), onclick: () => openMidiDialog() }, icon('midi')),
     h('button', { id: 'q-deck', class: 'quick', title: t('Companion / Stream Deck…'), onclick: () => openHttpDialog() }, icon('deck')));
