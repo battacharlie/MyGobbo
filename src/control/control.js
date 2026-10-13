@@ -2461,15 +2461,22 @@ const ADD_TYPES = [
 // periferica di acquisizione (lo stesso controllo c'è anche in main.js).
 const LIGHT_TYPES = ['ndi', 'capture', 'media', 'timer', 'prompter'];
 const LIGHT_SINGLE = ['ndi', 'capture'];
-const addDlg = { type: null, source: null, sceneId: null, items: [], loading: false, scene: false, picked: [] };
+const addDlg = { type: null, source: null, sceneId: null, items: [], loading: false, scene: false, picked: [], studio: false };
+
+// Nella finestra si può già scegliere di passare a STUDIO: il cambio vero
+// avviene solo alla conferma, a finestra chiusa, così la regia non cambia
+// aspetto mentre si scelgono gli input.
+function addLight() {
+  return !!state.light && !addDlg.studio;
+}
 
 function lightBlocked(type) {
-  return state.light && LIGHT_SINGLE.includes(type) && allLayers(state.layers).some((l) => l.type === type);
+  return addLight() && LIGHT_SINGLE.includes(type) && allLayers(state.layers).some((l) => l.type === type);
 }
 
 function openAddDialog() {
   const target = addTargetScene();
-  Object.assign(addDlg, { type: null, source: null, items: [], loading: false, sceneId: target ? target.id : null, scene: false, picked: [] });
+  Object.assign(addDlg, { type: null, source: null, items: [], loading: false, sceneId: target ? target.id : null, scene: false, picked: [], studio: false });
   renderAddDialog();
   $('dlg-add').showModal();
 }
@@ -2513,6 +2520,7 @@ function toggleAddScene() {
 
 function confirmAdd() {
   const { type, source, sceneId } = addDlg;
+  if ((addDlg.scene || (type && !lightBlocked(type))) && state.light && addDlg.studio) send({ type: 'set-light', on: false });
   if (addDlg.scene) {
     pendingSelect = new Set(allLayers(state.layers).map((l) => l.id));
     send({ type: 'add-scene', types: addDlg.picked.slice() });
@@ -2535,12 +2543,12 @@ function confirmAdd() {
 
 function renderAddDialog() {
   const d = addDlg;
-  const shown = ADD_TYPES.filter((a) => !state.light || LIGHT_TYPES.includes(a.type));
+  const shown = ADD_TYPES.filter((a) => !addLight() || LIGHT_TYPES.includes(a.type));
   const types = h('div', { class: 'add-types' + (d.scene ? ' picking' : '') }, shown.map((a) => {
     const blocked = lightBlocked(a.type);
     const on = d.scene ? d.picked.includes(a.type) : d.type === a.type;
-    const label = state.light && a.type === 'media' ? 'Immagine' : a.label;
-    const hint = blocked ? 'Già presente (1 in modalità light)' : (state.light && a.type === 'media' ? 'File immagine dal disco' : a.hint);
+    const label = addLight() && a.type === 'media' ? 'Immagine' : a.label;
+    const hint = blocked ? 'Già presente (1 in modalità light)' : (addLight() && a.type === 'media' ? 'File immagine dal disco' : a.hint);
     return h('button', {
       class: on ? 'on' : '',
       'data-type': a.type,
@@ -2573,7 +2581,7 @@ function renderAddDialog() {
         h('button', { class: 'small-btn', title: t('Aggiorna elenco'), onclick: () => chooseAddType(d.type) }, t('Aggiorna elenco')),
         h('span', { class: 'muted small' }, t('Puoi anche sceglierla dopo, nei dettagli dell\'input.'))));
   } else if (d.type === 'media') {
-    sourcePart = help(state.light
+    sourcePart = help(addLight()
       ? t('Premendo "Aggiungi" si apre la finestra per scegliere l\'immagine dal disco.')
       : t('Premendo "Aggiungi" si apre la finestra per scegliere il video o l\'immagine dal disco.'));
   }
@@ -2589,13 +2597,27 @@ function renderAddDialog() {
     if (scenes.length) scenePart = field('Dove', sel);
   }
 
-  const lightNote = state.light ? h('p', { class: 'add-light-note' },
-    t('Modalità light: puoi aggiungere timer, TelePrompt, immagini, una sola periferica di acquisizione e un solo segnale NDI. Passa a STUDIO per togliere i limiti.')) : null;
+  const toStudio = () => {
+    Object.assign(d, { studio: !d.studio, type: null, source: null, items: [], loading: false, scene: false, picked: [] });
+    renderAddDialog();
+  };
+  let lightNote = null;
+  if (state.light) {
+    lightNote = h('div', { class: 'add-light-note' },
+      h('span', {}, d.studio
+        ? t('La regia passerà a STUDIO quando premi "Aggiungi".')
+        : t('Modalità light: puoi aggiungere timer, TelePrompt, immagini, una sola periferica di acquisizione e un solo segnale NDI. Passa a STUDIO per togliere i limiti.')),
+      h('button', {
+        class: 'small-btn' + (d.studio ? '' : ' primary'),
+        title: d.studio ? t('Resta in modalità light') : t('Toglie i limiti: la regia passa a STUDIO quando confermi'),
+        onclick: toStudio
+      }, d.studio ? t('Resta in modalità light') : t('Passa a modalità STUDIO')));
+  }
 
   const canAdd = d.scene || (!!d.type && !d.loading);
   const addLabel = d.scene
     ? (d.picked.length ? t('Aggiungi') : t('Aggiungi scena vuota'))
-    : (d.type === 'media' ? (state.light ? t('Scegli immagine e aggiungi…') : t('Scegli file e aggiungi…')) : t('Aggiungi'));
+    : (d.type === 'media' ? (addLight() ? t('Scegli immagine e aggiungi…') : t('Scegli file e aggiungi…')) : t('Aggiungi'));
   $('dlg-add').replaceChildren(...[
     h('h2', {}, t('Aggiungi')),
     help(d.scene ? t('Scegli gli input della nuova scena.') : t('Scegli il tipo di input (doppio clic per aggiungerlo subito).')),
@@ -2604,7 +2626,7 @@ function renderAddDialog() {
     sourcePart,
     scenePart,
     h('div', { class: 'row end add-footer' },
-      state.light ? null : h('button', {
+      addLight() ? null : h('button', {
         class: 'add-scene-btn' + (d.scene ? ' on' : ''),
         title: t('Crea una scena: premi, scegli gli input da metterci dentro e poi "Aggiungi"'),
         onclick: toggleAddScene
