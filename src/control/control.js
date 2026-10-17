@@ -1860,8 +1860,36 @@ function sceneSection(scene) {
 let programStream = null;
 let programStarting = false;
 
+let programFailed = false; // non riprovare a ogni aggiornamento se il sistema dice no
+let programFrames = null; // Mac: foto periodiche dell'uscita
+
+// Sul Mac copiare una finestra con la cattura dello schermo fa comparire la
+// richiesta "Registrazione schermo" (e, con l'app non firmata, a ogni avvio):
+// lì il monitor "In onda" mostra foto dell'uscita chieste al programma stesso.
+function startFrameMonitor() {
+  if (programFrames) return;
+  const img = $('program-img');
+  let busy = false;
+  let url = null;
+  programFrames = setInterval(async () => {
+    if (busy) return;
+    busy = true;
+    try {
+      const jpg = await api.outputFrame();
+      if (jpg && programFrames) {
+        if (url) URL.revokeObjectURL(url);
+        url = URL.createObjectURL(new Blob([jpg], { type: 'image/jpeg' }));
+        img.src = url;
+        $('program').classList.add('has-img');
+      }
+    } catch { /* finestra d'uscita non pronta */ }
+    busy = false;
+  }, 100);
+}
+
 async function startProgramMonitor() {
-  if (programStream || programStarting) return;
+  if (api.platform === 'darwin') return startFrameMonitor();
+  if (programStream || programStarting || programFailed) return;
   programStarting = true;
   const video = $('program-video');
   try {
@@ -1881,6 +1909,7 @@ async function startProgramMonitor() {
     await video.play();
     $('program').classList.add('has-video');
   } catch (err) {
+    programFailed = true;
     console.error('Monitor del programma non disponibile:', err);
   } finally {
     programStarting = false;
@@ -1888,6 +1917,10 @@ async function startProgramMonitor() {
 }
 
 function stopProgramMonitor() {
+  if (programFrames) clearInterval(programFrames);
+  programFrames = null;
+  $('program').classList.remove('has-img');
+  programFailed = false;
   if (programStream) programStream.getTracks().forEach((tr) => tr.stop());
   programStream = null;
   $('program-video').srcObject = null;

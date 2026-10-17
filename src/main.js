@@ -754,6 +754,14 @@ ipcMain.handle('camera-access', () => {
   }
 });
 ipcMain.handle('output-source-id', () => (displayWin && !displayWin.isDestroyed() ? displayWin.getMediaSourceId() : null));
+// Sul Mac il monitor "In onda" non registra lo schermo (servirebbe il permesso
+// "Registrazione schermo"): chiede alla finestra d'uscita una foto piccola.
+ipcMain.handle('output-frame', async () => {
+  if (!displayWin || displayWin.isDestroyed()) return null;
+  const img = await displayWin.webContents.capturePage();
+  if (img.isEmpty()) return null;
+  return img.resize({ width: 640, quality: 'good' }).toJPEG(70);
+});
 ipcMain.handle('pick-color', () => pickColor(controlWin, t));
 ipcMain.handle('import-text', async () => {
   const res = await dialog.showOpenDialog(controlWin, {

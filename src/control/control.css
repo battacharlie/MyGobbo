@@ -105,6 +105,8 @@ body.studio #program { border: 2px solid #dc2626; }
 #stage, #overlay, #program-stage { position: absolute; inset: 0; }
 #program-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: fill; display: none; }
 #program.has-video #program-video { display: block; }
+#program-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: fill; display: none; }
+#program.has-img #program-img { display: block; }
 #switcher { flex: none; width: 112px; display: flex; flex-direction: column; justify-content: center; gap: 8px; }
 #switcher[hidden] { display: none; }
 #switcher button { font-weight: 700; letter-spacing: 0.06em; padding: 12px 0; font-size: 14px; }
