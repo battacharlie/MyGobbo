@@ -2,6 +2,21 @@
 // Un testo che manca qui si mostra in inglese.
 (function (root) {
   const DICT = {
+    "Telecomando dal telefono (QR code)…": "Control remoto desde el teléfono (código QR)…",
+    "Nessuna rete trovata: collega il computer al Wi-Fi o alla rete.": "No se encontró ninguna red: conecta el ordenador al Wi-Fi o a la red.",
+    "Inquadra il QR code con la fotocamera del telefono. Il telefono deve essere collegato alla stessa rete (Wi-Fi) di questo computer.": "Escanea el código QR con la cámara del teléfono. El teléfono debe estar en la misma red (Wi-Fi) que este ordenador.",
+    "Telecomando dal telefono": "Control remoto desde el teléfono",
+    "Attiva il telecomando": "Activar el control remoto",
+    "Dalla pagina si mandano in onda le scene, si usano CUT e FADE, si mostrano e nascondono gli input e si avviano timer e TelePrompt.": "Desde la página puedes poner escenas en el aire, usar CUT y FADE, mostrar y ocultar entradas e iniciar temporizadores y TelePrompt.",
+    "Crea un indirizzo nuovo: chi aveva quello vecchio non può più usare il telecomando": "Crea una dirección nueva: quien tenga la antigua ya no podrá usar el control remoto",
+    "Nuovo codice": "Código nuevo",
+    "Telecomando": "Control remoto",
+    "Scene": "Escenas",
+    "Input": "Entradas",
+    "Mostra": "Mostrar",
+    "Nascondi": "Ocultar",
+    "Nessun input: aggiungili dalla regia.": "No hay entradas: añádelas desde la ventana de control.",
+    "Collegamento perso: riprovo…": "Conexión perdida: reintentando…",
     "Preleva il colore da qualsiasi punto dello schermo o da un'immagine": "Elige un color de cualquier punto de la pantalla o de una imagen",
     "Clic per ridurre o aprire la scheda": "Haz clic para contraer o expandir el panel",
     "Trascina per cambiare la larghezza delle schede": "Arrastra para cambiar el ancho de los paneles",

@@ -2,6 +2,21 @@
 // Un testo che manca qui si mostra in inglese.
 (function (root) {
   const DICT = {
+    "Telecomando dal telefono (QR code)…": "手机遥控（二维码）…",
+    "Nessuna rete trovata: collega il computer al Wi-Fi o alla rete.": "未找到网络：请将电脑连接到 Wi-Fi 或网络。",
+    "Inquadra il QR code con la fotocamera del telefono. Il telefono deve essere collegato alla stessa rete (Wi-Fi) di questo computer.": "用手机相机扫描二维码。手机必须与这台电脑在同一网络（Wi-Fi）中。",
+    "Telecomando dal telefono": "手机遥控",
+    "Attiva il telecomando": "启用遥控",
+    "Dalla pagina si mandano in onda le scene, si usano CUT e FADE, si mostrano e nascondono gli input e si avviano timer e TelePrompt.": "在页面上可以播出场景、使用 CUT 和 FADE、显示或隐藏输入，以及启动计时器和 TelePrompt。",
+    "Crea un indirizzo nuovo: chi aveva quello vecchio non può più usare il telecomando": "生成新地址：持有旧地址的人将无法再使用遥控",
+    "Nuovo codice": "新代码",
+    "Telecomando": "遥控",
+    "Scene": "场景",
+    "Input": "输入",
+    "Mostra": "显示",
+    "Nascondi": "隐藏",
+    "Nessun input: aggiungili dalla regia.": "没有输入：请在控制窗口中添加。",
+    "Collegamento perso: riprovo…": "连接已断开：正在重试…",
     "Preleva il colore da qualsiasi punto dello schermo o da un'immagine": "从屏幕任意位置或图片中拾取颜色",
     "Clic per ridurre o aprire la scheda": "点击折叠或展开面板",
     "Trascina per cambiare la larghezza delle schede": "拖动以调整面板宽度",

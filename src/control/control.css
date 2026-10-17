@@ -414,3 +414,10 @@ button.pick { padding: 2px 6px; font-size: 13px; line-height: 1.2; }
 /* Arabo: la disposizione resta quella di sempre, ma ogni testo si legge
    da destra a sinistra con la punteggiatura al posto giusto. */
 html[lang="ar"] :is(p, label, span, strong, h2, h3, small, button, option, .help, .muted, .card-title) { unicode-bidi: plaintext; }
+
+/* Telecomando dal telefono: QR code */
+.qr-list { display: flex; flex-wrap: wrap; gap: 16px; margin: 10px 0; }
+.qr-box { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.qr { width: 220px; height: 220px; background: #fff; border-radius: 8px; padding: 6px; image-rendering: pixelated; }
+.qr-url { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--igor-grey); word-break: break-all; max-width: 320px; }
+.dialog .row.end .grow { flex: 1; }

@@ -2189,6 +2189,7 @@ const ICONS = {
   import: '<path d="M4 15v4h16v-4"/><path d="M12 4v11M7 10l5 5 5-5"/>',
   export: '<path d="M4 15v4h16v-4"/><path d="M12 15V4M7 9l5-5 5 5"/>',
   midi: '<rect x="3" y="6" width="18" height="12" rx="1.5"/><path d="M8 6v7M12 6v7M16 6v7"/>',
+  phone: '<rect x="6" y="2.5" width="12" height="19" rx="2"/><path d="M10.5 18.5h3"/>',
   deck: '<rect x="3" y="4" width="18" height="16" rx="2"/><rect x="6" y="7" width="4" height="4"/><rect x="14" y="7" width="4" height="4"/><rect x="6" y="13" width="4" height="4"/><rect x="14" y="13" width="4" height="4"/>',
   reset: '<path d="M4 12a8 8 0 1 0 2.4-5.7"/><path d="M4 4v4h4"/>',
   eye: '<path d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
@@ -2230,7 +2231,7 @@ function quickSelect(id, title, options, value, onchange) {
 
 function renderQuickbar() {
   const bar = $('quickbar');
-  const sig = JSON.stringify([state.displays, state.activeDisplayId, state.fps, state.fpsChoice, state.monitorHz, state.displayVisible, state.ndiOut, state.ndiOutStatus, state.ndiAvailable, I18n.getLang()]);
+  const sig = JSON.stringify([state.webRemote && state.webRemote.enabled, state.displays, state.activeDisplayId, state.fps, state.fpsChoice, state.monitorHz, state.displayVisible, state.ndiOut, state.ndiOutStatus, state.ndiAvailable, I18n.getLang()]);
   if (bar.dataset.sig === sig) return;
   // Non ricostruire mentre una tendina è aperta.
   if (bar.contains(document.activeElement) && document.activeElement.tagName === 'SELECT') return;
@@ -2262,7 +2263,8 @@ function renderQuickbar() {
     quickSelect('q-lang', t('Lingua'), I18n.LANGS, I18n.getLang(), (v) => send({ type: 'set-lang', lang: v })),
     h('span', { class: 'quick-sep' }),
     h('button', { id: 'q-midi', class: 'quick', title: t('Controller MIDI…'), onclick: () => openMidiDialog() }, icon('midi')),
-    h('button', { id: 'q-deck', class: 'quick', title: t('Companion / Stream Deck…'), onclick: () => openHttpDialog() }, icon('deck')));
+    h('button', { id: 'q-deck', class: 'quick', title: t('Companion / Stream Deck…'), onclick: () => openHttpDialog() }, icon('deck')),
+    h('button', { id: 'q-phone', class: `quick ${state.webRemote && state.webRemote.enabled ? 'active' : ''}`, title: t('Telecomando dal telefono (QR code)…'), onclick: () => openWebRemoteDialog() }, icon('phone')));
   // Elenco completo dei monitor nel suggerimento della tendina.
   $('q-monitor').title = [t('Monitor della seconda finestra (messa in onda)'), ...state.displays.map((d) =>
     `${t('Monitor')} ${d.index} · ${d.width}×${d.height}${d.hz ? ` · ${d.hz} Hz` : ''}${d.primary ? ` · ${t('principale')}` : ''}`)].join('\n');
@@ -2466,6 +2468,7 @@ function render(next) {
   if (key !== panelKey) buildPanel();
   else refreshBindings();
   if (typeof Remote !== 'undefined') Remote.onState(state);
+  if ($('dlg-webremote').open && document.activeElement.tagName !== 'INPUT') renderWebRemoteDialog();
 }
 
 // Elenco delle periferiche video. Senza permesso i nomi sono vuoti: per
@@ -2487,6 +2490,60 @@ async function videoDevices(ask) {
     devices = await list();
   } catch { /* nessuna periferica o permesso negato */ }
   return devices;
+}
+
+// --- Telecomando dal browser (QR code) ----------------------------------------
+// Il programma apre una pagina web con i comandi essenziali; il telefono la
+// raggiunge inquadrando il QR code (stessa rete Wi-Fi del computer).
+
+let webRemoteSig = '';
+async function renderWebRemoteDialog() {
+  const dlg = $('dlg-webremote');
+  const cfg = state.webRemote || {};
+  const st = state.webRemoteStatus || {};
+  const sig = JSON.stringify([cfg, st, I18n.getLang()]);
+  if (sig === webRemoteSig && dlg.childElementCount) return;
+  webRemoteSig = sig;
+  const enabled = h('input', { type: 'checkbox' });
+  enabled.checked = !!cfg.enabled;
+  enabled.addEventListener('change', () => send({ type: 'set-web-remote', webRemote: { enabled: enabled.checked } }));
+  const port = h('input', { type: 'number', min: 1024, max: 65535, step: 1, value: cfg.port || 8780, style: 'width:90px' });
+  port.addEventListener('change', () => send({ type: 'set-web-remote', webRemote: { port: Number(port.value) } }));
+
+  const codes = h('div', { class: 'qr-list' });
+  let statusLine;
+  if (st.error) statusLine = h('div', { class: 'notice' }, t('Il server non è partito: {error}', { error: st.error }));
+  else if (!cfg.enabled) statusLine = h('p', { class: 'muted small' }, t('Spento.'));
+  else if (!st.urls || !st.urls.length) statusLine = h('div', { class: 'notice' }, t('Nessuna rete trovata: collega il computer al Wi-Fi o alla rete.'));
+  else statusLine = help(t('Inquadra il QR code con la fotocamera del telefono. Il telefono deve essere collegato alla stessa rete (Wi-Fi) di questo computer.'));
+  dlg.replaceChildren(
+    h('h2', {}, t('Telecomando dal telefono')),
+    h('div', { class: 'row' },
+      h('label', { class: 'check' }, enabled, t('Attiva il telecomando')),
+      h('label', { class: 'field inline' }, h('span', {}, t('Porta')), port)),
+    statusLine,
+    codes,
+    help(t('Dalla pagina si mandano in onda le scene, si usano CUT e FADE, si mostrano e nascondono gli input e si avviano timer e TelePrompt.')),
+    h('div', { class: 'row end' },
+      cfg.enabled ? h('button', {
+        title: t('Crea un indirizzo nuovo: chi aveva quello vecchio non può più usare il telecomando'),
+        onclick: () => send({ type: 'new-web-remote-token' })
+      }, t('Nuovo codice')) : null,
+      h('span', { class: 'grow' }),
+      h('button', { title: t('Chiudi'), onclick: () => dlg.close() }, t('Chiudi'))));
+  for (const url of (cfg.enabled && st.urls) || []) {
+    const img = h('img', { class: 'qr', alt: url });
+    const link = h('div', { class: 'qr-url' }, url,
+      h('button', { class: 'small-btn', title: t('Copia'), onclick: () => navigator.clipboard.writeText(url) }, '⧉'));
+    codes.appendChild(h('div', { class: 'qr-box' }, img, link));
+    api.qrCode(url).then((data) => { img.src = data; });
+  }
+}
+
+function openWebRemoteDialog() {
+  webRemoteSig = '';
+  renderWebRemoteDialog();
+  $('dlg-webremote').showModal();
 }
 
 let pendingSelect = null;

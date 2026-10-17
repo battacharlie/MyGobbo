@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#15171c">
+<title>IGOR - ABit/s</title>
+<style>
+  :root { --blue: #16508a; --grey: #c1c1c1; --bg: #15171c; --card: #1f232b; --line: #343946; --text: #e8eaf0; --muted: #9aa1b0; --green: #22a35a; --red: #d93a3a; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.35 system-ui, -apple-system, "Segoe UI", sans-serif; padding: 0 12px calc(90px + env(safe-area-inset-bottom)); }
+  header { position: sticky; top: 0; z-index: 2; background: var(--bg); display: flex; align-items: center; gap: 10px; padding: 12px 0 10px; border-bottom: 1px solid var(--line); }
+  header h1 { font-size: 17px; margin: 0; flex: 1; }
+  header h1 small { color: var(--muted); font-weight: 400; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--green); flex: none; }
+  .dot.off { background: var(--red); }
+  .status { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 12px 0; }
+  .status div { border: 2px solid var(--line); border-radius: 10px; padding: 8px 10px; min-width: 0; }
+  .status .pvw { border-color: var(--green); }
+  .status .pgm { border-color: var(--red); }
+  .status span { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+  .status b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 18px 0 8px; }
+  .scene { background: var(--card); border: 2px solid var(--line); border-radius: 12px; margin-bottom: 10px; overflow: hidden; }
+  .scene.pvw { border-color: var(--green); }
+  .scene.pgm { border-color: var(--red); }
+  .scene-head { display: flex; align-items: center; gap: 8px; padding: 10px; }
+  .scene-head .name { flex: 1; min-width: 0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .scene-head .num { color: var(--muted); font-weight: 400; margin-right: 4px; }
+  button { font: inherit; color: var(--text); background: #2a2f3a; border: 1px solid var(--line); border-radius: 9px; padding: 9px 12px; min-height: 42px; cursor: pointer; }
+  button:active { transform: scale(.97); }
+  button.pvw-btn.on { background: var(--green); border-color: var(--green); color: #fff; }
+  button.pgm-btn.on { background: var(--red); border-color: var(--red); color: #fff; }
+  .items { border-top: 1px solid var(--line); }
+  .item { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-top: 1px solid #2a2f3a; }
+  .item:first-child { border-top: 0; }
+  .item .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .item .type { display: block; font-size: 11px; color: var(--muted); }
+  .item.hidden .name { opacity: .45; }
+  .eye { width: 46px; padding: 0; display: inline-flex; align-items: center; justify-content: center; }
+  .eye.on { background: var(--blue); border-color: var(--blue); color: #fff; }
+  .eye svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .small { min-height: 38px; padding: 6px 10px; font-size: 14px; }
+  .small.on { background: var(--blue); border-color: var(--blue); color: #fff; }
+  .switcher { position: fixed; left: 0; right: 0; bottom: 0; z-index: 3; display: flex; gap: 10px; padding: 10px 12px calc(10px + env(safe-area-inset-bottom)); background: rgba(21,23,28,.96); border-top: 1px solid var(--line); }
+  .switcher button { flex: 1; min-height: 56px; font-weight: 700; font-size: 18px; letter-spacing: .06em; }
+  .switcher .cut { background: var(--blue); border-color: var(--blue); color: #fff; }
+  .switcher .fade { background: var(--grey); border-color: var(--grey); color: var(--blue); }
+  .empty { color: var(--muted); padding: 10px 0; }
+  .notice { margin: 12px 0; padding: 10px; border-radius: 10px; background: #3a1f22; color: #ffd7d7; display: none; }
+  .notice.show { display: block; }
+</style>
+</head>
+<body>
+<header><span class="dot off" id="dot"></span><h1>IGOR <small id="title">Telecomando</small></h1></header>
+<div class="notice" id="lost"></div>
+<div class="status" id="status" hidden><div class="pvw"><span id="l-pvw"></span><b id="pvw"></b></div><div class="pgm"><span id="l-pgm"></span><b id="pgm"></b></div></div>
+<div id="list"></div>
+<div class="switcher" id="switcher" hidden><button class="cut" id="cut">CUT</button><button class="fade" id="fade">FADE</button></div>
+<script>
+(function () {
+  var base = location.pathname.replace(/\/$/, '');
+  var S = null, L = {}, sig = '', fails = 0;
+  var EYE = '<svg viewBox="0 0 24 24"><path d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>';
+  var EYE_OFF = '<svg viewBox="0 0 24 24"><path d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6S2 12 2 12z"/><path d="M4 4l16 16"/></svg>';
+  function $(id) { return document.getElementById(id); }
+  function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+  function send(cmd) {
+    fetch(base + '/cmd', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cmd) })
+      .then(function () { poll(); }).catch(function () {});
+  }
+  function btn(text, cls, cmd, title) { var b = el('button', cls, text); if (title) b.title = title; b.onclick = function () { send(cmd); }; return b; }
+  function itemRow(it) {
+    var row = el('div', 'item' + (it.visible ? '' : ' hidden'));
+    var eye = el('button', 'eye' + (it.visible ? ' on' : ''));
+    eye.innerHTML = it.visible ? EYE : EYE_OFF;
+    eye.title = it.visible ? L.hide : L.show;
+    eye.onclick = function () { send({ type: 'visible', id: it.id, on: !it.visible }); };
+    var name = el('div', 'name', it.name);
+    name.appendChild(el('span', 'type', it.typeLabel));
+    row.appendChild(eye); row.appendChild(name);
+    if (it.type === 'timer') {
+      row.appendChild(btn(it.running ? L.pause : L.start, 'small' + (it.running ? ' on' : ''), { type: 'timer', id: it.id, action: it.running ? 'pause' : 'start' }));
+      row.appendChild(btn(L.reset, 'small', { type: 'timer', id: it.id, action: 'reset' }));
+    } else if (it.type === 'prompter') {
+      row.appendChild(btn(it.running ? L.pause : L.start, 'small' + (it.running ? ' on' : ''), { type: 'prompter', id: it.id, action: it.running ? 'pause' : 'start' }));
+      row.appendChild(btn(L.top, 'small', { type: 'prompter', id: it.id, action: 'top' }));
+    }
+    return row;
+  }
+  function render() {
+    var s = JSON.stringify(S);
+    if (s === sig) return;
+    sig = s; L = S.labels;
+    document.documentElement.lang = S.lang;
+    document.documentElement.dir = S.lang === 'ar' ? 'rtl' : 'ltr';
+    $('title').textContent = L.title;
+    var names = {}; S.scenes.forEach(function (sc) { names[sc.id] = sc.name; });
+    $('status').hidden = !S.scenes.length;
+    $('l-pvw').textContent = L.preview; $('l-pgm').textContent = L.program;
+    $('pvw').textContent = S.studio ? (names[S.preview] || '—') : '—';
+    $('pgm').textContent = names[S.program] || '—';
+    $('status').firstChild.style.visibility = S.studio ? 'visible' : 'hidden';
+    $('switcher').hidden = !S.studio;
+    var list = $('list'); list.innerHTML = '';
+    if (S.scenes.length) {
+      list.appendChild(el('h2', '', L.scenes));
+      S.scenes.forEach(function (sc, i) {
+        var box = el('div', 'scene' + (sc.id === S.program ? ' pgm' : (S.studio && sc.id === S.preview ? ' pvw' : '')));
+        var head = el('div', 'scene-head');
+        var name = el('div', 'name'); name.appendChild(el('span', 'num', (i + 1) + '.')); name.appendChild(document.createTextNode(sc.name));
+        head.appendChild(name);
+        if (S.studio) head.appendChild(btn(L.preview, 'pvw-btn' + (sc.id === S.preview ? ' on' : ''), { type: 'preview', id: sc.id }));
+        head.appendChild(btn(L.program, 'pgm-btn' + (sc.id === S.program ? ' on' : ''), { type: 'program', id: sc.id }));
+        box.appendChild(head);
+        if (sc.children.length) {
+          var items = el('div', 'items');
+          sc.children.forEach(function (it) { items.appendChild(itemRow(it)); });
+          box.appendChild(items);
+        }
+        list.appendChild(box);
+      });
+    }
+    if (S.loose.length) {
+      list.appendChild(el('h2', '', S.scenes.length ? L.loose : L.inputs));
+      var box = el('div', 'scene'); var items = el('div', 'items'); items.style.borderTop = '0';
+      S.loose.forEach(function (it) { items.appendChild(itemRow(it)); });
+      box.appendChild(items); list.appendChild(box);
+    }
+    if (!S.scenes.length && !S.loose.length) list.appendChild(el('p', 'empty', L.empty));
+  }
+  function poll() {
+    fetch(base + '/state', { cache: 'no-store' }).then(function (r) { if (!r.ok) throw 0; return r.json(); }).then(function (s) {
+      S = s; fails = 0; $('dot').className = 'dot'; $('lost').className = 'notice'; render();
+    }).catch(function () {
+      fails++; $('dot').className = 'dot off';
+      if (fails > 2) { $('lost').textContent = (L.lost || 'Connessione persa: riprovo… / Connection lost: retrying…'); $('lost').className = 'notice show'; }
+    });
+  }
+  $('cut').onclick = function () { send({ type: 'take', kind: 'cut' }); };
+  $('fade').onclick = function () { send({ type: 'take', kind: 'fade' }); };
+  poll(); setInterval(poll, 800);
+})();
+</script>
+</body>
+</html>

@@ -2,6 +2,21 @@
 // Un testo che manca qui si mostra in inglese.
 (function (root) {
   const DICT = {
+    "Telecomando dal telefono (QR code)…": "التحكم عن بُعد من الهاتف (رمز QR)…",
+    "Nessuna rete trovata: collega il computer al Wi-Fi o alla rete.": "لم يتم العثور على شبكة: صِل الحاسوب بشبكة Wi-Fi أو بالشبكة.",
+    "Inquadra il QR code con la fotocamera del telefono. Il telefono deve essere collegato alla stessa rete (Wi-Fi) di questo computer.": "امسح رمز QR بكاميرا الهاتف. يجب أن يكون الهاتف على نفس الشبكة (Wi-Fi) مثل هذا الحاسوب.",
+    "Telecomando dal telefono": "التحكم عن بُعد من الهاتف",
+    "Attiva il telecomando": "تفعيل التحكم عن بُعد",
+    "Dalla pagina si mandano in onda le scene, si usano CUT e FADE, si mostrano e nascondono gli input e si avviano timer e TelePrompt.": "من الصفحة يمكنك بث المشاهد واستخدام CUT وFADE وإظهار المُدخلات وإخفاؤها وتشغيل المؤقتات وTelePrompt.",
+    "Crea un indirizzo nuovo: chi aveva quello vecchio non può più usare il telecomando": "أنشئ عنوانًا جديدًا: من يملك العنوان القديم لن يتمكن من استخدام التحكم عن بُعد",
+    "Nuovo codice": "رمز جديد",
+    "Telecomando": "التحكم عن بُعد",
+    "Scene": "المشاهد",
+    "Input": "المُدخلات",
+    "Mostra": "إظهار",
+    "Nascondi": "إخفاء",
+    "Nessun input: aggiungili dalla regia.": "لا توجد مُدخلات: أضفها من نافذة التحكم.",
+    "Collegamento perso: riprovo…": "انقطع الاتصال: جارٍ إعادة المحاولة…",
     "Preleva il colore da qualsiasi punto dello schermo o da un'immagine": "التقط لونًا من أي مكان على الشاشة أو من صورة",
     "Clic per ridurre o aprire la scheda": "انقر لطي اللوحة أو توسيعها",
     "Trascina per cambiare la larghezza delle schede": "اسحب لتغيير عرض اللوحات",

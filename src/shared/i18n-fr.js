@@ -2,6 +2,21 @@
 // Un testo che manca qui si mostra in inglese.
 (function (root) {
   const DICT = {
+    "Telecomando dal telefono (QR code)…": "Télécommande depuis le téléphone (QR code)…",
+    "Nessuna rete trovata: collega il computer al Wi-Fi o alla rete.": "Aucun réseau trouvé : connectez l'ordinateur au Wi-Fi ou au réseau.",
+    "Inquadra il QR code con la fotocamera del telefono. Il telefono deve essere collegato alla stessa rete (Wi-Fi) di questo computer.": "Scannez le QR code avec l'appareil photo du téléphone. Le téléphone doit être sur le même réseau (Wi-Fi) que cet ordinateur.",
+    "Telecomando dal telefono": "Télécommande depuis le téléphone",
+    "Attiva il telecomando": "Activer la télécommande",
+    "Dalla pagina si mandano in onda le scene, si usano CUT e FADE, si mostrano e nascondono gli input e si avviano timer e TelePrompt.": "Depuis la page, vous pouvez mettre des scènes à l'antenne, utiliser CUT et FADE, afficher et masquer des entrées, et lancer minuteurs et TelePrompt.",
+    "Crea un indirizzo nuovo: chi aveva quello vecchio non può più usare il telecomando": "Créer une nouvelle adresse : l'ancienne ne permettra plus d'utiliser la télécommande",
+    "Nuovo codice": "Nouveau code",
+    "Telecomando": "Télécommande",
+    "Scene": "Scènes",
+    "Input": "Entrées",
+    "Mostra": "Afficher",
+    "Nascondi": "Masquer",
+    "Nessun input: aggiungili dalla regia.": "Aucune entrée : ajoutez-les depuis la régie.",
+    "Collegamento perso: riprovo…": "Connexion perdue : nouvelle tentative…",
     "Preleva il colore da qualsiasi punto dello schermo o da un'immagine": "Prélever une couleur n'importe où à l'écran ou dans une image",
     "Clic per ridurre o aprire la scheda": "Cliquer pour réduire ou développer le panneau",
     "Trascina per cambiare la larghezza delle schede": "Faire glisser pour modifier la largeur des panneaux",

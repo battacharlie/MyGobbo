@@ -26,6 +26,9 @@ function manualUrl(lang) {
 }
 const i18n = require('./shared/i18n');
 const remote = require('./remote');
+const webRemote = require('./webremote');
+const QRCode = require('qrcode');
+const crypto = require('crypto');
 const t = i18n.t;
 
 const ICON = path.join(__dirname, 'assets', 'igor.png');
@@ -56,6 +59,8 @@ const DEFAULT_STATE = {
   showHelp: true,
   midi: [], // associazioni MIDI: { key, action, arg }
   http: { enabled: false, port: 8765, lan: false }, // comandi per Companion / Stream Deck
+  // Telecomando dal browser (rete locale).
+  webRemote: { enabled: false, port: 8780, token: '' },
   ndiOut: false // uscita inviata in rete come sorgente NDI
 };
 // Parti dello stato salvate in "Esporta configurazione".
@@ -140,6 +145,7 @@ function normalizeState(raw) {
   loaded.fpsAuto = true;
   loaded.fps = Number(loaded.fps) > 0 ? Math.max(1, Math.min(MAX_FPS, Number(loaded.fps))) : 0;
   loaded.http = { ...DEFAULT_STATE.http, ...(raw.http || {}) };
+  loaded.webRemote = { ...DEFAULT_STATE.webRemote, ...(raw.webRemote || {}) };
   if (!Array.isArray(loaded.midi)) loaded.midi = [];
   return loaded;
 }
@@ -265,6 +271,7 @@ function snapshot() {
     output: { width: target.size.width, height: target.size.height, fullscreen: target.id !== primaryId },
     displays: displayList(),
     httpStatus: remote.status(),
+    webRemoteStatus: webRemote.status(),
     activeDisplayId: target.id,
     displayVisible: !!(displayWin && displayWin.isVisible())
   };
@@ -791,7 +798,9 @@ ipcMain.on('set-min-width', (_evt, w) => {
   if (width < min && !controlWin.isMaximized()) controlWin.setSize(min, height);
 });
 
-ipcMain.on('command', (_evt, cmd) => {
+ipcMain.on('command', (_evt, cmd) => handleCommand(cmd));
+
+function handleCommand(cmd) {
   switch (cmd.type) {
     case 'add-layer':
       if (!canAddInLight(cmd.layerType)) break;
@@ -971,6 +980,16 @@ ipcMain.on('command', (_evt, cmd) => {
     case 'set-midi':
       state.midi = Array.isArray(cmd.midi) ? cmd.midi : [];
       break;
+    case 'set-web-remote':
+      state.webRemote = { ...state.webRemote, ...cmd.webRemote, token: state.webRemote.token };
+      state.webRemote.port = Math.max(1024, Math.min(65535, Number(state.webRemote.port) || 8780));
+      startWebRemote();
+      break;
+    case 'new-web-remote-token':
+      // Codice nuovo: chi aveva il vecchio indirizzo non entra più.
+      state.webRemote.token = newToken();
+      startWebRemote();
+      break;
     case 'set-http':
       state.http = { ...state.http, ...cmd.http };
       state.http.port = Math.max(1024, Math.min(65535, Number(state.http.port) || 8765));
@@ -989,7 +1008,7 @@ ipcMain.on('command', (_evt, cmd) => {
   }
   saveState();
   broadcast();
-});
+}
 
 // --- Comandi a distanza (Companion / Stream Deck) -------------------------------
 // Le richieste HTTP arrivano qui e vengono eseguite dalla regia, che conosce
@@ -1001,6 +1020,57 @@ function startRemote() {
     return true;
   }, () => broadcast());
 }
+
+// --- Telecomando dal browser -------------------------------------------------
+
+function newToken() {
+  return crypto.randomBytes(12).toString('base64url');
+}
+
+// Stato semplificato per la pagina del telecomando.
+function remoteView() {
+  const item = (l) => ({
+    id: l.id,
+    name: l.name,
+    type: l.type,
+    typeLabel: t(TYPE_LABELS[l.type] || l.type),
+    visible: !!l.visible,
+    running: !!(l.run && l.run.running)
+  });
+  const scenes = state.layers.filter((l) => l.type === 'scene').map((s) => ({ id: s.id, name: s.name, children: s.children.map(item) }));
+  return {
+    lang: state.lang,
+    studio: !!state.studio,
+    light: !!state.light,
+    program: state.program,
+    preview: state.preview,
+    scenes,
+    loose: state.layers.filter((l) => l.type !== 'scene').map(item),
+    labels: {
+      title: t('Telecomando'),
+      preview: t('Anteprima'),
+      program: t('In onda'),
+      scenes: t('Scene'),
+      loose: t('Fuori dalle scene (sempre in onda)'),
+      inputs: t('Input'),
+      start: t('Avvia'),
+      pause: t('Pausa'),
+      reset: t('Azzera'),
+      top: t('Inizio'),
+      show: t('Mostra'),
+      hide: t('Nascondi'),
+      empty: t('Nessun input: aggiungili dalla regia.'),
+      lost: t('Collegamento perso: riprovo…')
+    }
+  };
+}
+
+function startWebRemote() {
+  if (!state.webRemote.token) state.webRemote.token = newToken();
+  webRemote.configure(state.webRemote, remoteView, (cmd) => handleCommand(cmd), () => broadcast());
+}
+
+ipcMain.handle('qr-code', (_evt, text) => QRCode.toDataURL(String(text || ''), { margin: 1, width: 360 }));
 
 // --- Uscita in NDI --------------------------------------------------------------
 
@@ -1025,6 +1095,7 @@ app.whenReady().then(() => {
   ndi.startDiscovery();
   createWindows();
   startRemote();
+  startWebRemote();
   displayNumbers.refresh().then(broadcast);
 
   const onDisplaysChanged = () => {
@@ -1042,4 +1113,5 @@ app.on('before-quit', () => {
   ndi.stopDiscovery();
   ndiOut.stop();
   remote.stop();
+  webRemote.stop();
 });
