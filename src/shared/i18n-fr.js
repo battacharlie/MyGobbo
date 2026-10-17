@@ -2,6 +2,10 @@
 // Un testo che manca qui si mostra in inglese.
 (function (root) {
   const DICT = {
+    "Mostra l'anteprima con CUT e FADE": "Affiche l'aperçu avec CUT et FADE",
+    "In modalità light non ci sono scene né anteprima.": "En mode LIGHT, il n'y a ni scènes ni aperçu.",
+    "Dettagli": "Détails",
+    "Video e immagini si aggiungono dalla regia, dove si sceglie il file.": "Les vidéos et images s'ajoutent depuis la régie, où l'on choisit le fichier.",
     "Telecomando dal telefono (QR code)…": "Télécommande depuis le téléphone (QR code)…",
     "Nessuna rete trovata: collega il computer al Wi-Fi o alla rete.": "Aucun réseau trouvé : connectez l'ordinateur au Wi-Fi ou au réseau.",
     "Inquadra il QR code con la fotocamera del telefono. Il telefono deve essere collegato alla stessa rete (Wi-Fi) di questo computer.": "Scannez le QR code avec l'appareil photo du téléphone. Le téléphone doit être sur le même réseau (Wi-Fi) que cet ordinateur.",

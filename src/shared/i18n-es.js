@@ -2,6 +2,10 @@
 // Un testo che manca qui si mostra in inglese.
 (function (root) {
   const DICT = {
+    "Mostra l'anteprima con CUT e FADE": "Muestra la vista previa con CUT y FADE",
+    "In modalità light non ci sono scene né anteprima.": "En modo light no hay escenas ni vista previa.",
+    "Dettagli": "Detalles",
+    "Video e immagini si aggiungono dalla regia, dove si sceglie il file.": "Los vídeos e imágenes se añaden desde la ventana de control, donde se elige el archivo.",
     "Telecomando dal telefono (QR code)…": "Control remoto desde el teléfono (código QR)…",
     "Nessuna rete trovata: collega il computer al Wi-Fi o alla rete.": "No se encontró ninguna red: conecta el ordenador al Wi-Fi o a la red.",
     "Inquadra il QR code con la fotocamera del telefono. Il telefono deve essere collegato alla stessa rete (Wi-Fi) di questo computer.": "Escanea el código QR con la cámara del teléfono. El teléfono debe estar en la misma red (Wi-Fi) que este ordenador.",

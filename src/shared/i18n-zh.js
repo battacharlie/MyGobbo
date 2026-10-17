@@ -2,6 +2,10 @@
 // Un testo che manca qui si mostra in inglese.
 (function (root) {
   const DICT = {
+    "Mostra l'anteprima con CUT e FADE": "显示带 CUT 和 FADE 的预览",
+    "In modalità light non ci sono scene né anteprima.": "轻量模式下没有场景和预览。",
+    "Dettagli": "详情",
+    "Video e immagini si aggiungono dalla regia, dove si sceglie il file.": "视频和图片需在控制窗口中添加，并在那里选择文件。",
     "Telecomando dal telefono (QR code)…": "手机遥控（二维码）…",
     "Nessuna rete trovata: collega il computer al Wi-Fi o alla rete.": "未找到网络：请将电脑连接到 Wi-Fi 或网络。",
     "Inquadra il QR code con la fotocamera del telefono. Il telefono deve essere collegato alla stessa rete (Wi-Fi) di questo computer.": "用手机相机扫描二维码。手机必须与这台电脑在同一网络（Wi-Fi）中。",

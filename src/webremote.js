@@ -35,20 +35,6 @@ function status() {
   };
 }
 
-// Solo i comandi del telecomando, tradotti in comandi della regia.
-function toCommand(c) {
-  const id = typeof c.id === 'string' ? c.id : null;
-  switch (c.type) {
-    case 'program': return id && { type: 'program', id, force: true };
-    case 'preview': return id && { type: 'preview', id };
-    case 'take': return { type: 'take', kind: c.kind === 'fade' ? 'fade' : 'cut' };
-    case 'visible': return id && { type: 'update-layer', id, patch: { visible: !!c.on } };
-    case 'timer': return id && ['start', 'pause', 'reset'].includes(c.action) && { type: 'timer', id, action: c.action };
-    case 'prompter': return id && ['start', 'pause', 'top'].includes(c.action) && { type: 'prompter', id, action: c.action };
-    default: return null;
-  }
-}
-
 let pageCache = null;
 function page() {
   if (!pageCache) pageCache = fs.readFileSync(path.join(__dirname, 'webremote', 'page.html'), 'utf8');
@@ -73,13 +59,11 @@ function handle(req, res) {
       if (body.length > 10000) req.destroy();
     });
     req.on('end', () => {
-      let cmd = null;
+      let ok = false;
       try {
-        cmd = toCommand(JSON.parse(body));
+        ok = run(JSON.parse(body));
       } catch { /* JSON non valido */ }
-      if (!cmd) return reply(400, 'application/json', '{"ok":false}');
-      run(cmd);
-      reply(200, 'application/json', '{"ok":true}');
+      reply(ok ? 200 : 400, 'application/json', JSON.stringify({ ok: !!ok }));
     });
     return;
   }
@@ -93,7 +77,7 @@ function stop() {
 }
 
 // settings: { enabled, port, token }; stateFn: stato per la pagina;
-// runCommand: esegue un comando della regia; changed: lo stato del server è cambiato.
+// runCommand: controlla ed esegue un comando del telecomando (true = fatto); changed: lo stato del server è cambiato.
 function configure(settings, stateFn, runCommand, changed) {
   getState = stateFn;
   run = runCommand;

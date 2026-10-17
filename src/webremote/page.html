@@ -50,10 +50,34 @@
   .empty { color: var(--muted); padding: 10px 0; }
   .notice { margin: 12px 0; padding: 10px; border-radius: 10px; background: #3a1f22; color: #ffd7d7; display: none; }
   .notice.show { display: block; }
+  .hbtn { min-height: 38px; padding: 6px 12px; font-size: 14px; }
+  .hbtn.on { background: var(--blue); border-color: var(--blue); color: #fff; }
+  .plus { width: 42px; padding: 0; font-size: 26px; line-height: 1; background: var(--blue); border-color: var(--blue); color: #fff; }
+  .gear { width: 42px; padding: 0; display: inline-flex; align-items: center; justify-content: center; }
+  .gear svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .sheet-bg { position: fixed; inset: 0; z-index: 10; background: rgba(0,0,0,.55); display: flex; align-items: flex-end; }
+  .sheet { width: 100%; max-height: 88vh; overflow: auto; background: var(--card); border-top: 1px solid var(--line); border-radius: 16px 16px 0 0; padding: 14px 14px calc(16px + env(safe-area-inset-bottom)); }
+  .sheet h3 { margin: 0 0 10px; font-size: 17px; display: flex; align-items: center; gap: 8px; }
+  .sheet h3 span { flex: 1; }
+  .field { display: block; margin: 0 0 12px; }
+  .field > span { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+  .field input[type=text], .field input[type=number], .field textarea, .field select { width: 100%; font: inherit; font-size: 16px; color: var(--text); background: #14161b; border: 1px solid var(--line); border-radius: 8px; padding: 10px; }
+  .field textarea { min-height: 90px; resize: vertical; }
+  .field input[type=color] { width: 64px; height: 40px; border: 1px solid var(--line); border-radius: 8px; background: none; padding: 2px; }
+  .check { display: flex; align-items: center; gap: 10px; margin: 0 0 12px; }
+  .check input { width: 22px; height: 22px; accent-color: var(--blue); }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 10px; }
+  .types { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+  .types button.on { background: var(--blue); border-color: var(--blue); color: #fff; }
+  .types button:disabled { opacity: .4; }
+  .row { display: flex; gap: 8px; justify-content: flex-end; margin-top: 6px; }
+  .row .grow { flex: 1; }
+  .primary { background: var(--blue); border-color: var(--blue); color: #fff; }
+  .hint { color: var(--muted); font-size: 13px; margin: 0 0 10px; }
 </style>
 </head>
 <body>
-<header><span class="dot off" id="dot"></span><h1>IGOR <small id="title">Telecomando</small></h1></header>
+<header><span class="dot off" id="dot"></span><h1>IGOR <small id="title">Telecomando</small></h1><button class="hbtn" id="studio"></button><button class="plus" id="add">+</button></header>
 <div class="notice" id="lost"></div>
 <div class="status" id="status" hidden><div class="pvw"><span id="l-pvw"></span><b id="pvw"></b></div><div class="pgm"><span id="l-pgm"></span><b id="pgm"></b></div></div>
 <div id="list"></div>
@@ -64,6 +88,8 @@
   var S = null, L = {}, sig = '', fails = 0;
   var EYE = '<svg viewBox="0 0 24 24"><path d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>';
   var EYE_OFF = '<svg viewBox="0 0 24 24"><path d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6S2 12 2 12z"/><path d="M4 4l16 16"/></svg>';
+  var GEAR = '<svg viewBox="0 0 24 24"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg>';
+  var sheetFor = null; // id dell'input aperto nei dettagli
   function $(id) { return document.getElementById(id); }
   function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
   function send(cmd) {
@@ -80,6 +106,7 @@
     var name = el('div', 'name', it.name);
     name.appendChild(el('span', 'type', it.typeLabel));
     row.appendChild(eye); row.appendChild(name);
+    row.appendChild(gearBtn(it));
     if (it.type === 'timer') {
       row.appendChild(btn(it.running ? L.pause : L.start, 'small' + (it.running ? ' on' : ''), { type: 'timer', id: it.id, action: it.running ? 'pause' : 'start' }));
       row.appendChild(btn(L.reset, 'small', { type: 'timer', id: it.id, action: 'reset' }));
@@ -88,6 +115,103 @@
       row.appendChild(btn(L.top, 'small', { type: 'prompter', id: it.id, action: 'top' }));
     }
     return row;
+  }
+  function gearBtn(it) {
+    var g = el('button', 'gear'); g.innerHTML = GEAR; g.title = L.details;
+    g.onclick = function () { openDetails(it.id); };
+    return g;
+  }
+  function findItem(id) {
+    var all = [];
+    S.scenes.forEach(function (sc) { all.push(sc); all = all.concat(sc.children); });
+    all = all.concat(S.loose);
+    for (var i = 0; i < all.length; i++) if (all[i].id === id) return all[i];
+    return null;
+  }
+  function closeSheet() { var b = document.querySelector('.sheet-bg'); if (b) b.remove(); sheetFor = null; }
+  function sheet(title) {
+    closeSheet();
+    var bg = el('div', 'sheet-bg'); var box = el('div', 'sheet');
+    bg.onclick = function (e) { if (e.target === bg) closeSheet(); };
+    var h = el('h3'); h.appendChild(el('span', '', title));
+    var x = el('button', 'hbtn', L.close); x.onclick = closeSheet; h.appendChild(x);
+    box.appendChild(h); bg.appendChild(box); document.body.appendChild(bg);
+    return box;
+  }
+  function openDetails(id) {
+    var it = findItem(id); if (!it) return;
+    var box = sheet(it.name + (it.typeLabel && it.typeLabel !== it.name ? ' · ' + it.typeLabel : ''));
+    sheetFor = id;
+    var edit = function (key, value) { var p = {}; p[key] = value; send({ type: 'edit', id: id, patch: p }); };
+    var pos = el('div', 'grid2');
+    it.fields.forEach(function (f) {
+      var input, wrap;
+      if (f.kind === 'bool') {
+        wrap = el('label', 'check'); input = el('input'); input.type = 'checkbox'; input.checked = !!f.value;
+        input.onchange = function () { edit(f.key, input.checked); };
+        wrap.appendChild(input); wrap.appendChild(el('span', '', f.label)); box.appendChild(wrap); return;
+      }
+      wrap = el('label', 'field'); wrap.appendChild(el('span', '', f.label + (f.unit ? ' (' + f.unit + ')' : '')));
+      if (f.kind === 'area') { input = el('textarea'); input.value = f.value || ''; }
+      else if (f.kind === 'select') {
+        input = el('select');
+        f.options.forEach(function (o) { var op = el('option', '', o[1]); op.value = o[0]; input.appendChild(op); });
+        input.value = f.value;
+      } else {
+        input = el('input'); input.type = f.kind === 'number' ? 'number' : (f.kind === 'color' ? 'color' : 'text');
+        if (f.kind === 'number') { input.inputMode = 'decimal'; input.step = f.step || 1; input.min = f.min; input.max = f.max; }
+        input.value = f.value == null ? '' : f.value;
+      }
+      input.onchange = function () { edit(f.key, f.kind === 'number' ? Number(input.value) : input.value); };
+      if (f.kind === 'color') input.oninput = input.onchange;
+      wrap.appendChild(input);
+      (['x', 'y', 'w', 'h'].indexOf(f.key) >= 0 ? pos : box).appendChild(wrap);
+    });
+    if (pos.childNodes.length) box.appendChild(pos);
+  }
+  function openAdd() {
+    var picked = [], sceneMode = false;
+    var box = sheet(L.add);
+    var types = el('div', 'types');
+    var hint = el('p', 'hint', '');
+    var where = el('label', 'field'); where.appendChild(el('span', '', L.where));
+    var sel = el('select'); var o0 = el('option', '', L.outside); o0.value = ''; sel.appendChild(o0);
+    S.scenes.forEach(function (sc, i) { var o = el('option', '', (i + 1) + '. ' + sc.name); o.value = sc.id; sel.appendChild(o); });
+    sel.value = S.studio && S.preview ? S.preview : (S.program || '');
+    where.appendChild(sel);
+    var single = null;
+    var addBtn = el('button', 'primary', L.add);
+    var sceneBtn = el('button', '', L.addScene);
+    function draw() {
+      types.innerHTML = '';
+      S.addTypes.forEach(function (a) {
+        var on = sceneMode ? picked.indexOf(a.type) >= 0 : single === a.type;
+        var b = el('button', on ? 'on' : '', a.label); b.disabled = a.disabled;
+        b.onclick = function () {
+          if (sceneMode) { var i = picked.indexOf(a.type); if (i >= 0) picked.splice(i, 1); else picked.push(a.type); }
+          else single = a.type;
+          draw();
+        };
+        types.appendChild(b);
+      });
+      sceneBtn.className = sceneMode ? 'on primary' : '';
+      hint.textContent = sceneMode ? L.addSceneHint : L.mediaHint;
+      where.style.display = sceneMode || !S.scenes.length ? 'none' : '';
+      addBtn.disabled = !sceneMode && !single;
+    }
+    sceneBtn.onclick = function () { sceneMode = !sceneMode; picked = []; single = null; draw(); };
+    addBtn.onclick = function () {
+      if (sceneMode) send({ type: 'add-scene', types: picked });
+      else if (single) send({ type: 'add', layerType: single, sceneId: sel.value || null });
+      closeSheet();
+    };
+    box.appendChild(types); box.appendChild(hint); box.appendChild(where);
+    var row = el('div', 'row');
+    if (!S.light) row.appendChild(sceneBtn);
+    row.appendChild(el('span', 'grow'));
+    var cancel = el('button', '', L.cancel); cancel.onclick = closeSheet; row.appendChild(cancel);
+    row.appendChild(addBtn); box.appendChild(row);
+    draw();
   }
   function render() {
     var s = JSON.stringify(S);
@@ -103,6 +227,12 @@
     $('pgm').textContent = names[S.program] || '—';
     $('status').firstChild.style.visibility = S.studio ? 'visible' : 'hidden';
     $('switcher').hidden = !S.studio;
+    $('studio').textContent = L.studio;
+    $('studio').className = 'hbtn' + (S.studio ? ' on' : '');
+    $('studio').disabled = S.light;
+    $('studio').title = S.light ? L.lightNoStudio : L.studioHint;
+    $('add').title = L.add;
+    if (sheetFor && !findItem(sheetFor)) closeSheet();
     var list = $('list'); list.innerHTML = '';
     if (S.scenes.length) {
       list.appendChild(el('h2', '', L.scenes));
@@ -113,6 +243,7 @@
         head.appendChild(name);
         if (S.studio) head.appendChild(btn(L.preview, 'pvw-btn' + (sc.id === S.preview ? ' on' : ''), { type: 'preview', id: sc.id }));
         head.appendChild(btn(L.program, 'pgm-btn' + (sc.id === S.program ? ' on' : ''), { type: 'program', id: sc.id }));
+        head.appendChild(gearBtn(sc));
         box.appendChild(head);
         if (sc.children.length) {
           var items = el('div', 'items');
@@ -138,6 +269,8 @@
       if (fails > 2) { $('lost').textContent = (L.lost || 'Connessione persa: riprovo… / Connection lost: retrying…'); $('lost').className = 'notice show'; }
     });
   }
+  $('studio').onclick = function () { if (S) send({ type: 'studio', on: !S.studio }); };
+  $('add').onclick = function () { if (S) openAdd(); };
   $('cut').onclick = function () { send({ type: 'take', kind: 'cut' }); };
   $('fade').onclick = function () { send({ type: 'take', kind: 'fade' }); };
   poll(); setInterval(poll, 800);

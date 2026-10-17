@@ -1027,6 +1027,80 @@ function newToken() {
   return crypto.randomBytes(12).toString('base64url');
 }
 
+// Parametri modificabili dal telefono, per tipo di input. kind: text, area,
+// number (min/max, scale = valore mostrato × scale), color, bool, select.
+const POS_FIELDS = [
+  { key: 'x', label: 'Sinistra (X)', kind: 'number', min: -100, max: 200, unit: '%' },
+  { key: 'y', label: 'Alto (Y)', kind: 'number', min: -100, max: 200, unit: '%' },
+  { key: 'w', label: 'Larghezza', kind: 'number', min: 1, max: 300, unit: '%' },
+  { key: 'h', label: 'Altezza', kind: 'number', min: 1, max: 300, unit: '%' }
+];
+const REMOTE_FIELDS = {
+  scene: [],
+  timer: [
+    { key: 'direction', label: 'Direzione', kind: 'select', options: [['down', 'All\'indietro (countdown)'], ['up', 'In avanti (cronometro)']] },
+    { key: 'durationSec', label: 'Durata: minuti', kind: 'number', min: 0, max: 1440, scale: 60, step: 0.5 },
+    { key: 'fontSize', label: 'Misura carattere (% altezza schermo)', kind: 'number', min: 1, max: 100 },
+    { key: 'color', label: 'Partenza', kind: 'color' },
+    { key: 'warningColor', label: 'Scadenza vicina', kind: 'color' },
+    { key: 'endColor', label: 'Tempo superato', kind: 'color' },
+    { key: 'background', label: 'Colore sfondo', kind: 'color' },
+    { key: 'transparent', label: 'Sfondo trasparente', kind: 'bool' },
+    ...POS_FIELDS
+  ],
+  ticker: [
+    { key: 'text', label: 'Testo', kind: 'area' },
+    { key: 'speed', label: 'Velocità di scorrimento (px/s)', kind: 'number', min: 0, max: 2000 },
+    { key: 'fontSize', label: 'Misura carattere (% altezza schermo)', kind: 'number', min: 1, max: 100 },
+    { key: 'color', label: 'Colore testo', kind: 'color' },
+    { key: 'background', label: 'Colore fascia', kind: 'color' },
+    { key: 'opacity', label: 'Opacità fascia', kind: 'number', min: 0, max: 100, scale: 0.01 },
+    ...POS_FIELDS
+  ],
+  prompter: [
+    { key: 'speed', label: 'Velocità (pixel al secondo su 1080)', kind: 'number', min: 0, max: 1000 },
+    { key: 'fontSize', label: 'Misura carattere (% altezza schermo)', kind: 'number', min: 1, max: 50, step: 0.5 },
+    { key: 'color', label: 'Colore testo', kind: 'color' },
+    { key: 'background', label: 'Colore sfondo', kind: 'color' },
+    ...POS_FIELDS
+  ],
+  media: [{ key: 'loop', label: 'Ripeti all\'infinito', kind: 'bool' }, ...POS_FIELDS],
+  ndi: POS_FIELDS,
+  capture: POS_FIELDS
+};
+
+function remoteFields(layer) {
+  const fields = [{ key: 'name', label: 'Nome', kind: 'text' }, ...(REMOTE_FIELDS[layer.type] || [])];
+  return fields.map((f) => ({
+    ...f,
+    label: t(f.label),
+    options: f.options && f.options.map(([v, l]) => [v, t(l)]),
+    value: f.kind === 'number' && f.scale ? Math.round((layer[f.key] / f.scale) * 100) / 100 : layer[f.key]
+  }));
+}
+
+// Controlla un valore arrivato dal telefono; undefined = da scartare.
+function remoteValue(field, v) {
+  switch (field.kind) {
+    case 'text': return typeof v === 'string' ? v.slice(0, 200) : undefined;
+    case 'area': return typeof v === 'string' ? v.slice(0, 5000) : undefined;
+    case 'bool': return !!v;
+    case 'color': return typeof v === 'string' && /^#[0-9a-f]{6}$/i.test(v) ? v.toLowerCase() : undefined;
+    case 'select': return field.options.some(([o]) => o === v) ? v : undefined;
+    case 'number': {
+      const n = Number(v);
+      if (!Number.isFinite(n)) return undefined;
+      const clamped = Math.max(field.min, Math.min(field.max, n));
+      return field.scale ? clamped * field.scale : clamped;
+    }
+    default: return undefined;
+  }
+}
+
+// Tipi che si possono aggiungere dal telefono (il media no: il file si
+// sceglie sul computer). In light valgono gli stessi limiti della regia.
+const REMOTE_ADD_TYPES = ['ndi', 'capture', 'timer', 'ticker', 'prompter'];
+
 // Stato semplificato per la pagina del telecomando.
 function remoteView() {
   const item = (l) => ({
@@ -1035,9 +1109,10 @@ function remoteView() {
     type: l.type,
     typeLabel: t(TYPE_LABELS[l.type] || l.type),
     visible: !!l.visible,
-    running: !!(l.run && l.run.running)
+    running: !!(l.run && l.run.running),
+    fields: remoteFields(l)
   });
-  const scenes = state.layers.filter((l) => l.type === 'scene').map((s) => ({ id: s.id, name: s.name, children: s.children.map(item) }));
+  const scenes = state.layers.filter((l) => l.type === 'scene').map((s) => ({ id: s.id, name: s.name, fields: remoteFields(s), children: s.children.map(item) }));
   return {
     lang: state.lang,
     studio: !!state.studio,
@@ -1046,6 +1121,7 @@ function remoteView() {
     preview: state.preview,
     scenes,
     loose: state.layers.filter((l) => l.type !== 'scene').map(item),
+    addTypes: REMOTE_ADD_TYPES.map((type) => ({ type, label: t(TYPE_LABELS[type]), disabled: !canAddInLight(type) })),
     labels: {
       title: t('Telecomando'),
       preview: t('Anteprima'),
@@ -1060,14 +1136,67 @@ function remoteView() {
       show: t('Mostra'),
       hide: t('Nascondi'),
       empty: t('Nessun input: aggiungili dalla regia.'),
-      lost: t('Collegamento perso: riprovo…')
+      lost: t('Collegamento perso: riprovo…'),
+      studio: t('Modalità studio'),
+      studioHint: t('Mostra l\'anteprima con CUT e FADE'),
+      lightNoStudio: t('In modalità light non ci sono scene né anteprima.'),
+      details: t('Dettagli'),
+      close: t('Chiudi'),
+      add: t('Aggiungi'),
+      addScene: t('Aggiungi scena'),
+      addSceneHint: t('Clicca sugli input da mettere nella scena, anche più di uno. Se non ne scegli nessuno, la scena nasce vuota.'),
+      where: t('Dove'),
+      outside: t('Fuori dalle scene (sempre in onda)'),
+      mediaHint: t('Video e immagini si aggiungono dalla regia, dove si sceglie il file.'),
+      cancel: t('Annulla')
     }
   };
 }
 
+// Comandi accettati dal telefono, tradotti in comandi della regia.
+function remoteCommand(c) {
+  if (!c || typeof c !== 'object') return false;
+  const id = typeof c.id === 'string' ? c.id : null;
+  const layer = id ? findLayer(id) : null;
+  let cmd = null;
+  switch (c.type) {
+    case 'program': if (layer && layer.type === 'scene') cmd = { type: 'program', id, force: true }; break;
+    case 'preview': if (layer && layer.type === 'scene') cmd = { type: 'preview', id }; break;
+    case 'take': cmd = { type: 'take', kind: c.kind === 'fade' ? 'fade' : 'cut' }; break;
+    case 'studio': cmd = { type: 'set-studio', on: !!c.on }; break;
+    case 'visible': if (layer) cmd = { type: 'update-layer', id, patch: { visible: !!c.on } }; break;
+    case 'timer': if (layer && ['start', 'pause', 'reset'].includes(c.action)) cmd = { type: 'timer', id, action: c.action }; break;
+    case 'prompter': if (layer && ['start', 'pause', 'top'].includes(c.action)) cmd = { type: 'prompter', id, action: c.action }; break;
+    case 'edit': {
+      if (!layer || !c.patch || typeof c.patch !== 'object') break;
+      const fields = [{ key: 'name', kind: 'text' }, ...(REMOTE_FIELDS[layer.type] || [])];
+      const patch = {};
+      for (const [k, v] of Object.entries(c.patch)) {
+        const f = fields.find((x) => x.key === k);
+        const val = f && remoteValue(f, v);
+        if (val !== undefined) patch[k] = val;
+      }
+      if (Object.keys(patch).length) cmd = { type: 'update-layer', id, patch };
+      break;
+    }
+    case 'add': {
+      if (!REMOTE_ADD_TYPES.includes(c.layerType)) break;
+      const scene = c.sceneId ? findLayer(c.sceneId) : null;
+      cmd = { type: 'add-layer', layerType: c.layerType, sceneId: scene && scene.type === 'scene' ? scene.id : null };
+      break;
+    }
+    case 'add-scene':
+      cmd = { type: 'add-scene', types: (Array.isArray(c.types) ? c.types : []).filter((x) => REMOTE_ADD_TYPES.includes(x)) };
+      break;
+  }
+  if (!cmd) return false;
+  handleCommand(cmd);
+  return true;
+}
+
 function startWebRemote() {
   if (!state.webRemote.token) state.webRemote.token = newToken();
-  webRemote.configure(state.webRemote, remoteView, (cmd) => handleCommand(cmd), () => broadcast());
+  webRemote.configure(state.webRemote, remoteView, remoteCommand, () => broadcast());
 }
 
 ipcMain.handle('qr-code', (_evt, text) => QRCode.toDataURL(String(text || ''), { margin: 1, width: 360 }));
