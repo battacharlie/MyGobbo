@@ -2,6 +2,13 @@
 // Un testo che manca qui si mostra in inglese.
 (function (root) {
   const DICT = {
+    "Scrivi l'indirizzo del ponte (inizia con https://).": "请输入中继地址（以 https:// 开头）。",
+    "Ponte non raggiungibile: {error}": "无法连接中继：{error}",
+    "Collegamento al ponte…": "正在连接中继…",
+    "Da internet: questo QR code funziona anche fuori dalla rete locale (es. dal telefono in 4G).": "来自互联网：此二维码在局域网之外也可使用（例如手机 4G）。",
+    "Il telefono può usare il telecomando anche da un'altra rete, passando dal ponte su internet": "手机也可以通过互联网中继从其他网络使用遥控器",
+    "Anche da internet": "也可从互联网访问",
+    "Indirizzo del ponte": "中继地址",
     "Mostra l'anteprima con CUT e FADE": "显示带 CUT 和 FADE 的预览",
     "In modalità light non ci sono scene né anteprima.": "轻量模式下没有场景和预览。",
     "Dettagli": "详情",

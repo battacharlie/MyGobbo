@@ -2,6 +2,13 @@
 // Un testo che manca qui si mostra in inglese.
 (function (root) {
   const DICT = {
+    "Scrivi l'indirizzo del ponte (inizia con https://).": "Escribe la dirección del puente (empieza por https://).",
+    "Ponte non raggiungibile: {error}": "Puente no accesible: {error}",
+    "Collegamento al ponte…": "Conectando con el puente…",
+    "Da internet: questo QR code funziona anche fuori dalla rete locale (es. dal telefono in 4G).": "Desde internet: este código QR también funciona fuera de la red local (p. ej. desde el móvil con 4G).",
+    "Il telefono può usare il telecomando anche da un'altra rete, passando dal ponte su internet": "El móvil puede usar el mando también desde otra red, pasando por el puente en internet",
+    "Anche da internet": "También desde internet",
+    "Indirizzo del ponte": "Dirección del puente",
     "Mostra l'anteprima con CUT e FADE": "Muestra la vista previa con CUT y FADE",
     "In modalità light non ci sono scene né anteprima.": "En modo light no hay escenas ni vista previa.",
     "Dettagli": "Detalles",

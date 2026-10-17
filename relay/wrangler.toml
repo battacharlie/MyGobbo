@@ -1,0 +1,18 @@
+# Ponte su internet per il telecomando di IGOR (Cloudflare Workers).
+# Si mette online con: npx wrangler deploy  (oppure con l'azione GitHub "Relay").
+name = "igor-relay"
+main = "worker.js"
+compatibility_date = "2025-06-01"
+
+[[rules]]
+type = "Text"
+globs = ["**/*.html"]
+fallthrough = true
+
+[[durable_objects.bindings]]
+name = "ROOMS"
+class_name = "Room"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Room"]

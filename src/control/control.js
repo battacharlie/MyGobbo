@@ -2501,7 +2501,8 @@ async function renderWebRemoteDialog() {
   const dlg = $('dlg-webremote');
   const cfg = state.webRemote || {};
   const st = state.webRemoteStatus || {};
-  const sig = JSON.stringify([cfg, st, I18n.getLang()]);
+  const rs = state.relayStatus || {};
+  const sig = JSON.stringify([cfg, st, rs, I18n.getLang()]);
   if (sig === webRemoteSig && dlg.childElementCount) return;
   webRemoteSig = sig;
   const enabled = h('input', { type: 'checkbox' });
@@ -2509,6 +2510,23 @@ async function renderWebRemoteDialog() {
   enabled.addEventListener('change', () => send({ type: 'set-web-remote', webRemote: { enabled: enabled.checked } }));
   const port = h('input', { type: 'number', min: 1024, max: 65535, step: 1, value: cfg.port || 8780, style: 'width:90px' });
   port.addEventListener('change', () => send({ type: 'set-web-remote', webRemote: { port: Number(port.value) } }));
+
+  const internet = h('input', { type: 'checkbox' });
+  internet.checked = !!cfg.internet;
+  internet.addEventListener('change', () => send({ type: 'set-web-remote', webRemote: { internet: internet.checked } }));
+  const relayUrl = h('input', { type: 'url', value: cfg.relayUrl || '', placeholder: 'https://igor-relay.….workers.dev', style: 'flex:1' });
+  relayUrl.addEventListener('change', () => send({ type: 'set-web-remote', webRemote: { relayUrl: relayUrl.value } }));
+  let relayLine = null;
+  if (cfg.enabled && cfg.internet) {
+    if (!/^https:\/\/\S+/.test(cfg.relayUrl || '')) relayLine = h('div', { class: 'notice' }, t('Scrivi l\'indirizzo del ponte (inizia con https://).'));
+    else if (rs.error) relayLine = h('div', { class: 'notice' }, t('Ponte non raggiungibile: {error}', { error: rs.error }));
+    else if (!rs.connected) relayLine = h('p', { class: 'muted small' }, t('Collegamento al ponte…'));
+    else relayLine = help(t('Da internet: questo QR code funziona anche fuori dalla rete locale (es. dal telefono in 4G).'));
+  }
+  const internetBox = h('div', {},
+    h('label', { class: 'check', title: t('Il telefono può usare il telecomando anche da un\'altra rete, passando dal ponte su internet') }, internet, t('Anche da internet')),
+    cfg.internet ? h('label', { class: 'field inline', style: 'display:flex;gap:8px' }, h('span', {}, t('Indirizzo del ponte')), relayUrl) : null,
+    relayLine);
 
   const codes = h('div', { class: 'qr-list' });
   let statusLine;
@@ -2522,6 +2540,7 @@ async function renderWebRemoteDialog() {
       h('label', { class: 'check' }, enabled, t('Attiva il telecomando')),
       h('label', { class: 'field inline' }, h('span', {}, t('Porta')), port)),
     statusLine,
+    cfg.enabled ? internetBox : null,
     codes,
     help(t('Dalla pagina si mandano in onda le scene, si usano CUT e FADE, si mostrano e nascondono gli input e si avviano timer e TelePrompt.')),
     h('div', { class: 'row end' },
@@ -2531,7 +2550,9 @@ async function renderWebRemoteDialog() {
       }, t('Nuovo codice')) : null,
       h('span', { class: 'grow' }),
       h('button', { title: t('Chiudi'), onclick: () => dlg.close() }, t('Chiudi'))));
-  for (const url of (cfg.enabled && st.urls) || []) {
+  const urls = [...((cfg.enabled && st.urls) || [])];
+  if (cfg.enabled && cfg.internet && rs.connected && rs.url) urls.unshift(rs.url);
+  for (const url of urls) {
     const img = h('img', { class: 'qr', alt: url });
     const link = h('div', { class: 'qr-url' }, url,
       h('button', { class: 'small-btn', title: t('Copia'), onclick: () => navigator.clipboard.writeText(url) }, '⧉'));

@@ -27,6 +27,7 @@ function manualUrl(lang) {
 const i18n = require('./shared/i18n');
 const remote = require('./remote');
 const webRemote = require('./webremote');
+const relay = require('./relay');
 const QRCode = require('qrcode');
 const crypto = require('crypto');
 const t = i18n.t;
@@ -60,7 +61,7 @@ const DEFAULT_STATE = {
   midi: [], // associazioni MIDI: { key, action, arg }
   http: { enabled: false, port: 8765, lan: false }, // comandi per Companion / Stream Deck
   // Telecomando dal browser (rete locale).
-  webRemote: { enabled: false, port: 8780, token: '' },
+  webRemote: { enabled: false, port: 8780, token: '', internet: false, relayUrl: '', hostKey: '' },
   ndiOut: false // uscita inviata in rete come sorgente NDI
 };
 // Parti dello stato salvate in "Esporta configurazione".
@@ -272,6 +273,7 @@ function snapshot() {
     displays: displayList(),
     httpStatus: remote.status(),
     webRemoteStatus: webRemote.status(),
+    relayStatus: relay.status(),
     activeDisplayId: target.id,
     displayVisible: !!(displayWin && displayWin.isVisible())
   };
@@ -981,7 +983,8 @@ function handleCommand(cmd) {
       state.midi = Array.isArray(cmd.midi) ? cmd.midi : [];
       break;
     case 'set-web-remote':
-      state.webRemote = { ...state.webRemote, ...cmd.webRemote, token: state.webRemote.token };
+      state.webRemote = { ...state.webRemote, ...cmd.webRemote, token: state.webRemote.token, hostKey: state.webRemote.hostKey };
+      state.webRemote.relayUrl = String(state.webRemote.relayUrl || '').trim().slice(0, 300);
       state.webRemote.port = Math.max(1024, Math.min(65535, Number(state.webRemote.port) || 8780));
       startWebRemote();
       break;
@@ -1195,8 +1198,14 @@ function remoteCommand(c) {
 }
 
 function startWebRemote() {
-  if (!state.webRemote.token) state.webRemote.token = newToken();
-  webRemote.configure(state.webRemote, remoteView, remoteCommand, () => broadcast());
+  const cfg = state.webRemote;
+  if (!cfg.token) cfg.token = newToken();
+  if (!cfg.hostKey) cfg.hostKey = crypto.randomBytes(24).toString('base64url');
+  webRemote.configure(cfg, remoteView, remoteCommand, () => broadcast());
+  // Da internet: passa dal ponte su Cloudflare (vedi relay/).
+  const url = /^https:\/\/[^\s/]+/.test(cfg.relayUrl || '') ? cfg.relayUrl : '';
+  relay.configure(cfg.enabled && cfg.internet && url ? { url, room: cfg.token, key: cfg.hostKey } : null,
+    remoteView, remoteCommand, () => broadcast());
 }
 
 ipcMain.handle('qr-code', (_evt, text) => QRCode.toDataURL(String(text || ''), { margin: 1, width: 360 }));
@@ -1243,4 +1252,5 @@ app.on('before-quit', () => {
   ndiOut.stop();
   remote.stop();
   webRemote.stop();
+  relay.stop();
 });

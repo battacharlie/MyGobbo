@@ -2,6 +2,13 @@
 // Un testo che manca qui si mostra in inglese.
 (function (root) {
   const DICT = {
+    "Scrivi l'indirizzo del ponte (inizia con https://).": "أدخل عنوان الجسر (يبدأ بـ https://).",
+    "Ponte non raggiungibile: {error}": "تعذر الوصول إلى الجسر: {error}",
+    "Collegamento al ponte…": "جارٍ الاتصال بالجسر…",
+    "Da internet: questo QR code funziona anche fuori dalla rete locale (es. dal telefono in 4G).": "من الإنترنت: يعمل رمز QR هذا أيضًا خارج الشبكة المحلية (مثلًا من هاتف على 4G).",
+    "Il telefono può usare il telecomando anche da un'altra rete, passando dal ponte su internet": "يمكن للهاتف استخدام جهاز التحكم من شبكة أخرى أيضًا عبر جسر الإنترنت",
+    "Anche da internet": "من الإنترنت أيضًا",
+    "Indirizzo del ponte": "عنوان الجسر",
     "Mostra l'anteprima con CUT e FADE": "إظهار المعاينة مع CUT وFADE",
     "In modalità light non ci sono scene né anteprima.": "في الوضع الخفيف لا توجد مشاهد ولا معاينة.",
     "Dettagli": "التفاصيل",
