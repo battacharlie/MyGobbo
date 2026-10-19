@@ -1,6 +1,6 @@
 # IGOR - ABit/s — Mini manuale / Quick guide
 
-*Versione / Version 0.4.15*
+*Versione / Version 0.4.18*
 
 [Italiano](#italiano) · [English](#english) · [Español](MANUALE-ES.md) · [Français](MANUALE-FR.md) · [中文](MANUALE-ZH.md) · [العربية](MANUALE-AR.md)
 
