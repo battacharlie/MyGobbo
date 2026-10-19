@@ -51,6 +51,8 @@ Una escena agrupa varias entradas; en el aire hay una sola escena a la vez. Las 
 ### Control remoto
 - **MIDI**: elige un comando, pulsa *Aprender* y toca una tecla del controlador.
 - **Companion**: activa *Aceptar comandos por HTTP* y usa direcciones como `http://127.0.0.1:8765/api/cut` (módulo *Generic HTTP*). Guía completa (en inglés e italiano): [COMPANION.md](COMPANION.md).
+- **Mando desde el móvil** (icono del teléfono en la barra inferior): activa el mando y escanea el código QR con un móvil o tablet conectado a la misma red Wi-Fi. Desde la página se ponen las escenas en vista previa o al aire, se usan CUT y FADE, se activa el modo studio, se muestran y ocultan las entradas, se inician temporizadores y TelePrompt, se abren los detalles de cada entrada para cambiar sus parámetros y con **+** se añaden entradas y escenas. *Código nuevo* cambia las direcciones: los enlaces antiguos dejan de funcionar.
+- **Página del moderador**: en la misma ventana hay un segundo código QR para el moderador (una tablet o su propio móvil, en la misma red). Solo ve las entradas en las que la realización marcó **Mostrar en la página del moderador** (primera tarjeta de los detalles de la entrada, bajo el nombre), si están al aire, el tiempo de los temporizadores y pocos mandos: mostrar/ocultar, iniciar/pausar/poner a cero el temporizador, iniciar/pausar/inicio del TelePrompt.
 
 ### Consejos
 - *Ver → Restablecer la disposición de ventanas* deja paneles y zonas como al principio.

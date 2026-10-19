@@ -11,5 +11,8 @@ contextBridge.exposeInMainWorld('countdown', {
   pickColor: () => ipcRenderer.invoke('pick-color'),
   importText: () => ipcRenderer.invoke('import-text'),
   outputSourceId: () => ipcRenderer.invoke('output-source-id'),
+  outputFrame: () => ipcRenderer.invoke('output-frame'),
+  qrCode: (text) => ipcRenderer.invoke('qr-code', text),
+  platform: process.platform,
   onRemoteAction: (cb) => ipcRenderer.on('remote-action', (_evt, action) => cb(action))
 });

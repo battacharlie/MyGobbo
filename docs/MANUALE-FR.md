@@ -51,6 +51,8 @@ Une scène regroupe plusieurs entrées ; une seule scène à la fois est à l'an
 ### Contrôle à distance
 - **MIDI** : choisissez une commande, cliquez sur *Apprendre* et touchez une touche du contrôleur.
 - **Companion** : activez *Accepter les commandes via HTTP* et utilisez des adresses comme `http://127.0.0.1:8765/api/cut` (module *Generic HTTP*). Guide complet (en anglais et en italien) : [COMPANION.md](COMPANION.md).
+- **Télécommande sur téléphone** (icône du téléphone dans la barre du bas) : activez la télécommande et scannez le QR code avec un téléphone ou une tablette connecté au même réseau Wi-Fi. Depuis la page, on met les scènes en aperçu ou à l'antenne, on utilise CUT et FADE, on active le mode studio, on affiche et masque les entrées, on lance minuteurs et TelePrompt, on ouvre les détails de chaque entrée pour modifier ses réglages et on ajoute entrées et scènes avec **+**. *Nouveau code* change les adresses : les anciens liens ne fonctionnent plus.
+- **Page modérateur** : la même fenêtre propose un second QR code à donner au modérateur (une tablette ou son propre téléphone, sur le même réseau). Il ne voit que les entrées pour lesquelles la régie a coché **Afficher sur la page modérateur** (première carte des détails de l'entrée, sous le nom), si elles sont à l'antenne, le temps des minuteurs et quelques commandes : afficher/masquer, lancer/pause/remise à zéro du minuteur, lancer/pause/début du TelePrompt.
 
 ### Conseils
 - *Affichage → Réinitialiser la disposition des fenêtres* remet panneaux et zones comme au départ.

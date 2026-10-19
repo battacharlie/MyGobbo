@@ -2,7 +2,7 @@
 <html lang="it">
 <head>
   <meta charset="utf-8">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; media-src 'self' blob: mediastream: file:">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; media-src 'self' blob: mediastream: file:; img-src 'self' data: blob: file:">
   <title>IGOR - ABit/s – Regia</title>
   <link rel="stylesheet" href="control.css">
 </head>
@@ -73,6 +73,7 @@
             <div id="program" class="screen">
               <div id="program-stage"></div>
               <video id="program-video" muted playsinline></video>
+              <img id="program-img" alt="">
             </div>
           </div>
         </div>
@@ -118,6 +119,7 @@
   <dialog id="dlg-add" class="dialog"></dialog>
   <dialog id="dlg-midi" class="dialog"></dialog>
   <dialog id="dlg-http" class="dialog"></dialog>
+  <dialog id="dlg-webremote" class="dialog"></dialog>
   <div id="ctx-menu" class="ctx-menu" hidden></div>
 
   <script src="../shared/i18n-en.js"></script>

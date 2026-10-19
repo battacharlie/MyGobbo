@@ -17,7 +17,7 @@ IGOR è una piccola regia video per Windows e Mac. La **regia** sta sul monitor 
   - *Visualizza*: modalità light, modalità studio, istruzioni sì/no, ripristina la disposizione, questo manuale.
 - **Barra in basso**
   - A sinistra (blu): **Ripristina finestre tab** riporta tutte le schede dei dettagli al loro posto iniziale; **Separa Finestra Dettagli** apre i dettagli input in una finestra a parte (lo stesso pulsante, *Riunisci Finestra Dettagli*, li riporta nella regia).
-  - A destra (grigio), a icone: **NDI** (verde = l'uscita è inviata in rete come sorgente "IGOR - ABit/s", rosso = spento; passando sopra si vedono nome e ricevitori collegati), **monitor** (mostra/nascondi l'uscita), scelta del **monitor** e dei **fotogrammi al secondo**, **importa** ed **esporta** la configurazione (file `.igor`), **lingua** (italiano, inglese, spagnolo, francese, cinese, arabo), **controller MIDI** e **Companion / Stream Deck**.
+  - A destra (grigio), a icone: **NDI** (verde = l'uscita è inviata in rete come sorgente "IGOR - ABit/s", rosso = spento; passando sopra si vedono nome e ricevitori collegati), **monitor** (mostra/nascondi l'uscita), scelta del **monitor** e dei **fotogrammi al secondo**, **importa** ed **esporta** la configurazione (file `.igor`), **lingua** (italiano, inglese, spagnolo, francese, cinese, arabo), **controller MIDI**, **Companion / Stream Deck** e **telecomando dal telefono** (QR code: dalla stessa rete Wi-Fi si mandano in onda le scene, si usano CUT e FADE, si mostrano e nascondono gli input e si avviano timer e TelePrompt).
   - I monitor sono numerati così: il principale è il numero 1, gli altri seguono da sinistra a destra.
 - **Anteprima** (in alto): trascina un elemento per spostarlo, un angolo per ridimensionarlo (Maiusc mantiene le proporzioni). Su video e immagini le maniglie arancioni ritagliano.
 - **Colonna degli input** (a destra): il pulsante blu **+** aggiunge un input (NDI, periferica, media, timer, Banner di Testo, TelePrompt). Per creare una scena premi **Aggiungi scena** in basso, clicca sugli input da metterci dentro (anche più di uno, o nessuno per una scena vuota) e poi **Aggiungi**; il pulsante **LIGHT** passa alla modalità light, e diventa **STUDIO** per tornare alla modalità completa (vedi sotto).
@@ -53,6 +53,8 @@ Una scena raccoglie più input; in onda va una scena alla volta. Gli input fuori
 ### Controllo remoto
 - **MIDI**: scegli un comando, premi *Impara* e tocca un tasto del controller.
 - **Companion**: attiva *Accetta comandi via HTTP* e usa indirizzi come `http://127.0.0.1:8765/api/cut` (modulo *Generic HTTP*). Guida completa: [COMPANION.md](COMPANION.md).
+- **Telecomando dal telefono** (icona del telefono nella barra in basso): attiva il telecomando e inquadra il QR code con un telefono o tablet collegato alla stessa rete Wi-Fi. Dalla pagina si mandano le scene in anteprima o in onda, si usano CUT e FADE, si attiva la modalità studio, si mostrano e nascondono gli input, si avviano timer e TelePrompt, si aprono i dettagli di ogni input per cambiarne i parametri e con **+** si aggiungono input e scene. *Nuovo codice* cambia gli indirizzi: i vecchi link smettono di funzionare.
+- **Pagina moderatore**: nella stessa finestra c'è un secondo QR code da dare al moderatore (tablet o il suo telefono, sulla stessa rete). Vede solo gli input in cui la regia ha spuntato **Visualizza in Pagina Moderatore** (prima scheda dei dettagli dell'input, sotto il nome), se sono in onda, il tempo dei timer e pochi comandi: mostra/nascondi, avvia/pausa/azzera il timer, avvia/pausa/inizio del TelePrompt.
 
 ### Consigli
 - *Visualizza → Ripristina la disposizione delle finestre* rimette schede e zone come all'inizio.
@@ -71,7 +73,7 @@ IGOR is a small video mixer for Windows and Mac. The **control window** sits on 
   - *View*: light mode, studio mode, instructions on/off, reset the layout, this guide.
 - **Bottom bar**
   - On the left (blue): **Reset panel windows** puts all detail panels back in their original place; **Separate Details Window** opens the input details in a window of their own (the same button, *Rejoin Details Window*, brings them back).
-  - On the right (grey), as icons: **NDI** (green = the output is sent over the network as the "IGOR - ABit/s" source, red = off; hover to see the name and connected receivers), **monitor** (show/hide the output), choice of **monitor** and **frames per second**, **import** and **export** the configuration (`.igor` file), **language** (Italian, English, Spanish, French, Chinese, Arabic), **MIDI controller** and **Companion / Stream Deck**.
+  - On the right (grey), as icons: **NDI** (green = the output is sent over the network as the "IGOR - ABit/s" source, red = off; hover to see the name and connected receivers), **monitor** (show/hide the output), choice of **monitor** and **frames per second**, **import** and **export** the configuration (`.igor` file), **language** (Italian, English, Spanish, French, Chinese, Arabic), **MIDI controller**, **Companion / Stream Deck** and **phone remote** (QR code: from the same Wi-Fi network you put scenes on air, use CUT and FADE, show and hide inputs, and start timers and TelePrompts).
   - Monitors are numbered like this: the main one is number 1, the others follow from left to right.
 - **Preview** (top): drag an element to move it, a corner to resize it (Shift keeps the proportions). On videos and images the orange handles crop.
 - **Inputs column** (right): the blue **+** button adds an input (NDI, capture device, media, timer, Text Banner, TelePrompt). To create a scene press **Add scene** at the bottom, click the inputs to put inside (more than one, or none for an empty scene) and then **Add**; the **LIGHT** button switches to light mode and becomes **STUDIO** to go back to full mode (see below).
@@ -107,6 +109,8 @@ A scene groups several inputs; one scene at a time is on air. Inputs outside sce
 ### Remote control
 - **MIDI**: choose a command, press *Learn* and touch a key on the controller.
 - **Companion**: turn on *Accept commands over HTTP* and use addresses like `http://127.0.0.1:8765/api/cut` (*Generic HTTP* module). Full guide: [COMPANION.md](COMPANION.md).
+- **Phone remote** (phone icon in the bottom bar): enable the remote and scan the QR code with a phone or tablet on the same Wi-Fi network. From the page you put scenes in preview or on air, use CUT and FADE, turn studio mode on, show and hide inputs, start timers and TelePrompts, open the details of each input to change its settings, and add inputs and scenes with **+**. *New code* changes the addresses: old links stop working.
+- **Moderator page**: the same window has a second QR code to give the moderator (a tablet or their own phone, on the same network). They only see the inputs where the control room ticked **Show on Moderator Page** (first card of the input details, under the name), whether they are on air, the timer countdown and a few controls: show/hide, start/pause/reset the timer, start/pause/top of the TelePrompt.
 
 ### Tips
 - *View → Reset the window layout* puts panels and zones back as they were at the start.

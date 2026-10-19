@@ -2,7 +2,7 @@ const { app, BrowserWindow, ipcMain, screen, session, dialog, shell, systemPrefe
 const path = require('path');
 const fs = require('fs');
 const { pathToFileURL } = require('url');
-const { createLayer, timerElapsedMs, prompterY, TIMER_COLORS, TYPE_LABELS, MAX_FPS, DEFAULT_FPS, VIDEO_EXT, IMAGE_EXT, PER_ITEM, KEEP_ON_RESET, allLayers, findNode, composeLayers, newId, isVisual } = require('./shared/layers');
+const { createLayer, timerElapsedMs, timerValueMs, timerShowsClock, formatClock, prompterY, TIMER_COLORS, TYPE_LABELS, MAX_FPS, DEFAULT_FPS, VIDEO_EXT, IMAGE_EXT, PER_ITEM, KEEP_ON_RESET, allLayers, findNode, composeLayers, newId, isVisual } = require('./shared/layers');
 const ndi = require('./ndi');
 const { readTextFile, TEXT_EXT } = require('./textimport');
 const { pickColor } = require('./picker/main');
@@ -26,6 +26,10 @@ function manualUrl(lang) {
 }
 const i18n = require('./shared/i18n');
 const remote = require('./remote');
+const webRemote = require('./webremote');
+const relay = require('./relay');
+const QRCode = require('qrcode');
+const crypto = require('crypto');
 const t = i18n.t;
 
 const ICON = path.join(__dirname, 'assets', 'igor.png');
@@ -56,6 +60,8 @@ const DEFAULT_STATE = {
   showHelp: true,
   midi: [], // associazioni MIDI: { key, action, arg }
   http: { enabled: false, port: 8765, lan: false }, // comandi per Companion / Stream Deck
+  // Telecomando dal browser (rete locale).
+  webRemote: { enabled: false, port: 8780, token: '', modToken: '', internet: false, relayUrl: '', hostKey: '' },
   ndiOut: false // uscita inviata in rete come sorgente NDI
 };
 // Parti dello stato salvate in "Esporta configurazione".
@@ -140,6 +146,7 @@ function normalizeState(raw) {
   loaded.fpsAuto = true;
   loaded.fps = Number(loaded.fps) > 0 ? Math.max(1, Math.min(MAX_FPS, Number(loaded.fps))) : 0;
   loaded.http = { ...DEFAULT_STATE.http, ...(raw.http || {}) };
+  loaded.webRemote = { ...DEFAULT_STATE.webRemote, ...(raw.webRemote || {}) };
   if (!Array.isArray(loaded.midi)) loaded.midi = [];
   return loaded;
 }
@@ -265,6 +272,8 @@ function snapshot() {
     output: { width: target.size.width, height: target.size.height, fullscreen: target.id !== primaryId },
     displays: displayList(),
     httpStatus: remote.status(),
+    webRemoteStatus: webRemote.status(),
+    relayStatus: relay.status(),
     activeDisplayId: target.id,
     displayVisible: !!(displayWin && displayWin.isVisible())
   };
@@ -754,6 +763,14 @@ ipcMain.handle('camera-access', () => {
   }
 });
 ipcMain.handle('output-source-id', () => (displayWin && !displayWin.isDestroyed() ? displayWin.getMediaSourceId() : null));
+// Sul Mac il monitor "In onda" non registra lo schermo (servirebbe il permesso
+// "Registrazione schermo"): chiede alla finestra d'uscita una foto piccola.
+ipcMain.handle('output-frame', async () => {
+  if (!displayWin || displayWin.isDestroyed()) return null;
+  const img = await displayWin.webContents.capturePage();
+  if (img.isEmpty()) return null;
+  return img.resize({ width: 640, quality: 'good' }).toJPEG(70);
+});
 ipcMain.handle('pick-color', () => pickColor(controlWin, t));
 ipcMain.handle('import-text', async () => {
   const res = await dialog.showOpenDialog(controlWin, {
@@ -783,7 +800,9 @@ ipcMain.on('set-min-width', (_evt, w) => {
   if (width < min && !controlWin.isMaximized()) controlWin.setSize(min, height);
 });
 
-ipcMain.on('command', (_evt, cmd) => {
+ipcMain.on('command', (_evt, cmd) => handleCommand(cmd));
+
+function handleCommand(cmd) {
   switch (cmd.type) {
     case 'add-layer':
       if (!canAddInLight(cmd.layerType)) break;
@@ -963,6 +982,18 @@ ipcMain.on('command', (_evt, cmd) => {
     case 'set-midi':
       state.midi = Array.isArray(cmd.midi) ? cmd.midi : [];
       break;
+    case 'set-web-remote':
+      state.webRemote = { ...state.webRemote, ...cmd.webRemote, token: state.webRemote.token, modToken: state.webRemote.modToken, hostKey: state.webRemote.hostKey };
+      state.webRemote.relayUrl = String(state.webRemote.relayUrl || '').trim().slice(0, 300);
+      state.webRemote.port = Math.max(1024, Math.min(65535, Number(state.webRemote.port) || 8780));
+      startWebRemote();
+      break;
+    case 'new-web-remote-token':
+      // Codice nuovo: chi aveva il vecchio indirizzo non entra più.
+      state.webRemote.token = newToken();
+      state.webRemote.modToken = newToken();
+      startWebRemote();
+      break;
     case 'set-http':
       state.http = { ...state.http, ...cmd.http };
       state.http.port = Math.max(1024, Math.min(65535, Number(state.http.port) || 8765));
@@ -981,7 +1012,7 @@ ipcMain.on('command', (_evt, cmd) => {
   }
   saveState();
   broadcast();
-});
+}
 
 // --- Comandi a distanza (Companion / Stream Deck) -------------------------------
 // Le richieste HTTP arrivano qui e vengono eseguite dalla regia, che conosce
@@ -993,6 +1024,259 @@ function startRemote() {
     return true;
   }, () => broadcast());
 }
+
+// --- Telecomando dal browser -------------------------------------------------
+
+function newToken() {
+  return crypto.randomBytes(12).toString('base64url');
+}
+
+// Parametri modificabili dal telefono, per tipo di input. kind: text, area,
+// number (min/max, scale = valore mostrato × scale), color, bool, select.
+const POS_FIELDS = [
+  { key: 'x', label: 'Sinistra (X)', kind: 'number', min: -100, max: 200, unit: '%' },
+  { key: 'y', label: 'Alto (Y)', kind: 'number', min: -100, max: 200, unit: '%' },
+  { key: 'w', label: 'Larghezza', kind: 'number', min: 1, max: 300, unit: '%' },
+  { key: 'h', label: 'Altezza', kind: 'number', min: 1, max: 300, unit: '%' }
+];
+const REMOTE_FIELDS = {
+  scene: [],
+  timer: [
+    { key: 'direction', label: 'Direzione', kind: 'select', options: [['down', 'All\'indietro (countdown)'], ['up', 'In avanti (cronometro)']] },
+    { key: 'durationSec', label: 'Durata: minuti', kind: 'number', min: 0, max: 1440, scale: 60, step: 0.5 },
+    { key: 'fontSize', label: 'Misura carattere (% altezza schermo)', kind: 'number', min: 1, max: 100 },
+    { key: 'color', label: 'Partenza', kind: 'color' },
+    { key: 'warningColor', label: 'Scadenza vicina', kind: 'color' },
+    { key: 'endColor', label: 'Tempo superato', kind: 'color' },
+    { key: 'background', label: 'Colore sfondo', kind: 'color' },
+    { key: 'transparent', label: 'Sfondo trasparente', kind: 'bool' },
+    ...POS_FIELDS
+  ],
+  ticker: [
+    { key: 'text', label: 'Testo', kind: 'area' },
+    { key: 'speed', label: 'Velocità di scorrimento (px/s)', kind: 'number', min: 0, max: 2000 },
+    { key: 'fontSize', label: 'Misura carattere (% altezza schermo)', kind: 'number', min: 1, max: 100 },
+    { key: 'color', label: 'Colore testo', kind: 'color' },
+    { key: 'background', label: 'Colore fascia', kind: 'color' },
+    { key: 'opacity', label: 'Opacità fascia', kind: 'number', min: 0, max: 100, scale: 0.01 },
+    ...POS_FIELDS
+  ],
+  prompter: [
+    { key: 'speed', label: 'Velocità (pixel al secondo su 1080)', kind: 'number', min: 0, max: 1000 },
+    { key: 'fontSize', label: 'Misura carattere (% altezza schermo)', kind: 'number', min: 1, max: 50, step: 0.5 },
+    { key: 'color', label: 'Colore testo', kind: 'color' },
+    { key: 'background', label: 'Colore sfondo', kind: 'color' },
+    ...POS_FIELDS
+  ],
+  media: [{ key: 'loop', label: 'Ripeti all\'infinito', kind: 'bool' }, ...POS_FIELDS],
+  ndi: POS_FIELDS,
+  capture: POS_FIELDS
+};
+
+function remoteFields(layer) {
+  const fields = [{ key: 'name', label: 'Nome', kind: 'text' }, ...(REMOTE_FIELDS[layer.type] || [])];
+  return fields.map((f) => ({
+    ...f,
+    label: t(f.label),
+    options: f.options && f.options.map(([v, l]) => [v, t(l)]),
+    value: f.kind === 'number' && f.scale ? Math.round((layer[f.key] / f.scale) * 100) / 100 : layer[f.key]
+  }));
+}
+
+// Controlla un valore arrivato dal telefono; undefined = da scartare.
+function remoteValue(field, v) {
+  switch (field.kind) {
+    case 'text': return typeof v === 'string' ? v.slice(0, 200) : undefined;
+    case 'area': return typeof v === 'string' ? v.slice(0, 5000) : undefined;
+    case 'bool': return !!v;
+    case 'color': return typeof v === 'string' && /^#[0-9a-f]{6}$/i.test(v) ? v.toLowerCase() : undefined;
+    case 'select': return field.options.some(([o]) => o === v) ? v : undefined;
+    case 'number': {
+      const n = Number(v);
+      if (!Number.isFinite(n)) return undefined;
+      const clamped = Math.max(field.min, Math.min(field.max, n));
+      return field.scale ? clamped * field.scale : clamped;
+    }
+    default: return undefined;
+  }
+}
+
+// Tipi che si possono aggiungere dal telefono (il media no: il file si
+// sceglie sul computer). In light valgono gli stessi limiti della regia.
+const REMOTE_ADD_TYPES = ['ndi', 'capture', 'timer', 'ticker', 'prompter'];
+
+// Stato semplificato per la pagina del telecomando.
+function remoteView() {
+  const item = (l) => ({
+    id: l.id,
+    name: l.name,
+    type: l.type,
+    typeLabel: t(TYPE_LABELS[l.type] || l.type),
+    visible: !!l.visible,
+    running: !!(l.run && l.run.running),
+    fields: remoteFields(l)
+  });
+  const scenes = state.layers.filter((l) => l.type === 'scene').map((s) => ({ id: s.id, name: s.name, fields: remoteFields(s), children: s.children.map(item) }));
+  return {
+    lang: state.lang,
+    studio: !!state.studio,
+    light: !!state.light,
+    program: state.program,
+    preview: state.preview,
+    scenes,
+    loose: state.layers.filter((l) => l.type !== 'scene').map(item),
+    addTypes: REMOTE_ADD_TYPES.map((type) => ({ type, label: t(TYPE_LABELS[type]), disabled: !canAddInLight(type) })),
+    labels: {
+      title: t('Telecomando'),
+      preview: t('Anteprima'),
+      program: t('In onda'),
+      scenes: t('Scene'),
+      loose: t('Fuori dalle scene (sempre in onda)'),
+      inputs: t('Input'),
+      start: t('Avvia'),
+      pause: t('Pausa'),
+      reset: t('Azzera'),
+      top: t('Inizio'),
+      show: t('Mostra'),
+      hide: t('Nascondi'),
+      empty: t('Nessun input: aggiungili dalla regia.'),
+      lost: t('Collegamento perso: riprovo…'),
+      studio: t('Modalità studio'),
+      studioHint: t('Mostra l\'anteprima con CUT e FADE'),
+      lightNoStudio: t('In modalità light non ci sono scene né anteprima.'),
+      details: t('Dettagli'),
+      close: t('Chiudi'),
+      add: t('Aggiungi'),
+      addScene: t('Aggiungi scena'),
+      addSceneHint: t('Clicca sugli input da mettere nella scena, anche più di uno. Se non ne scegli nessuno, la scena nasce vuota.'),
+      where: t('Dove'),
+      outside: t('Fuori dalle scene (sempre in onda)'),
+      mediaHint: t('Video e immagini si aggiungono dalla regia, dove si sceglie il file.'),
+      cancel: t('Annulla')
+    }
+  };
+}
+
+// Comandi accettati dal telefono, tradotti in comandi della regia.
+function remoteCommand(c) {
+  if (!c || typeof c !== 'object') return false;
+  const id = typeof c.id === 'string' ? c.id : null;
+  const layer = id ? findLayer(id) : null;
+  let cmd = null;
+  switch (c.type) {
+    case 'program': if (layer && layer.type === 'scene') cmd = { type: 'program', id, force: true }; break;
+    case 'preview': if (layer && layer.type === 'scene') cmd = { type: 'preview', id }; break;
+    case 'take': cmd = { type: 'take', kind: c.kind === 'fade' ? 'fade' : 'cut' }; break;
+    case 'studio': cmd = { type: 'set-studio', on: !!c.on }; break;
+    case 'visible': if (layer) cmd = { type: 'update-layer', id, patch: { visible: !!c.on } }; break;
+    case 'timer': if (layer && ['start', 'pause', 'reset'].includes(c.action)) cmd = { type: 'timer', id, action: c.action }; break;
+    case 'prompter': if (layer && ['start', 'pause', 'top'].includes(c.action)) cmd = { type: 'prompter', id, action: c.action }; break;
+    case 'edit': {
+      if (!layer || !c.patch || typeof c.patch !== 'object') break;
+      const fields = [{ key: 'name', kind: 'text' }, ...(REMOTE_FIELDS[layer.type] || [])];
+      const patch = {};
+      for (const [k, v] of Object.entries(c.patch)) {
+        const f = fields.find((x) => x.key === k);
+        const val = f && remoteValue(f, v);
+        if (val !== undefined) patch[k] = val;
+      }
+      if (Object.keys(patch).length) cmd = { type: 'update-layer', id, patch };
+      break;
+    }
+    case 'add': {
+      if (!REMOTE_ADD_TYPES.includes(c.layerType)) break;
+      const scene = c.sceneId ? findLayer(c.sceneId) : null;
+      cmd = { type: 'add-layer', layerType: c.layerType, sceneId: scene && scene.type === 'scene' ? scene.id : null };
+      break;
+    }
+    case 'add-scene':
+      cmd = { type: 'add-scene', types: (Array.isArray(c.types) ? c.types : []).filter((x) => REMOTE_ADD_TYPES.includes(x)) };
+      break;
+  }
+  if (!cmd) return false;
+  handleCommand(cmd);
+  return true;
+}
+
+// --- Pagina moderatore ---------------------------------------------------------
+// Mostra solo gli input con "Visualizza in Pagina Moderatore", con pochi
+// comandi: mostra/nascondi, timer e TelePrompt.
+
+function moderatorLayers() {
+  const out = [];
+  for (const l of state.layers) {
+    if (l.type === 'scene') {
+      for (const c of l.children) if (c.moderator) out.push({ layer: c, scene: l });
+    } else if (l.moderator) out.push({ layer: l, scene: null });
+  }
+  return out;
+}
+
+function moderatorView() {
+  const now = Date.now();
+  const items = moderatorLayers().map(({ layer: l, scene }) => {
+    const it = {
+      id: l.id,
+      name: l.name,
+      type: l.type,
+      typeLabel: t(TYPE_LABELS[l.type] || l.type),
+      visible: !!l.visible,
+      onAir: !!l.visible && (!scene || state.light || state.program === scene.id),
+      scene: scene ? scene.name : null
+    };
+    if (l.type === 'timer') {
+      it.timer = timerShowsClock(l)
+        ? { clock: formatClock(l, new Date(now)) }
+        : { ms: timerValueMs(l, now), running: !!l.run.running, up: l.direction === 'up', durationSec: l.durationSec,
+          warningSec: l.warningSec, color: l.color, warningColor: l.warningColor, endColor: l.endColor };
+    }
+    if (l.type === 'prompter') it.running = !!(l.run && l.run.running);
+    if (l.type === 'ticker') it.text = String(l.text || '').slice(0, 300);
+    return it;
+  });
+  return {
+    lang: state.lang,
+    items,
+    labels: {
+      title: t('Moderatore'),
+      onAir: t('In onda'),
+      off: t('Non in onda'),
+      show: t('Mostra'),
+      hide: t('Nascondi'),
+      start: t('Avvia'),
+      pause: t('Pausa'),
+      reset: t('Azzera'),
+      top: t('Inizio'),
+      empty: t('La regia non ha ancora scelto cosa mostrare qui.'),
+      lost: t('Collegamento perso: riprovo…')
+    }
+  };
+}
+
+function moderatorCommand(c) {
+  if (!c || typeof c !== 'object' || typeof c.id !== 'string') return false;
+  const found = moderatorLayers().find((x) => x.layer.id === c.id);
+  if (!found) return false;
+  const l = found.layer;
+  if (c.type === 'visible') return remoteCommand({ type: 'visible', id: l.id, on: !!c.on });
+  if (c.type === 'timer' && l.type === 'timer') return remoteCommand({ type: 'timer', id: l.id, action: c.action });
+  if (c.type === 'prompter' && l.type === 'prompter') return remoteCommand({ type: 'prompter', id: l.id, action: c.action });
+  return false;
+}
+
+function startWebRemote() {
+  const cfg = state.webRemote;
+  if (!cfg.token) cfg.token = newToken();
+  if (!cfg.modToken) cfg.modToken = newToken();
+  if (!cfg.hostKey) cfg.hostKey = crypto.randomBytes(24).toString('base64url');
+  webRemote.configure(cfg, remoteView, remoteCommand, () => broadcast(), { stateFn: moderatorView, runCommand: moderatorCommand });
+  // Da internet: passa dal ponte su Cloudflare (vedi relay/).
+  const url = /^https:\/\/[^\s/]+/.test(cfg.relayUrl || '') ? cfg.relayUrl : '';
+  relay.configure(cfg.enabled && cfg.internet && url ? { url, room: cfg.token, key: cfg.hostKey } : null,
+    remoteView, remoteCommand, () => broadcast());
+}
+
+ipcMain.handle('qr-code', (_evt, text) => QRCode.toDataURL(String(text || ''), { margin: 1, width: 360 }));
 
 // --- Uscita in NDI --------------------------------------------------------------
 
@@ -1017,6 +1301,7 @@ app.whenReady().then(() => {
   ndi.startDiscovery();
   createWindows();
   startRemote();
+  startWebRemote();
   displayNumbers.refresh().then(broadcast);
 
   const onDisplaysChanged = () => {
@@ -1034,4 +1319,6 @@ app.on('before-quit', () => {
   ndi.stopDiscovery();
   ndiOut.stop();
   remote.stop();
+  webRemote.stop();
+  relay.stop();
 });
