@@ -1,6 +1,6 @@
 # IGOR - ABit/s — Minimanual
 
-*Versión 0.4.15*
+*Versión 0.4.18*
 
 [Italiano](MANUALE.md#italiano) · [English](MANUALE.md#english) · **Español** · [Français](MANUALE-FR.md) · [中文](MANUALE-ZH.md) · [العربية](MANUALE-AR.md)
 
@@ -15,7 +15,7 @@ IGOR es una pequeña mesa de realización de vídeo para Windows y Mac. La **ven
   - *Ver*: modo light, modo studio, mostrar u ocultar instrucciones, restablecer la disposición, este minimanual.
 - **Barra inferior**
   - A la izquierda (azul): **Restablecer ventanas de paneles** devuelve todos los paneles de detalles a su posición inicial; **Separar ventana de detalles** abre los detalles de las entradas en una ventana aparte (el mismo botón, *Reintegrar ventana de detalles*, los devuelve a la ventana de control).
-  - A la derecha (gris), con iconos: **NDI** (verde = la salida se envía por la red como fuente «IGOR - ABit/s», rojo = apagado; al pasar el ratón se ven el nombre y los receptores conectados), **monitor** (mostrar/ocultar la salida), elección del **monitor** y de los **fotogramas por segundo**, **importar** y **exportar** la configuración (archivo `.igor`), **idioma** (italiano, inglés, español, francés, chino, árabe), **controlador MIDI** y **Companion / Stream Deck**.
+  - A la derecha (gris), con iconos: **NDI** (verde = la salida se envía por la red como fuente «IGOR - ABit/s», rojo = apagado; al pasar el ratón se ven el nombre y los receptores conectados), **monitor** (mostrar/ocultar la salida), elección del **monitor** y de los **fotogramas por segundo**, **importar** y **exportar** la configuración (archivo `.igor`), **idioma** (italiano, inglés, español, francés, chino, árabe), **controlador MIDI**, **Companion / Stream Deck** y **mando desde el móvil** (código QR, ver *Control remoto*).
   - Los monitores se numeran así: el principal es el número 1 y los demás siguen de izquierda a derecha.
 - **Vista previa** (arriba): arrastra un elemento para moverlo y una esquina para cambiar su tamaño (Mayús mantiene las proporciones). En vídeos e imágenes, los tiradores naranjas sirven para recortar.
 - **Columna de entradas** (a la derecha): el botón azul **+** añade una entrada (NDI, dispositivo de captura, multimedia, temporizador, rótulo de texto, TelePrompt). Para crear una escena pulsa **Añadir escena** abajo, haz clic en las entradas que quieras incluir (una o varias, o ninguna para una escena vacía) y luego en **Añadir**; el botón **LIGHT** pasa al modo light y se convierte en **STUDIO** para volver al modo completo (ver más abajo).

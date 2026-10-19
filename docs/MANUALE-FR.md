@@ -1,6 +1,6 @@
 # IGOR - ABit/s — Mini-manuel
 
-*Version 0.4.15*
+*Version 0.4.18*
 
 [Italiano](MANUALE.md#italiano) · [English](MANUALE.md#english) · [Español](MANUALE-ES.md) · **Français** · [中文](MANUALE-ZH.md) · [العربية](MANUALE-AR.md)
 
@@ -15,7 +15,7 @@ IGOR est une petite régie vidéo pour Windows et Mac. La **fenêtre de contrôl
   - *Affichage* : mode LIGHT, mode studio, instructions affichées ou non, réinitialisation de la disposition, ce mini-manuel.
 - **Barre du bas**
   - À gauche (en bleu) : **Réinitialiser les fenêtres des panneaux** remet tous les panneaux de détails à leur place d'origine ; **Détacher la fenêtre Détails** ouvre les détails des entrées dans une fenêtre à part (le même bouton, devenu *Rattacher la fenêtre Détails*, les ramène dans la fenêtre de contrôle).
-  - À droite (en gris), sous forme d'icônes : **NDI** (vert = la sortie est diffusée sur le réseau comme source « IGOR - ABit/s », rouge = désactivé ; au survol, on voit le nom et les récepteurs connectés), **écran** (afficher/masquer la sortie), choix de l'**écran** et des **images par seconde**, **importer** et **exporter** la configuration (fichier `.igor`), **langue** (italien, anglais, espagnol, français, chinois, arabe), **contrôleur MIDI** et **Companion / Stream Deck**.
+  - À droite (en gris), sous forme d'icônes : **NDI** (vert = la sortie est diffusée sur le réseau comme source « IGOR - ABit/s », rouge = désactivé ; au survol, on voit le nom et les récepteurs connectés), **écran** (afficher/masquer la sortie), choix de l'**écran** et des **images par seconde**, **importer** et **exporter** la configuration (fichier `.igor`), **langue** (italien, anglais, espagnol, français, chinois, arabe), **contrôleur MIDI**, **Companion / Stream Deck** et **télécommande sur téléphone** (QR code, voir *Contrôle à distance*).
   - Les écrans sont numérotés ainsi : l'écran principal porte le numéro 1, les autres suivent de gauche à droite.
 - **Aperçu** (en haut) : faites glisser un élément pour le déplacer, un coin pour le redimensionner (Maj conserve les proportions). Sur les vidéos et les images, les poignées orange servent à recadrer.
 - **Colonne des entrées** (à droite) : le bouton bleu **+** ajoute une entrée (NDI, périphérique de capture, média, minuteur, bandeau texte, TelePrompt). Pour créer une scène, cliquez sur **Ajouter une scène** en bas, cliquez sur les entrées à y placer (une ou plusieurs, ou aucune pour une scène vide), puis sur **Ajouter** ; le bouton **LIGHT** passe en mode LIGHT et devient **STUDIO** pour revenir au mode complet (voir plus bas).
