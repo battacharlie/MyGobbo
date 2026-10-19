@@ -2,6 +2,13 @@
 // Un testo che manca qui si mostra in inglese.
 (function (root) {
   const DICT = {
+    "Visualizza in Pagina Moderatore": "在主持人页面显示",
+    "Mostra questo input, con i suoi comandi, nella pagina del moderatore (QR code nel telecomando dal telefono)": "在主持人页面显示此输入及其控制（手机遥控中的二维码）",
+    "Pagina moderatore": "主持人页面",
+    "Un secondo QR code per il moderatore (tablet o telefono sulla stessa rete): vede solo gli input con \"Visualizza in Pagina Moderatore\" e i loro comandi.": "给主持人的第二个二维码（同一网络中的平板或手机）：只能看到勾选了“在主持人页面显示”的输入及其控制。",
+    "Moderatore": "主持人",
+    "Non in onda": "未播出",
+    "La regia non ha ancora scelto cosa mostrare qui.": "导播尚未选择在此显示的内容。",
     "Scrivi l'indirizzo del ponte (inizia con https://).": "请输入中继地址（以 https:// 开头）。",
     "Ponte non raggiungibile: {error}": "无法连接中继：{error}",
     "Collegamento al ponte…": "正在连接中继…",

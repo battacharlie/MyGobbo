@@ -29,7 +29,8 @@
   // Proprietà di ogni singola comparsa di un input. Tutte le altre (sorgente,
   // file, testo, colori, stato del timer...) sono condivise tra le copie dello
   // stesso input messe in scene diverse, come in OBS.
-  const PER_ITEM = ['id', 'type', 'name', 'visible', 'x', 'y', 'w', 'h', 'crop', 'fit', 'link', 'children'];
+  // moderator: l'input compare nella pagina moderatore (solo questa copia).
+  const PER_ITEM = ['id', 'type', 'name', 'visible', 'x', 'y', 'w', 'h', 'crop', 'fit', 'link', 'children', 'moderator'];
 
   // Proprietà che "Ripristina misure" non tocca: identità e contenuto
   // dell'input (sorgente, file, testo) e lo stato di timer e TelePrompt.

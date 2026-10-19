@@ -2,6 +2,13 @@
 // Un testo che manca qui si mostra in inglese.
 (function (root) {
   const DICT = {
+    "Visualizza in Pagina Moderatore": "إظهار في صفحة المُحاور",
+    "Mostra questo input, con i suoi comandi, nella pagina del moderatore (QR code nel telecomando dal telefono)": "إظهار هذا الإدخال مع أوامره في صفحة المُحاور (رمز QR في جهاز التحكم من الهاتف)",
+    "Pagina moderatore": "صفحة المُحاور",
+    "Un secondo QR code per il moderatore (tablet o telefono sulla stessa rete): vede solo gli input con \"Visualizza in Pagina Moderatore\" e i loro comandi.": "رمز QR ثانٍ للمُحاور (جهاز لوحي أو هاتف على الشبكة نفسها): يرى فقط الإدخالات المحددة بـ \"إظهار في صفحة المُحاور\" وأوامرها.",
+    "Moderatore": "المُحاور",
+    "Non in onda": "خارج البث",
+    "La regia non ha ancora scelto cosa mostrare qui.": "لم تختر غرفة التحكم بعد ما يُعرض هنا.",
     "Scrivi l'indirizzo del ponte (inizia con https://).": "أدخل عنوان الجسر (يبدأ بـ https://).",
     "Ponte non raggiungibile: {error}": "تعذر الوصول إلى الجسر: {error}",
     "Collegamento al ponte…": "جارٍ الاتصال بالجسر…",

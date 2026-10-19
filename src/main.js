@@ -2,7 +2,7 @@ const { app, BrowserWindow, ipcMain, screen, session, dialog, shell, systemPrefe
 const path = require('path');
 const fs = require('fs');
 const { pathToFileURL } = require('url');
-const { createLayer, timerElapsedMs, prompterY, TIMER_COLORS, TYPE_LABELS, MAX_FPS, DEFAULT_FPS, VIDEO_EXT, IMAGE_EXT, PER_ITEM, KEEP_ON_RESET, allLayers, findNode, composeLayers, newId, isVisual } = require('./shared/layers');
+const { createLayer, timerElapsedMs, timerValueMs, timerShowsClock, formatClock, prompterY, TIMER_COLORS, TYPE_LABELS, MAX_FPS, DEFAULT_FPS, VIDEO_EXT, IMAGE_EXT, PER_ITEM, KEEP_ON_RESET, allLayers, findNode, composeLayers, newId, isVisual } = require('./shared/layers');
 const ndi = require('./ndi');
 const { readTextFile, TEXT_EXT } = require('./textimport');
 const { pickColor } = require('./picker/main');
@@ -61,7 +61,7 @@ const DEFAULT_STATE = {
   midi: [], // associazioni MIDI: { key, action, arg }
   http: { enabled: false, port: 8765, lan: false }, // comandi per Companion / Stream Deck
   // Telecomando dal browser (rete locale).
-  webRemote: { enabled: false, port: 8780, token: '', internet: false, relayUrl: '', hostKey: '' },
+  webRemote: { enabled: false, port: 8780, token: '', modToken: '', internet: false, relayUrl: '', hostKey: '' },
   ndiOut: false // uscita inviata in rete come sorgente NDI
 };
 // Parti dello stato salvate in "Esporta configurazione".
@@ -983,7 +983,7 @@ function handleCommand(cmd) {
       state.midi = Array.isArray(cmd.midi) ? cmd.midi : [];
       break;
     case 'set-web-remote':
-      state.webRemote = { ...state.webRemote, ...cmd.webRemote, token: state.webRemote.token, hostKey: state.webRemote.hostKey };
+      state.webRemote = { ...state.webRemote, ...cmd.webRemote, token: state.webRemote.token, modToken: state.webRemote.modToken, hostKey: state.webRemote.hostKey };
       state.webRemote.relayUrl = String(state.webRemote.relayUrl || '').trim().slice(0, 300);
       state.webRemote.port = Math.max(1024, Math.min(65535, Number(state.webRemote.port) || 8780));
       startWebRemote();
@@ -991,6 +991,7 @@ function handleCommand(cmd) {
     case 'new-web-remote-token':
       // Codice nuovo: chi aveva il vecchio indirizzo non entra più.
       state.webRemote.token = newToken();
+      state.webRemote.modToken = newToken();
       startWebRemote();
       break;
     case 'set-http':
@@ -1197,11 +1198,78 @@ function remoteCommand(c) {
   return true;
 }
 
+// --- Pagina moderatore ---------------------------------------------------------
+// Mostra solo gli input con "Visualizza in Pagina Moderatore", con pochi
+// comandi: mostra/nascondi, timer e TelePrompt.
+
+function moderatorLayers() {
+  const out = [];
+  for (const l of state.layers) {
+    if (l.type === 'scene') {
+      for (const c of l.children) if (c.moderator) out.push({ layer: c, scene: l });
+    } else if (l.moderator) out.push({ layer: l, scene: null });
+  }
+  return out;
+}
+
+function moderatorView() {
+  const now = Date.now();
+  const items = moderatorLayers().map(({ layer: l, scene }) => {
+    const it = {
+      id: l.id,
+      name: l.name,
+      type: l.type,
+      typeLabel: t(TYPE_LABELS[l.type] || l.type),
+      visible: !!l.visible,
+      onAir: !!l.visible && (!scene || state.light || state.program === scene.id),
+      scene: scene ? scene.name : null
+    };
+    if (l.type === 'timer') {
+      it.timer = timerShowsClock(l)
+        ? { clock: formatClock(l, new Date(now)) }
+        : { ms: timerValueMs(l, now), running: !!l.run.running, up: l.direction === 'up', durationSec: l.durationSec,
+          warningSec: l.warningSec, color: l.color, warningColor: l.warningColor, endColor: l.endColor };
+    }
+    if (l.type === 'prompter') it.running = !!(l.run && l.run.running);
+    if (l.type === 'ticker') it.text = String(l.text || '').slice(0, 300);
+    return it;
+  });
+  return {
+    lang: state.lang,
+    items,
+    labels: {
+      title: t('Moderatore'),
+      onAir: t('In onda'),
+      off: t('Non in onda'),
+      show: t('Mostra'),
+      hide: t('Nascondi'),
+      start: t('Avvia'),
+      pause: t('Pausa'),
+      reset: t('Azzera'),
+      top: t('Inizio'),
+      empty: t('La regia non ha ancora scelto cosa mostrare qui.'),
+      lost: t('Collegamento perso: riprovo…')
+    }
+  };
+}
+
+function moderatorCommand(c) {
+  if (!c || typeof c !== 'object' || typeof c.id !== 'string') return false;
+  const found = moderatorLayers().find((x) => x.layer.id === c.id);
+  if (!found) return false;
+  const l = found.layer;
+  if (c.type === 'visible') return remoteCommand({ type: 'visible', id: l.id, on: !!c.on });
+  if (c.type === 'timer' && l.type === 'timer') return remoteCommand({ type: 'timer', id: l.id, action: c.action });
+  if (c.type === 'prompter' && l.type === 'prompter') return remoteCommand({ type: 'prompter', id: l.id, action: c.action });
+  return false;
+}
+
 function startWebRemote() {
   const cfg = state.webRemote;
   if (!cfg.token) cfg.token = newToken();
+  if (!cfg.modToken) cfg.modToken = newToken();
   if (!cfg.hostKey) cfg.hostKey = crypto.randomBytes(24).toString('base64url');
-  webRemote.configure(cfg, remoteView, remoteCommand, () => broadcast());
+  webRemote.configure(cfg, remoteView, remoteCommand, () => broadcast(), { stateFn: moderatorView, runCommand: moderatorCommand });
   // Da internet: passa dal ponte su Cloudflare (vedi relay/).
   const url = /^https:\/\/[^\s/]+/.test(cfg.relayUrl || '') ? cfg.relayUrl : '';
   relay.configure(cfg.enabled && cfg.internet && url ? { url, room: cfg.token, key: cfg.hostKey } : null,

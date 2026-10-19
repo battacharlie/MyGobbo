@@ -2,6 +2,13 @@
 // Un testo che manca qui si mostra in inglese.
 (function (root) {
   const DICT = {
+    "Visualizza in Pagina Moderatore": "Afficher sur la page modérateur",
+    "Mostra questo input, con i suoi comandi, nella pagina del moderatore (QR code nel telecomando dal telefono)": "Affiche cette entrée, avec ses commandes, sur la page du modérateur (QR code dans la télécommande sur téléphone)",
+    "Pagina moderatore": "Page modérateur",
+    "Un secondo QR code per il moderatore (tablet o telefono sulla stessa rete): vede solo gli input con \"Visualizza in Pagina Moderatore\" e i loro comandi.": "Un second QR code pour le modérateur (tablette ou téléphone sur le même réseau) : il ne voit que les entrées cochées « Afficher sur la page modérateur » et leurs commandes.",
+    "Moderatore": "Modérateur",
+    "Non in onda": "Hors antenne",
+    "La regia non ha ancora scelto cosa mostrare qui.": "La régie n'a encore rien choisi à afficher ici.",
     "Scrivi l'indirizzo del ponte (inizia con https://).": "Saisissez l'adresse du relais (commence par https://).",
     "Ponte non raggiungibile: {error}": "Relais injoignable : {error}",
     "Collegamento al ponte…": "Connexion au relais…",

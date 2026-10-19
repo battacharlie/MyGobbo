@@ -695,7 +695,9 @@ function buildPanel() {
 
   // Prima scheda: solo il nome. Visibilità, ordine e scena si cambiano
   // dall'elenco degli input (occhio, trascinamento, tasto destro).
-  const nameCard = card(TYPE_LABELS[layer.type], field('Nome', textInput('name')));
+  const modCheck = checkbox('Visualizza in Pagina Moderatore', 'moderator');
+  modCheck.title = t('Mostra questo input, con i suoi comandi, nella pagina del moderatore (QR code nel telecomando dal telefono)');
+  const nameCard = card(TYPE_LABELS[layer.type], field('Nome', textInput('name')), modCheck);
   nameCard.dataset.size = 'short';
   panel.append(nameCard);
 
@@ -2497,6 +2499,8 @@ async function videoDevices(ask) {
 // raggiunge inquadrando il QR code (stessa rete Wi-Fi del computer).
 
 let webRemoteSig = '';
+// "Anche da internet" (ponte su Cloudflare) è pronto ma per ora non si mostra.
+const SHOW_INTERNET = false;
 async function renderWebRemoteDialog() {
   const dlg = $('dlg-webremote');
   const cfg = state.webRemote || {};
@@ -2529,6 +2533,15 @@ async function renderWebRemoteDialog() {
     relayLine);
 
   const codes = h('div', { class: 'qr-list' });
+  const modCodes = h('div', { class: 'qr-list' });
+  const qrBox = (list, url) => {
+    const img = h('img', { class: 'qr', alt: url });
+    const link = h('div', { class: 'qr-url' }, url,
+      h('button', { class: 'small-btn', title: t('Copia'), onclick: () => navigator.clipboard.writeText(url) }, '⧉'));
+    list.appendChild(h('div', { class: 'qr-box' }, img, link));
+    api.qrCode(url).then((data) => { img.src = data; });
+  };
+  for (const url of (cfg.enabled && st.modUrls) || []) qrBox(modCodes, url);
   let statusLine;
   if (st.error) statusLine = h('div', { class: 'notice' }, t('Il server non è partito: {error}', { error: st.error }));
   else if (!cfg.enabled) statusLine = h('p', { class: 'muted small' }, t('Spento.'));
@@ -2540,9 +2553,14 @@ async function renderWebRemoteDialog() {
       h('label', { class: 'check' }, enabled, t('Attiva il telecomando')),
       h('label', { class: 'field inline' }, h('span', {}, t('Porta')), port)),
     statusLine,
-    cfg.enabled ? internetBox : null,
-    codes,
-    help(t('Dalla pagina si mandano in onda le scene, si usano CUT e FADE, si mostrano e nascondono gli input e si avviano timer e TelePrompt.')),
+    ...(cfg.enabled && SHOW_INTERNET ? [internetBox] : []),
+    ...(!cfg.enabled || !(st.urls || []).length ? [] : [h('div', { class: 'qr-cols' },
+      h('div', {}, h('h3', {}, t('Telecomando')),
+        help(t('Dalla pagina si mandano in onda le scene, si usano CUT e FADE, si mostrano e nascondono gli input e si avviano timer e TelePrompt.')),
+        codes),
+      h('div', {}, h('h3', {}, t('Pagina moderatore')),
+        help(t('Un secondo QR code per il moderatore (tablet o telefono sulla stessa rete): vede solo gli input con "Visualizza in Pagina Moderatore" e i loro comandi.')),
+        modCodes))]),
     h('div', { class: 'row end' },
       cfg.enabled ? h('button', {
         title: t('Crea un indirizzo nuovo: chi aveva quello vecchio non può più usare il telecomando'),
@@ -2551,14 +2569,8 @@ async function renderWebRemoteDialog() {
       h('span', { class: 'grow' }),
       h('button', { title: t('Chiudi'), onclick: () => dlg.close() }, t('Chiudi'))));
   const urls = [...((cfg.enabled && st.urls) || [])];
-  if (cfg.enabled && cfg.internet && rs.connected && rs.url) urls.unshift(rs.url);
-  for (const url of urls) {
-    const img = h('img', { class: 'qr', alt: url });
-    const link = h('div', { class: 'qr-url' }, url,
-      h('button', { class: 'small-btn', title: t('Copia'), onclick: () => navigator.clipboard.writeText(url) }, '⧉'));
-    codes.appendChild(h('div', { class: 'qr-box' }, img, link));
-    api.qrCode(url).then((data) => { img.src = data; });
-  }
+  if (SHOW_INTERNET && cfg.enabled && cfg.internet && rs.connected && rs.url) urls.unshift(rs.url);
+  for (const url of urls) qrBox(codes, url);
 }
 
 function openWebRemoteDialog() {

@@ -53,6 +53,8 @@ Una scena raccoglie più input; in onda va una scena alla volta. Gli input fuori
 ### Controllo remoto
 - **MIDI**: scegli un comando, premi *Impara* e tocca un tasto del controller.
 - **Companion**: attiva *Accetta comandi via HTTP* e usa indirizzi come `http://127.0.0.1:8765/api/cut` (modulo *Generic HTTP*). Guida completa: [COMPANION.md](COMPANION.md).
+- **Telecomando dal telefono** (icona del telefono nella barra in basso): attiva il telecomando e inquadra il QR code con un telefono o tablet collegato alla stessa rete Wi-Fi. Dalla pagina si mandano le scene in anteprima o in onda, si usano CUT e FADE, si attiva la modalità studio, si mostrano e nascondono gli input, si avviano timer e TelePrompt, si aprono i dettagli di ogni input per cambiarne i parametri e con **+** si aggiungono input e scene. *Nuovo codice* cambia gli indirizzi: i vecchi link smettono di funzionare.
+- **Pagina moderatore**: nella stessa finestra c'è un secondo QR code da dare al moderatore (tablet o il suo telefono, sulla stessa rete). Vede solo gli input in cui la regia ha spuntato **Visualizza in Pagina Moderatore** (prima scheda dei dettagli dell'input, sotto il nome), se sono in onda, il tempo dei timer e pochi comandi: mostra/nascondi, avvia/pausa/azzera il timer, avvia/pausa/inizio del TelePrompt.
 
 ### Consigli
 - *Visualizza → Ripristina la disposizione delle finestre* rimette schede e zone come all'inizio.
@@ -107,6 +109,8 @@ A scene groups several inputs; one scene at a time is on air. Inputs outside sce
 ### Remote control
 - **MIDI**: choose a command, press *Learn* and touch a key on the controller.
 - **Companion**: turn on *Accept commands over HTTP* and use addresses like `http://127.0.0.1:8765/api/cut` (*Generic HTTP* module). Full guide: [COMPANION.md](COMPANION.md).
+- **Phone remote** (phone icon in the bottom bar): enable the remote and scan the QR code with a phone or tablet on the same Wi-Fi network. From the page you put scenes in preview or on air, use CUT and FADE, turn studio mode on, show and hide inputs, start timers and TelePrompts, open the details of each input to change its settings, and add inputs and scenes with **+**. *New code* changes the addresses: old links stop working.
+- **Moderator page**: the same window has a second QR code to give the moderator (a tablet or their own phone, on the same network). They only see the inputs where the control room ticked **Show on Moderator Page** (first card of the input details, under the name), whether they are on air, the timer countdown and a few controls: show/hide, start/pause/reset the timer, start/pause/top of the TelePrompt.
 
 ### Tips
 - *View → Reset the window layout* puts panels and zones back as they were at the start.

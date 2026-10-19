@@ -4,17 +4,21 @@
 //   GET  /r/<token>         la pagina
 //   GET  /r/<token>/state   lo stato semplificato (JSON)
 //   POST /r/<token>/cmd     un comando (JSON)
+// La pagina moderatore (/m/<codice moderatore>/...) ha un suo codice e mostra
+// solo gli input che la regia sceglie, con pochi comandi.
 const http = require('http');
 const os = require('os');
 const path = require('path');
 const fs = require('fs');
 
 let server = null;
-let current = null; // { port, token }
+let current = null; // { port, token, modToken }
 let lastError = null;
 let getState = () => null;
 let run = () => {};
 let onChange = () => {};
+let getModState = () => null;
+let runMod = () => false;
 
 function addresses() {
   const out = [];
@@ -30,15 +34,24 @@ function status() {
     running,
     port: current && current.port,
     urls: running ? addresses().map((a) => `http://${a}:${current.port}/r/${current.token}`) : [],
+    modUrls: running && current.modToken ? addresses().map((a) => `http://${a}:${current.port}/m/${current.modToken}`) : [],
     path: running ? `/r/${current.token}` : null,
     error: lastError
   };
 }
 
-let pageCache = null;
-function page() {
-  if (!pageCache) pageCache = fs.readFileSync(path.join(__dirname, 'webremote', 'page.html'), 'utf8');
-  return pageCache;
+const pageCache = {};
+function page(file) {
+  if (!pageCache[file]) pageCache[file] = fs.readFileSync(path.join(__dirname, 'webremote', file), 'utf8');
+  return pageCache[file];
+}
+
+// Le due pagine: telecomando completo (r) e moderatore (m).
+function route(kind, code) {
+  if (!current || !code) return null;
+  if (kind === 'r' && code === current.token) return { file: 'page.html', state: getState, run };
+  if (kind === 'm' && code === current.modToken) return { file: 'moderator.html', state: getModState, run: runMod };
+  return null;
 }
 
 function handle(req, res) {
@@ -48,10 +61,11 @@ function handle(req, res) {
     res.writeHead(code, { 'Content-Type': type, 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex' });
     res.end(body);
   };
-  if (parts[0] !== 'r' || !current || parts[1] !== current.token) return reply(404, 'text/plain; charset=utf-8', 'IGOR: link non valido / invalid link');
+  const r = route(parts[0], parts[1]);
+  if (!r) return reply(404, 'text/plain; charset=utf-8', 'IGOR: link non valido / invalid link');
   const sub = parts[2] || '';
-  if (sub === '' && req.method === 'GET') return reply(200, 'text/html; charset=utf-8', page());
-  if (sub === 'state' && req.method === 'GET') return reply(200, 'application/json', JSON.stringify(getState()));
+  if (sub === '' && req.method === 'GET') return reply(200, 'text/html; charset=utf-8', page(r.file));
+  if (sub === 'state' && req.method === 'GET') return reply(200, 'application/json', JSON.stringify(r.state()));
   if (sub === 'cmd' && req.method === 'POST') {
     let body = '';
     req.on('data', (d) => {
@@ -61,7 +75,7 @@ function handle(req, res) {
     req.on('end', () => {
       let ok = false;
       try {
-        ok = run(JSON.parse(body));
+        ok = r.run(JSON.parse(body));
       } catch { /* JSON non valido */ }
       reply(ok ? 200 : 400, 'application/json', JSON.stringify({ ok: !!ok }));
     });
@@ -76,13 +90,17 @@ function stop() {
   current = null;
 }
 
-// settings: { enabled, port, token }; stateFn: stato per la pagina;
-// runCommand: controlla ed esegue un comando del telecomando (true = fatto); changed: lo stato del server è cambiato.
-function configure(settings, stateFn, runCommand, changed) {
+// settings: { enabled, port, token, modToken }; stateFn: stato per la pagina;
+// runCommand: controlla ed esegue un comando del telecomando (true = fatto); changed: lo stato del server è cambiato;
+// mod: { stateFn, runCommand } per la pagina moderatore.
+function configure(settings, stateFn, runCommand, changed, mod = {}) {
   getState = stateFn;
   run = runCommand;
   onChange = changed;
-  const want = settings && settings.enabled && settings.token ? { port: settings.port, token: settings.token } : null;
+  getModState = mod.stateFn || (() => null);
+  runMod = mod.runCommand || (() => false);
+  const want = settings && settings.enabled && settings.token
+    ? { port: settings.port, token: settings.token, modToken: settings.modToken || '' } : null;
   if (JSON.stringify(want) === JSON.stringify(current) && (server || !want)) return;
   stop();
   lastError = null;

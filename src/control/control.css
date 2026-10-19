@@ -417,6 +417,8 @@ html[lang="ar"] :is(p, label, span, strong, h2, h3, small, button, option, .help
 
 /* Telecomando dal telefono: QR code */
 .qr-list { display: flex; flex-wrap: wrap; gap: 16px; margin: 10px 0; }
+.qr-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+.qr-cols h3 { margin: 6px 0 4px; font-size: 13px; text-transform: uppercase; letter-spacing: .05em; color: #c1c1c1; }
 .qr-box { display: flex; flex-direction: column; align-items: center; gap: 6px; }
 .qr { width: 220px; height: 220px; background: #fff; border-radius: 8px; padding: 6px; image-rendering: pixelated; }
 .qr-url { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--igor-grey); word-break: break-all; max-width: 320px; }
